@@ -154,7 +154,7 @@ NODE
   echo "[sites] network and integrity preflight passed"
 fi
 
-echo "[sites] running exactly one bounded npm ci"
+echo "[sites] running one bounded npm ci"
 export NPM_CONFIG_MAXSOCKETS=1
 export NPM_CONFIG_FETCH_RETRIES=0
 export NPM_CONFIG_FETCH_TIMEOUT=30000

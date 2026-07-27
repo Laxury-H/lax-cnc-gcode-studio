@@ -1,4 +1,4 @@
-import { access, cp, mkdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
@@ -28,17 +28,26 @@ export function sites(): Plugin {
       const outputDirectory = resolve(root, "dist", ".openai");
       const hostingConfig = resolve(root, ".openai", "hosting.json");
       const drizzleSource = resolve(root, "drizzle");
+      const workerEntry = resolve(root, "dist", "server", "index.js");
 
       await rm(outputDirectory, { recursive: true, force: true });
-      await mkdir(outputDirectory, { recursive: true });
 
       if (await exists(hostingConfig)) {
+        JSON.parse(await readFile(hostingConfig, "utf8"));
+        await mkdir(outputDirectory, { recursive: true });
         await cp(hostingConfig, resolve(outputDirectory, "hosting.json"));
       }
       if (await exists(drizzleSource)) {
+        await mkdir(outputDirectory, { recursive: true });
         await cp(drizzleSource, resolve(outputDirectory, "drizzle"), {
           recursive: true,
         });
+      }
+
+      if (!(await exists(workerEntry))) {
+        throw new Error(
+          "Production build did not create dist/server/index.js.",
+        );
       }
     },
   };

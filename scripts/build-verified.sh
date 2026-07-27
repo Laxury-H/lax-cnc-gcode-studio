@@ -18,7 +18,7 @@ if [[ ! -x "${vinext}" ]]; then
   exit 69
 fi
 
-echo "Running bounded vinext build..."
+echo "Running the bounded vinext build..."
 timeout \
   --signal=TERM \
   --kill-after="${SITES_BUILD_KILL_AFTER:-10s}" \
