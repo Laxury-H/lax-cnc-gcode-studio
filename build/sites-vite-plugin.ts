@@ -25,6 +25,13 @@ export function sites(): Plugin {
       root = config.root;
     },
     async closeBundle() {
+      if (
+        this.environment.name !== "ssr" ||
+        this.environment.config.build.write === false
+      ) {
+        return;
+      }
+
       const outputDirectory = resolve(root, "dist", ".openai");
       const hostingConfig = resolve(root, ".openai", "hosting.json");
       const drizzleSource = resolve(root, "drizzle");

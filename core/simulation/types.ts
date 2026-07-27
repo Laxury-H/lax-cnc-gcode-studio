@@ -49,6 +49,8 @@ export type Segment = {
   units: Units;
   length: number;
   estimatedDurationMs: number;
+  cannedCycleKey?: string;
+  cycleInstanceId?: number;
 };
 
 export type Part = {

@@ -143,10 +143,14 @@ export type NormalizedMotion = {
   feed?: number;
   spindle?: number;
   tool?: number;
+  spindleState: SpindleState;
+  coolant: CoolantState;
+  coordinateSystem: CoordinateSystem;
   units: Units;
   distance: number;
   estimatedDurationMs: number;
   cannedCycle?: CannedCycleState["code"];
+  cycleInstanceId?: number;
 };
 
 export type ParsedProgram = {
