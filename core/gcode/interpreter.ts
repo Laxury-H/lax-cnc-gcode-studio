@@ -360,8 +360,12 @@ function applyScalarWords(
         ? feedWord.value
         : feedWord.value * scale;
   }
-  if (spindleWord) context.state.spindle = spindleWord.value;
-  if (toolWord) context.state.selectedTool = Math.trunc(toolWord.value);
+  if (toolWord) {
+    context.state.selectedTool = Math.trunc(toolWord.value);
+    if (context.state.tool === null) {
+      context.state.tool = context.state.selectedTool;
+    }
+  }
 }
 
 function applyMachineState(

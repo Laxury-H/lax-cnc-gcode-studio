@@ -17,6 +17,7 @@ import type {
   Vec3,
 } from "../gcode/types";
 import { detectParts, rectangleGap } from "./parts";
+import { extractOffcuts } from "./remnants";
 import type {
   MotionKind,
   Segment,
@@ -58,6 +59,7 @@ export function parseProgram(
   });
   const segments = interpreted.motions.map(motionToSegment);
   const parts = detectParts(segments, stock);
+  const offcuts = extractOffcuts(parts, stock);
   const diagnostics = addStudioDiagnostics(
     interpreted.diagnostics,
     interpreted.motions,
@@ -103,6 +105,7 @@ export function parseProgram(
     motions: interpreted.motions,
     diagnostics,
     parts,
+    offcuts,
     cutLength,
     rapidLength,
     estimatedSeconds:
@@ -369,3 +372,7 @@ function partDiagnostic(
     rawText: segment?.raw ?? "",
   });
 }
+
+export { extractOffcuts } from "./remnants";
+export { generateSmartResume } from "./recovery";
+export { exportCAM } from "./post-processor";

@@ -19,10 +19,13 @@ import {
 } from "@/core/geometry/line";
 import {
   DEFAULT_STOCK,
+  exportCAM,
+  generateSmartResume,
   orientStockForProgram,
   parseProgram,
 } from "@/core/simulation/studio-program";
 import type {
+  PostProcessorType,
   Segment,
   Simulation,
   StockSettings,
@@ -343,6 +346,12 @@ function Icon({
       <>
         <path d="m4 16-.8 4.8L8 20l11-11-4-4Z" />
         <path d="m13 7 4 4" />
+      </>
+    ),
+    copy: (
+      <>
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
       </>
     ),
     close: (
@@ -1554,7 +1563,12 @@ export default function Home() {
   const [showRapids, setShowRapids] = useState(false);
   const [codeCollapsed, setCodeCollapsed] = useState(false);
   const [simulatorExpanded, setSimulatorExpanded] = useState(false);
-  const [drawer, setDrawer] = useState<"diagnostics" | "parts" | null>(null);
+  const [drawer, setDrawer] = useState<
+    "diagnostics" | "parts" | "offcuts" | "resume" | "export" | null
+  >(null);
+  const [resumeSegment, setResumeSegment] = useState(5);
+  const [resumeSafeZ, setResumeSafeZ] = useState(50);
+  const [exportType, setExportType] = useState<PostProcessorType>("ncstudio");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -2012,6 +2026,24 @@ export default function Home() {
             active={drawer === "parts"}
           />
           <ToolbarButton
+            icon="cube"
+            label="Phôi dư (Remnants & Offcuts)"
+            onClick={() => setDrawer("offcuts")}
+            active={drawer === "offcuts"}
+          />
+          <ToolbarButton
+            icon="step"
+            label="Phục hồi cắt dở (Smart Resume)"
+            onClick={() => setDrawer("resume")}
+            active={drawer === "resume"}
+          />
+          <ToolbarButton
+            icon="upload"
+            label="Xuất G-code CAM (Weihong / Syntec)"
+            onClick={() => setDrawer("export")}
+            active={drawer === "export"}
+          />
+          <ToolbarButton
             icon="settings"
             label="Thiết lập phôi và máy"
             onClick={() => setSettingsOpen(true)}
@@ -2303,7 +2335,13 @@ export default function Home() {
                 <h2>
                   {drawer === "diagnostics"
                     ? "Lỗi & cảnh báo"
-                    : "Kích thước chi tiết"}
+                    : drawer === "parts"
+                      ? "Kích thước chi tiết"
+                      : drawer === "offcuts"
+                        ? "Phôi dư khả dụng (MER)"
+                        : drawer === "resume"
+                          ? "Phục hồi cắt dở (Smart Resume)"
+                          : "Xuất G-code CAM"}
                 </h2>
               </div>
               <button type="button" onClick={() => setDrawer(null)} aria-label="Đóng">
@@ -2324,6 +2362,27 @@ export default function Home() {
                 onClick={() => setDrawer("parts")}
               >
                 Chi tiết <span>{simulation.parts.length}</span>
+              </button>
+              <button
+                type="button"
+                className={drawer === "offcuts" ? "is-active" : ""}
+                onClick={() => setDrawer("offcuts")}
+              >
+                Phôi dư <span>{simulation.offcuts?.length ?? 0}</span>
+              </button>
+              <button
+                type="button"
+                className={drawer === "resume" ? "is-active" : ""}
+                onClick={() => setDrawer("resume")}
+              >
+                Phục hồi
+              </button>
+              <button
+                type="button"
+                className={drawer === "export" ? "is-active" : ""}
+                onClick={() => setDrawer("export")}
+              >
+                Xuất CAM
               </button>
             </div>
             <div className="drawer-content">
@@ -2364,6 +2423,166 @@ export default function Home() {
                     </p>
                   </div>
                 )
+              ) : drawer === "offcuts" ? (
+                simulation.offcuts && simulation.offcuts.length ? (
+                  <>
+                    <div className="part-summary">
+                      <div>
+                        <small>Phôi dư khả dụng</small>
+                        <strong>{simulation.offcuts.length} vùng trống (MER)</strong>
+                      </div>
+                      <div>
+                        <small>Kích thước phôi chính</small>
+                        <strong>{stock.width} × {stock.height} mm</strong>
+                      </div>
+                    </div>
+                    <div className="parts-table">
+                      <div className="parts-table-head">
+                        <span>Mã</span>
+                        <span>Kích thước (R × D)</span>
+                        <span>Tọa độ (X, Y)</span>
+                        <span>Tỷ lệ diện tích</span>
+                      </div>
+                      {simulation.offcuts.map((off) => {
+                        const pct = ((off.area / (stock.width * stock.height)) * 100).toFixed(1);
+                        return (
+                          <button
+                            type="button"
+                            key={off.id}
+                            onClick={() => {
+                              setPan({ x: -off.minX, y: -off.minY });
+                              setZoom(1.5);
+                            }}
+                          >
+                            <b>{off.id}</b>
+                            <span>{off.width.toFixed(1)} × {off.height.toFixed(1)} mm</span>
+                            <span>({off.minX.toFixed(1)}, {off.minY.toFixed(1)})</span>
+                            <span><b>{pct}%</b> phôi</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="method-note">
+                      Thuật toán Maximal Empty Rectangle (MER) tự động tính toán vùng phôi dư lớn nhất có thể tận dụng lại sau khi gia công các chi tiết trên tấm.
+                    </p>
+                  </>
+                ) : (
+                  <div className="empty-state">
+                    <Icon name="cube" size={38} />
+                    <h3>Không có phôi dư đáng kể</h3>
+                    <p>Tấm phôi đã được tận dụng tối đa hoặc các chi tiết chiếm trọn không gian khả dụng.</p>
+                  </div>
+                )
+              ) : drawer === "resume" ? (
+                <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", color: "#e0e0e0" }}>
+                  <div className="part-summary" style={{ background: "#181818", padding: "12px", borderRadius: "6px" }}>
+                    <div>
+                      <small>Chức năng phục hồi cắt dở (Smart Resume)</small>
+                      <strong style={{ display: "block", marginTop: "4px" }}>Tự động sinh lệnh khôi phục trục Z an toàn và mở lại trục chính (M3/S) từ lệnh bất kỳ</strong>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <small style={{ color: "#aaa" }}>Tiếp tục từ Block số:</small>
+                      <input
+                        type="number"
+                        min={1}
+                        max={simulation.segments.length}
+                        value={resumeSegment}
+                        onChange={(e) => setResumeSegment(Math.max(1, Math.min(simulation.segments.length, Number(e.target.value))))}
+                        style={{ padding: "8px", borderRadius: "4px", border: "1px solid #444", background: "#1e1e1e", color: "#fff" }}
+                      />
+                    </label>
+                    <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <small style={{ color: "#aaa" }}>Độ cao an toàn Z (Safe Z):</small>
+                      <input
+                        type="number"
+                        value={resumeSafeZ}
+                        onChange={(e) => setResumeSafeZ(Number(e.target.value))}
+                        style={{ padding: "8px", borderRadius: "4px", border: "1px solid #444", background: "#1e1e1e", color: "#fff" }}
+                      />
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <small style={{ color: "#aaa" }}>G-code khôi phục an toàn (Chèn vào trước Block {resumeSegment}):</small>
+                    <textarea
+                      readOnly
+                      rows={8}
+                      value={generateSmartResume(simulation, resumeSegment, resumeSafeZ)}
+                      style={{ width: "100%", padding: "10px", borderRadius: "4px", border: "1px solid #444", background: "#0d0d0d", color: "#00ff66", fontFamily: "monospace", fontSize: "12px", resize: "vertical" }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="accent-button"
+                    style={{ alignSelf: "flex-start", padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(generateSmartResume(simulation, resumeSegment, resumeSafeZ));
+                      alert("Đã sao chép đoạn G-code phục hồi vào Clipboard!");
+                    }}
+                  >
+                    <Icon name="copy" size={16} /> Sao chép G-code phục hồi
+                  </button>
+                </div>
+              ) : drawer === "export" ? (
+                <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", color: "#e0e0e0" }}>
+                  <div className="part-summary" style={{ background: "#181818", padding: "12px", borderRadius: "6px" }}>
+                    <div>
+                      <small>Bộ xử lý hậu kỳ (CAM Post-Processor)</small>
+                      <strong style={{ display: "block", marginTop: "4px" }}>Chuyển đổi và chuẩn hóa chương trình sang hệ điều khiển máy phay gỗ CNC chuyên dụng</strong>
+                    </div>
+                  </div>
+                  <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <small style={{ color: "#aaa" }}>Hệ điều khiển đích (Controller Dialect):</small>
+                    <select
+                      value={exportType}
+                      onChange={(e) => setExportType(e.target.value as PostProcessorType)}
+                      style={{ padding: "8px", borderRadius: "4px", border: "1px solid #444", background: "#1e1e1e", color: "#fff" }}
+                    >
+                      <option value="ncstudio">Weihong NcStudio V15 (Phay CNC 3 trục chuyên dụng)</option>
+                      <option value="syntec">Taiwan Syntec ATC (Trung tâm gia công phay có thay dao tự động)</option>
+                    </select>
+                  </label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <small style={{ color: "#aaa" }}>Kết quả G-code đã xử lý (CAM Post):</small>
+                    <textarea
+                      readOnly
+                      rows={10}
+                      value={exportCAM(simulation, exportType, projectName)}
+                      style={{ width: "100%", padding: "10px", borderRadius: "4px", border: "1px solid #444", background: "#0d0d0d", color: "#00eaff", fontFamily: "monospace", fontSize: "12px", resize: "vertical" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="accent-button"
+                      style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                      onClick={() => {
+                        const content = exportCAM(simulation, exportType, projectName);
+                        const blob = new Blob([content], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${projectName.toLowerCase().replace(/\s+/g, "-")}-${exportType}.nc`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Icon name="upload" size={16} /> Tải xuống file .NC ({exportType.toUpperCase()})
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(exportCAM(simulation, exportType, projectName));
+                        alert("Đã sao chép G-code đã xuất vào Clipboard!");
+                      }}
+                    >
+                      <Icon name="copy" size={16} /> Sao chép
+                    </button>
+                  </div>
+                </div>
               ) : simulation.parts.length ? (
                 <>
                   <div className="part-summary">

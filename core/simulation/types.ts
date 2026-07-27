@@ -71,12 +71,27 @@ export type Part = {
   edgeGap: number;
 };
 
+export type Offcut = {
+  id: string;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+  area: number;
+  label: string;
+};
+
+export type PostProcessorType = "ncstudio" | "syntec" | "standard";
+
 export type Simulation = {
   lines: string[];
   segments: Segment[];
   motions: NormalizedMotion[];
   diagnostics: Diagnostic[];
   parts: Part[];
+  offcuts: Offcut[];
   cutLength: number;
   rapidLength: number;
   estimatedSeconds: number;

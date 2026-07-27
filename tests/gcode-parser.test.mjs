@@ -1,25 +1,21 @@
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
 import test from "node:test";
-import ts from "typescript";
+import { build } from "esbuild";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function loadParser() {
-  const pageSource = await fs.readFile(
-    new URL("../app/page.tsx", import.meta.url),
-    "utf8",
-  );
-  const start = pageSource.indexOf("type Vec3");
-  const end = pageSource.indexOf("function pointOnSegment");
-  assert.ok(start >= 0 && end > start, "pure parser section must be present");
-
-  const source = `${pageSource.slice(start, end)}
-export { DEFAULT_STOCK, orientStockForProgram, parseProgram };`;
-  const compiled = ts.transpileModule(source, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ESNext,
-    },
-  }).outputText;
+  const entry = path.resolve(__dirname, "../core/simulation/studio-program.ts");
+  const result = await build({
+    entryPoints: [entry],
+    bundle: true,
+    write: false,
+    format: "esm",
+    target: "es2022",
+  });
+  const compiled = result.outputFiles[0].text;
   const url = `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`;
   return import(url);
 }
@@ -94,4 +90,38 @@ test("rotates a 2440 by 1220 stock when program coordinates are portrait", async
   assert.equal(result.rotated, true);
   assert.equal(result.stock.width, 1220);
   assert.equal(result.stock.height, 2440);
+});
+
+test("extracts usable offcuts from sheet stock without overlapping parts", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const stock = { ...DEFAULT_STOCK, width: 1220, height: 2440 };
+  const simulation = parseProgram(topPanelFixture, stock, "iso");
+
+  assert.ok(Array.isArray(simulation.offcuts));
+  assert.ok(simulation.offcuts.length > 0);
+  assert.match(simulation.offcuts[0].id, /^OFF-\d+/);
+  assert.ok(simulation.offcuts[0].area > 0);
+});
+
+test("generates smart resume recovery gcode block", async () => {
+  const { DEFAULT_STOCK, parseProgram, generateSmartResume } = await loadParser();
+  const simulation = parseProgram(topPanelFixture, DEFAULT_STOCK, "iso");
+  const recovery = generateSmartResume(simulation, 5, 50);
+
+  assert.match(recovery, /LAX CNC STUDIO - SMART RESUME/);
+  assert.match(recovery, /G0 Z50\.000/);
+  assert.match(recovery, /M3 S18000/);
+});
+
+test("exports CAM post-processor dialects for NcStudio and Syntec", async () => {
+  const { DEFAULT_STOCK, parseProgram, exportCAM } = await loadParser();
+  const simulation = parseProgram(topPanelFixture, DEFAULT_STOCK, "iso");
+
+  const ncstudio = exportCAM(simulation, "ncstudio", "Test Project");
+  assert.match(ncstudio, /WEIHONG NCSTUDIO V15/);
+  assert.match(ncstudio, /G90 G54 G17 G40 G49 G80/);
+
+  const syntec = exportCAM(simulation, "syntec", "Test Project");
+  assert.match(syntec, /TAIWAN SYNTEC ATC/);
+  assert.match(syntec, /G91 G28 Z0\./);
 });
