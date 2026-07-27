@@ -33,7 +33,7 @@ import type {
   Vec3,
 } from "@/core/simulation/types";
 
-type ViewMode = "xoy" | "xoz" | "yoz" | "iso";
+type ViewMode = "xoy" | "iso";
 type OrbitCamera = { yaw: number; pitch: number };
 
 const EPSILON = 0.001;
@@ -49,23 +49,13 @@ const VIEW_META: Record<
   { short: string; title: string; description: string }
 > = {
   xoy: {
-    short: "XOY",
-    title: "Mặt phẳng XOY",
-    description: "Nhìn từ trên",
-  },
-  xoz: {
-    short: "XOZ",
-    title: "Mặt phẳng XOZ",
-    description: "Nhìn chính diện · Z phóng đại",
-  },
-  yoz: {
-    short: "YOZ",
-    title: "Mặt phẳng YOZ",
-    description: "Nhìn cạnh · Z phóng đại",
+    short: "📐 2D MẶT CẮT",
+    title: "Mặt phẳng 2D (XOY)",
+    description: "Nhìn từ trên xuống · Kéo để di chuyển",
   },
   iso: {
-    short: "3D",
-    title: "3D Backplot",
+    short: "📦 3D KHÔNG GIAN",
+    title: "Mô phỏng 3D (ISO)",
     description: "Kéo để xoay · Shift+kéo để pan",
   },
 };
@@ -417,6 +407,7 @@ function ToolpathCanvas({
   pan,
   orbit,
   showRapids,
+  quality = "medium",
   onZoom,
   onPan,
   onOrbit,
@@ -432,6 +423,7 @@ function ToolpathCanvas({
   pan: { x: number; y: number };
   orbit: OrbitCamera;
   showRapids: boolean;
+  quality?: "low" | "medium" | "high";
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
   onOrbit: (orbit: OrbitCamera) => void;
@@ -473,7 +465,8 @@ function ToolpathCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const maxDpr = quality === "low" ? 1 : quality === "medium" ? 1.5 : 2;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
     const pixelWidth = Math.round(size.width * dpr);
     const pixelHeight = Math.round(size.height * dpr);
     if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
@@ -512,98 +505,51 @@ function ToolpathCanvas({
       fill: string;
       depth: number;
     }> = [];
-    const sideView = view === "xoz" || view === "yoz";
 
-    if (view !== "iso") {
+    if (view === "xoy") {
       const zMin = Math.min(stockBottomZ, simulation.bounds.minZ);
       const zMax = Math.max(
         originZ,
         stock.safeZ,
         simulation.bounds.maxZ,
       );
-      const uMin =
-        view === "yoz"
-          ? Math.min(originY, simulation.bounds.minY)
-          : Math.min(originX, simulation.bounds.minX);
-      const uMax =
-        view === "yoz"
-          ? Math.max(originY + stock.height, simulation.bounds.maxY)
-          : Math.max(originX + stock.width, simulation.bounds.maxX);
-      const vMin =
-        view === "xoy"
-          ? Math.min(originY, simulation.bounds.minY)
-          : zMin;
-      const vMax =
-        view === "xoy"
-          ? Math.max(originY + stock.height, simulation.bounds.maxY)
-          : zMax;
+      const uMin = Math.min(originX, simulation.bounds.minX);
+      const uMax = Math.max(originX + stock.width, simulation.bounds.maxX);
+      const vMin = Math.min(originY, simulation.bounds.minY);
+      const vMax = Math.max(originY + stock.height, simulation.bounds.maxY);
       const uSpan = Math.max(1, uMax - uMin);
       const vSpan = Math.max(1, vMax - vMin);
       const fitWidth = Math.max(160, width - 110);
       const fitHeight = Math.max(160, height - 110);
 
-      if (sideView) {
-        horizontalScale = (fitWidth / uSpan) * zoom;
-        verticalScale = (fitHeight / vSpan) * zoom;
-      } else {
-        const uniformScale =
-          Math.min(fitWidth / uSpan, fitHeight / vSpan) * zoom;
-        horizontalScale = uniformScale;
-        verticalScale = uniformScale;
-      }
+      const uniformScale =
+        Math.min(fitWidth / uSpan, fitHeight / vSpan) * zoom;
+      horizontalScale = uniformScale;
+      verticalScale = uniformScale;
       scale = Math.min(horizontalScale, verticalScale);
       const left = (width - uSpan * horizontalScale) / 2 + pan.x;
       const top = (height - vSpan * verticalScale) / 2 + pan.y + 6;
-      const readU = (point: Vec3) =>
-        view === "yoz" ? point.y : point.x;
-      const readV = (point: Vec3) =>
-        view === "xoy" ? point.y : point.z;
       project = (point) => ({
-        x: left + (readU(point) - uMin) * horizontalScale,
-        y: top + (vMax - readV(point)) * verticalScale,
+        x: left + (point.x - uMin) * horizontalScale,
+        y: top + (vMax - point.y) * verticalScale,
+        depth: point.z,
       });
 
-      if (view === "xoy") {
-        axisLabels = ["X", "Y"];
-        boardCorners = [
-          project({ x: originX, y: originY + stock.height, z: originZ }),
-          project({
-            x: originX + stock.width,
-            y: originY + stock.height,
-            z: originZ,
-          }),
-          project({
-            x: originX + stock.width,
-            y: originY,
-            z: originZ,
-          }),
-          project({ x: originX, y: originY, z: originZ }),
-        ];
-      } else if (view === "xoz") {
-        axisLabels = ["X", "Z"];
-        boardCorners = [
-          project({ x: originX, y: originY, z: originZ }),
-          project({
-            x: originX + stock.width,
-            y: originY,
-            z: originZ,
-          }),
-          project({ x: originX + stock.width, y: originY, z: stockBottomZ }),
-          project({ x: originX, y: originY, z: stockBottomZ }),
-        ];
-      } else if (view === "yoz") {
-        axisLabels = ["Y", "Z"];
-        boardCorners = [
-          project({ x: originX, y: originY, z: originZ }),
-          project({
-            x: originX,
-            y: originY + stock.height,
-            z: originZ,
-          }),
-          project({ x: originX, y: originY + stock.height, z: stockBottomZ }),
-          project({ x: originX, y: originY, z: stockBottomZ }),
-        ];
-      }
+      axisLabels = ["X", "Y"];
+      boardCorners = [
+        project({ x: originX, y: originY + stock.height, z: originZ }),
+        project({
+          x: originX + stock.width,
+          y: originY + stock.height,
+          z: originZ,
+        }),
+        project({
+          x: originX + stock.width,
+          y: originY,
+          z: originZ,
+        }),
+        project({ x: originX, y: originY, z: originZ }),
+      ];
     } else {
       axisLabels = ["X", "Y"];
       const xMin = Math.min(originX, simulation.bounds.minX);
@@ -700,19 +646,19 @@ function ToolpathCanvas({
       stockSideFaces = [
         {
           points: [stockTop[0], stockTop[1], stockBottom[1], stockBottom[0]],
-          fill: "#4c555c",
+          fill: "#8e6c43",
         },
         {
           points: [stockTop[1], stockTop[2], stockBottom[2], stockBottom[1]],
-          fill: "#3e474d",
+          fill: "#7a5a35",
         },
         {
           points: [stockTop[2], stockTop[3], stockBottom[3], stockBottom[2]],
-          fill: "#465057",
+          fill: "#674b2a",
         },
         {
           points: [stockTop[3], stockTop[0], stockBottom[0], stockBottom[3]],
-          fill: "#596269",
+          fill: "#98754b",
         },
       ]
         .map((face) => ({
@@ -751,11 +697,11 @@ function ToolpathCanvas({
         drawPolygon(
           face.points.map(project),
           face.fill,
-          "rgba(190,205,214,.62)",
+          "rgba(80,50,20,.45)",
           0.8,
         );
       });
-      drawPolygon(boardCorners, "#6f797f", "#c0cbd1", 1.15);
+      drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.25);
     } else if (shouldDrawStock) {
       drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.2);
     }
@@ -768,45 +714,19 @@ function ToolpathCanvas({
       ctx.closePath();
       ctx.clip();
 
-      const grainLines = view === "iso" ? 18 : sideView ? 14 : 32;
+      const grainLines = view === "iso" ? 18 : 32;
       for (let index = 0; index < grainLines; index += 1) {
         const ratio = (index + 0.5) / grainLines;
-        const from =
-          view === "xoz"
-            ? project({
-                x: originX,
-                y: originY,
-                z: -ratio * stock.thickness,
-              })
-            : view === "yoz"
-              ? project({
-                  x: originX,
-                  y: originY,
-                  z: -ratio * stock.thickness,
-                })
-              : project({
-                  x: originX,
-                  y: originY + ratio * stock.height,
-                  z: originZ,
-                });
-        const to =
-          view === "xoz"
-            ? project({
-                x: originX + stock.width,
-                y: originY,
-                z: -ratio * stock.thickness,
-              })
-            : view === "yoz"
-              ? project({
-                  x: originX,
-                  y: originY + stock.height,
-                  z: -ratio * stock.thickness,
-                })
-              : project({
-                  x: originX + stock.width,
-                  y: originY + ratio * stock.height,
-                  z: originZ,
-                });
+        const from = project({
+          x: originX,
+          y: originY + ratio * stock.height,
+          z: originZ,
+        });
+        const to = project({
+          x: originX + stock.width,
+          y: originY + ratio * stock.height,
+          z: originZ,
+        });
         ctx.beginPath();
         ctx.moveTo(from.x, from.y);
         ctx.bezierCurveTo(
@@ -817,20 +737,16 @@ function ToolpathCanvas({
           to.x,
           to.y,
         );
-        ctx.strokeStyle =
-          view === "iso"
-            ? index % 3 === 0
-              ? "rgba(11,21,27,.18)"
-              : "rgba(235,244,248,.08)"
-            : index % 3 === 0
-              ? "rgba(66,38,18,.18)"
-              : "rgba(255,232,191,.1)";
-        ctx.lineWidth =
-          view === "iso" ? 0.65 : index % 5 === 0 ? 1.2 : 0.65;
+        ctx.strokeStyle = index % 3 === 0
+          ? "rgba(66,38,18,.18)"
+          : "rgba(255,232,191,.1)";
+        ctx.lineWidth = index % 5 === 0 ? 1.2 : 0.65;
         ctx.stroke();
       }
 
-      const gridStep = stock.width > 3000 ? 500 : 200;
+      const gridStep = quality === "low"
+        ? stock.width > 3000 ? 1000 : 500
+        : stock.width > 3000 ? 500 : 200;
       ctx.setLineDash([]);
       const drawGridLine = (from: Vec3, to: Vec3, stronger = false) => {
         const projectedFrom = project(from);
@@ -866,55 +782,11 @@ function ToolpathCanvas({
             { x: originX + stock.width, y, z: originZ },
           );
         }
-      } else if (view === "xoz") {
-        for (
-          let x = Math.ceil(originX / gridStep) * gridStep;
-          x <= originX + stock.width;
-          x += gridStep
-        ) {
-          drawGridLine(
-            { x, y: originY, z: stockBottomZ },
-            { x, y: originY, z: originZ },
-          );
-        }
-        for (
-          let z = -Math.floor(stock.thickness / 5) * 5;
-          z <= 0;
-          z += 5
-        ) {
-          drawGridLine(
-            { x: originX, y: originY, z },
-            { x: originX + stock.width, y: originY, z },
-            z === 0,
-          );
-        }
-      } else if (view === "yoz") {
-        for (
-          let y = Math.ceil(originY / gridStep) * gridStep;
-          y <= originY + stock.height;
-          y += gridStep
-        ) {
-          drawGridLine(
-            { x: originX, y, z: stockBottomZ },
-            { x: originX, y, z: originZ },
-          );
-        }
-        for (
-          let z = -Math.floor(stock.thickness / 5) * 5;
-          z <= 0;
-          z += 5
-        ) {
-          drawGridLine(
-            { x: originX, y: originY, z },
-            { x: originX, y: originY + stock.height, z },
-            z === 0,
-          );
-        }
       }
       ctx.restore();
     }
 
-    if (view === "xoy") simulation.parts.forEach((part) => {
+    if (view === "xoy" || view === "iso") simulation.parts.forEach((part) => {
       const points = part.points.map(project);
       if (points.length < 3) return;
       ctx.beginPath();
@@ -945,19 +817,28 @@ function ToolpathCanvas({
       );
     });
 
-    const drawPath = (
-      segment: Segment,
-      points: Vec3[],
+    const cutColor = view === "iso" ? "91,238,198" : "38,217,232";
+    const rapidColor = "255,138,31";
+
+    const drawBatchedSegments = (
+      segs: Segment[],
+      filterKind: "rapid" | "cut" | "drill",
+      color: string,
       alpha: number,
-      active = false,
+      lineWidth: number,
+      isRapid = false,
+      glowWidth = 0,
     ) => {
-      if (points.length < 2) {
-        if (segment.kind === "drill") {
+      if (!segs.length) return;
+
+      if (filterKind === "drill") {
+        segs.forEach((segment) => {
+          if (segment.kind !== "drill") return;
           const point = project(segment.end);
           ctx.beginPath();
           ctx.arc(point.x, point.y, Math.max(3.5, stock.toolDiameter * scale * 0.5), 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(174,103,255,${alpha})`;
-          ctx.lineWidth = active ? 2.5 : 1.4;
+          ctx.lineWidth = 1.4;
           ctx.stroke();
           ctx.beginPath();
           ctx.moveTo(point.x - 4, point.y);
@@ -965,29 +846,67 @@ function ToolpathCanvas({
           ctx.moveTo(point.x, point.y - 4);
           ctx.lineTo(point.x, point.y + 4);
           ctx.stroke();
-        }
+        });
         return;
       }
+
+      ctx.beginPath();
+      let hasPoints = false;
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i];
+        if (filterKind === "rapid" && seg.kind !== "rapid") continue;
+        if (filterKind === "cut" && (seg.kind === "rapid" || seg.kind === "drill")) continue;
+        if (seg.points.length < 2) continue;
+        hasPoints = true;
+        const p0 = project(seg.points[0]);
+        ctx.moveTo(p0.x, p0.y);
+        for (let j = 1; j < seg.points.length; j++) {
+          const pj = project(seg.points[j]);
+          ctx.lineTo(pj.x, pj.y);
+        }
+      }
+      if (!hasPoints) return;
+
+      if (glowWidth > 0) {
+        ctx.strokeStyle = view === "iso"
+          ? `rgba(8,15,18,${Math.min(0.72, alpha * 0.72)})`
+          : `rgba(38,217,232,${Math.min(0.16, alpha * 0.16)})`;
+        ctx.lineWidth = glowWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = `rgba(${color},${alpha})`;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (isRapid) ctx.setLineDash([7, 5]);
+      ctx.stroke();
+      if (isRapid) ctx.setLineDash([]);
+    };
+
+    const drawSingleSegmentDetail = (
+      segment: Segment,
+      points: Vec3[],
+      alpha: number,
+      active = false,
+    ) => {
+      if (points.length < 2 || segment.kind === "drill") return;
       const projected = points.map(project);
       const isRapid = segment.kind === "rapid";
-      const color = isRapid
-        ? "255,138,31"
-        : view === "iso"
-          ? "91,238,198"
-          : "38,217,232";
+      const color = isRapid ? rapidColor : cutColor;
 
       if (!isRapid && active) {
         ctx.beginPath();
         ctx.moveTo(projected[0].x, projected[0].y);
         projected.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
-        ctx.strokeStyle =
-          view === "iso"
-            ? `rgba(8,15,18,${Math.min(0.72, alpha * 0.72)})`
-            : `rgba(38,217,232,${Math.min(0.16, alpha * 0.16)})`;
-        ctx.lineWidth =
-          view === "iso"
-            ? Math.max(3.5, stock.toolDiameter * scale * 1.15)
-            : Math.max(3, stock.toolDiameter * scale);
+        ctx.strokeStyle = view === "iso"
+          ? `rgba(8,15,18,${Math.min(0.72, alpha * 0.72)})`
+          : `rgba(38,217,232,${Math.min(0.16, alpha * 0.16)})`;
+        ctx.lineWidth = view === "iso"
+          ? Math.max(3.5, stock.toolDiameter * scale * 1.15)
+          : Math.max(3, stock.toolDiameter * scale);
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.stroke();
@@ -997,29 +916,20 @@ function ToolpathCanvas({
       ctx.moveTo(projected[0].x, projected[0].y);
       projected.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
       ctx.strokeStyle = `rgba(${color},${alpha})`;
-      ctx.lineWidth =
-        view === "iso"
-          ? active
-            ? 2
-            : isRapid
-              ? 1
-              : 1.25
-          : active
-            ? 2.2
-            : isRapid
-              ? 1.15
-              : 1.45;
+      ctx.lineWidth = view === "iso" ? (active ? 2 : 1.25) : (active ? 2.2 : 1.45);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.setLineDash(isRapid ? [7, 5] : []);
+      if (isRapid) ctx.setLineDash([7, 5]);
       ctx.stroke();
       ctx.setLineDash([]);
 
       if (
-        !isRapid &&
         active &&
-        distance2(segment.start, segment.end) > 140 &&
-        projected.length >= 2
+        projected.length >= 2 &&
+        Math.hypot(
+          projected[projected.length - 1].x - projected[0].x,
+          projected[projected.length - 1].y - projected[0].y,
+        ) > 20
       ) {
         const midIndex = Math.floor(projected.length / 2);
         const before = projected[Math.max(0, midIndex - 1)];
@@ -1029,9 +939,9 @@ function ToolpathCanvas({
         ctx.translate(at.x, at.y);
         ctx.rotate(angle);
         ctx.beginPath();
-        ctx.moveTo(5, 0);
-        ctx.lineTo(-4, -3.5);
-        ctx.lineTo(-4, 3.5);
+        ctx.moveTo(6, 0);
+        ctx.lineTo(-5, -4);
+        ctx.lineTo(-5, 4);
         ctx.closePath();
         ctx.fillStyle = `rgba(${color},${alpha})`;
         ctx.fill();
@@ -1039,18 +949,25 @@ function ToolpathCanvas({
       }
     };
 
-    simulation.segments.forEach((segment, index) => {
-      if (!showRapids && segment.kind === "rapid") return;
-      const isFuture = index > cursor;
-      const isCompleted = index < cursor;
-      const isCurrent = index === cursor;
-      if (isFuture) drawPath(segment, segment.points, 0.2);
-      else if (isCompleted) drawPath(segment, segment.points, 0.88, true);
-      else if (isCurrent) {
-        drawPath(segment, segment.points, 0.22);
-        drawPath(segment, partialPoints(segment, segmentProgress), 1, true);
-      }
-    });
+    const completedSegs = simulation.segments.slice(0, cursor);
+    const futureSegs = simulation.segments.slice(cursor + 1);
+
+    if (showRapids) {
+      drawBatchedSegments(completedSegs, "rapid", rapidColor, 0.7, view === "iso" ? 1 : 1.15, true);
+      drawBatchedSegments(futureSegs, "rapid", rapidColor, 0.2, view === "iso" ? 0.9 : 1, true);
+    }
+    drawBatchedSegments(completedSegs, "drill", "", 0.88, 1);
+    drawBatchedSegments(futureSegs, "drill", "", 0.2, 1);
+
+    const completedGlow = quality === "high" ? Math.max(3, stock.toolDiameter * scale * 0.9) : 0;
+    drawBatchedSegments(completedSegs, "cut", cutColor, 0.88, view === "iso" ? 1.25 : 1.45, false, completedGlow);
+    drawBatchedSegments(futureSegs, "cut", cutColor, 0.2, view === "iso" ? 0.9 : 1.1, false, 0);
+
+    const currentSeg = simulation.segments[cursor];
+    if (currentSeg) {
+      drawSingleSegmentDetail(currentSeg, currentSeg.points, 0.22);
+      drawSingleSegmentDetail(currentSeg, partialPoints(currentSeg, segmentProgress), 1, true);
+    }
 
     if (view === "iso" && showBounds) {
       const x0 = simulation.bounds.minX;
@@ -1108,8 +1025,7 @@ function ToolpathCanvas({
     ctx.textBaseline = "bottom";
     if (view !== "iso") {
       const dimY = Math.min(topLeft.y, topRight.y) - 18;
-      const horizontalDimension =
-        view === "yoz" ? stock.height : stock.width;
+      const horizontalDimension = stock.width;
       ctx.beginPath();
       ctx.moveTo(topLeft.x, dimY);
       ctx.lineTo(topRight.x, dimY);
@@ -1119,8 +1035,7 @@ function ToolpathCanvas({
         (topLeft.x + topRight.x) / 2,
         dimY - 4,
       );
-      const verticalDimension =
-        view === "xoy" ? stock.height : stock.thickness;
+      const verticalDimension = stock.height;
       const dimX = bottomLeft.x - 22;
       ctx.save();
       ctx.translate(dimX - 5, (topLeft.y + bottomLeft.y) / 2);
@@ -1282,6 +1197,7 @@ function ToolpathCanvas({
     showStock,
     showGrid,
     size,
+    quality,
   ]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -1308,13 +1224,13 @@ function ToolpathCanvas({
       onOrbit({
         yaw:
           dragRef.current.yaw +
-          (event.clientX - dragRef.current.x) * 0.009,
+          (event.clientX - dragRef.current.x) * 0.007,
         pitch: Math.max(
-          0.12,
+          0.08,
           Math.min(
-            1.42,
+            1.48,
             dragRef.current.pitch -
-              (event.clientY - dragRef.current.y) * 0.009,
+              (event.clientY - dragRef.current.y) * 0.007,
           ),
         ),
       });
@@ -1335,8 +1251,8 @@ function ToolpathCanvas({
 
   const handleWheel = (event: ReactWheelEvent<HTMLCanvasElement>) => {
     event.preventDefault();
-    const factor = event.deltaY < 0 ? 1.12 : 0.89;
-    onZoom(Math.max(0.35, Math.min(6, zoom * factor)));
+    const factor = event.deltaY < 0 ? 1.15 : 0.87;
+    onZoom(Math.max(0.15, Math.min(25, zoom * factor)));
   };
 
   const currentSegment =
@@ -1557,10 +1473,11 @@ export default function Home() {
   const [segmentProgress, setSegmentProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
+  const [quality, setQuality] = useState<"low" | "medium" | "high">("medium");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [orbit, setOrbit] = useState<OrbitCamera>({ ...DEFAULT_ORBIT });
-  const [showRapids, setShowRapids] = useState(false);
+  const [showRapids, setShowRapids] = useState(true);
   const [codeCollapsed, setCodeCollapsed] = useState(false);
   const [simulatorExpanded, setSimulatorExpanded] = useState(false);
   const [drawer, setDrawer] = useState<
@@ -1705,9 +1622,14 @@ export default function Home() {
     if (!playing || !simulation.segments.length) return;
     let animationFrame = 0;
     let previousTime = performance.now();
+    const targetInterval = quality === "low" ? 33 : 16;
 
     const tick = (now: number) => {
       const delta = Math.min(80, now - previousTime);
+      if (quality === "low" && delta < targetInterval) {
+        animationFrame = window.requestAnimationFrame(tick);
+        return;
+      }
       previousTime = now;
       const segment =
         simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
@@ -1719,19 +1641,23 @@ export default function Home() {
         segment.kind === "rapid"
           ? stock.rapidFeed
           : Math.max(1, segment.feed || 1000);
-      const realDuration = (segment.length / nominalFeed) * 60 * 1000;
-      const displayDuration = Math.max(180, Math.min(1500, realDuration / speed));
+      const realDurationMs = (segment.length / (nominalFeed / 60)) * 1000;
+      const displayDuration = Math.max(16 / speed, realDurationMs / speed);
       const increment = displayDuration > 0 ? delta / displayDuration : 1;
 
       setSegmentProgress((current) => {
         const next = current + increment;
         if (next >= 1) {
-          if (cursor >= simulation.segments.length - 1) {
+          const stepsToAdvance = Math.floor(next);
+          const remainder = next - stepsToAdvance;
+          if (cursor + stepsToAdvance >= simulation.segments.length - 1) {
             setPlaying(false);
             return 1;
           }
-          setCursor((index) => Math.min(index + 1, simulation.segments.length - 1));
-          return 0;
+          setCursor((index) =>
+            Math.min(index + stepsToAdvance, simulation.segments.length - 1),
+          );
+          return remainder;
         }
         return next;
       });
@@ -1746,6 +1672,7 @@ export default function Home() {
     simulation.segments,
     speed,
     stock.rapidFeed,
+    quality,
   ]);
 
   useEffect(() => {
@@ -1777,10 +1704,6 @@ export default function Home() {
       } else if (event.code === "Digit1") {
         changeView("xoy");
       } else if (event.code === "Digit2") {
-        changeView("xoz");
-      } else if (event.code === "Digit3") {
-        changeView("yoz");
-      } else if (event.code === "Digit4") {
         changeView("iso");
       } else if (
         event.code === "Escape" &&
@@ -1942,22 +1865,24 @@ export default function Home() {
         </div>
         <div className="toolbar-divider" />
         <div className="view-switch" aria-label="Góc nhìn mô phỏng">
-          {(["xoy", "xoz", "yoz", "iso"] as ViewMode[]).map(
-            (viewMode, index) => (
-              <button
-                type="button"
-                className={view === viewMode ? "is-active" : ""}
-                aria-pressed={view === viewMode}
-                title={`${VIEW_META[viewMode].title} · phím ${index + 1}`}
-                onClick={() => changeView(viewMode)}
-                key={viewMode}
-              >
-                {viewMode === "iso" && <Icon name="cube" size={15} />}
-                <span>{VIEW_META[viewMode].short}</span>
-                <kbd>{index + 1}</kbd>
-              </button>
-            ),
-          )}
+          {(["xoy", "iso"] as ViewMode[]).map((viewMode, index) => (
+            <button
+              type="button"
+              className={view === viewMode ? "is-active" : ""}
+              aria-pressed={view === viewMode}
+              title={`${VIEW_META[viewMode].title} · phím ${index + 1}`}
+              onClick={() => changeView(viewMode)}
+              key={viewMode}
+            >
+              {viewMode === "iso" ? (
+                <Icon name="cube" size={16} />
+              ) : (
+                <Icon name="panel" size={16} />
+              )}
+              <span>{VIEW_META[viewMode].short}</span>
+              <kbd>{index + 1}</kbd>
+            </button>
+          ))}
         </div>
         <label className="speed-control">
           <span>Tốc độ</span>
@@ -1968,7 +1893,23 @@ export default function Home() {
             <option value={0.5}>0.5×</option>
             <option value={1}>1×</option>
             <option value={2}>2×</option>
-            <option value={4}>4×</option>
+            <option value={5}>5×</option>
+            <option value={10}>10×</option>
+            <option value={20}>20×</option>
+          </select>
+        </label>
+        <label className="speed-control" style={{ marginLeft: 6 }}>
+          <span>Cấu hình</span>
+          <select
+            value={quality}
+            onChange={(event) =>
+              setQuality(event.target.value as "low" | "medium" | "high")
+            }
+            title="Chế độ hiệu năng mô phỏng cho máy Yếu / Trung bình / Cao"
+          >
+            <option value="low">⚡ Máy Yếu</option>
+            <option value="medium">⚖️ Trung bình</option>
+            <option value="high">💎 Máy Cao</option>
           </select>
         </label>
         <div className="toolbar-spacer" />
@@ -2151,6 +2092,7 @@ export default function Home() {
             pan={pan}
             orbit={orbit}
             showRapids={showRapids}
+            quality={quality}
             onZoom={setZoom}
             onPan={setPan}
             onOrbit={setOrbit}
