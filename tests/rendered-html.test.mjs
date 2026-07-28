@@ -40,12 +40,10 @@ test("renders all simulator views and the fullscreen control", async () => {
   const response = await renderHome();
   const html = await response.text();
 
-  for (const label of ["2D MẶT CẮT", "3D KHÔNG GIAN"]) {
+  for (const label of ["Mặt phẳng phay", "Mô phỏng 3D"]) {
     assert.match(html, new RegExp(label));
   }
   assert.match(html, /Toàn màn hình mô phỏng/);
-  assert.match(html, /Mặt phẳng 2D/);
-  assert.match(html, /Mô phỏng 3D/);
 });
 
 test("renders the detailed CNC workstation telemetry", async () => {

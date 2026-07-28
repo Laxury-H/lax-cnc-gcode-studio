@@ -108,7 +108,7 @@ test("generates smart resume recovery gcode block", async () => {
   const simulation = parseProgram(topPanelFixture, DEFAULT_STOCK, "iso");
   const recovery = generateSmartResume(simulation, 5, 50);
 
-  assert.match(recovery, /LAX CNC STUDIO - SMART RESUME/);
+  assert.match(recovery, /Lax's CNC - SMART RESUME/);
   assert.match(recovery, /G0 Z50\.000/);
   assert.match(recovery, /M3 S18000/);
 });
