@@ -1,4 +1,4 @@
-import { boundsForPoints } from "../geometry/bounds";
+import { bounds2DContains, boundsForPoints } from "../geometry/bounds";
 import { cloneVec3, distance2D } from "../geometry/line";
 import type { Part, Segment, StockSettings } from "./types";
 
@@ -11,13 +11,7 @@ export function rectangleGap(a: Part, b: Part): number {
 }
 
 function containsPart(outer: Part, inner: Part): boolean {
-  const tolerance = 0.5;
-  return (
-    inner.minX >= outer.minX - tolerance &&
-    inner.maxX <= outer.maxX + tolerance &&
-    inner.minY >= outer.minY - tolerance &&
-    inner.maxY <= outer.maxY + tolerance
-  );
+  return bounds2DContains(outer, inner, 0.5);
 }
 
 export function detectParts(
@@ -148,14 +142,26 @@ export function detectParts(
   outerParts.sort((a, b) => a.minY - b.minY || a.minX - b.minX);
   outerParts.forEach((part, index) => {
     part.id = `P${String(index + 1).padStart(2, "0")}`;
-    let nearest = Number.POSITIVE_INFINITY;
-    outerParts.forEach((candidate) => {
-      if (candidate !== part) {
-        nearest = Math.min(nearest, rectangleGap(part, candidate));
-      }
-    });
-    part.nearestGap = Number.isFinite(nearest) ? nearest : null;
+    part.nearestGap = null;
   });
+
+  for (let i = 0; i < outerParts.length; i += 1) {
+    for (let j = i + 1; j < outerParts.length; j += 1) {
+      const gap = rectangleGap(outerParts[i], outerParts[j]);
+      if (
+        outerParts[i].nearestGap === null ||
+        gap < outerParts[i].nearestGap!
+      ) {
+        outerParts[i].nearestGap = gap;
+      }
+      if (
+        outerParts[j].nearestGap === null ||
+        gap < outerParts[j].nearestGap!
+      ) {
+        outerParts[j].nearestGap = gap;
+      }
+    }
+  }
 
   return outerParts;
 }

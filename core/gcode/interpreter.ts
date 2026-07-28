@@ -1214,7 +1214,7 @@ function centerWordsForPlane(
 }
 
 function motionMode(code: number): MotionMode {
-  return `G${Number.isInteger(code) ? code.toFixed(0) : code}` as MotionMode;
+  return formatGcodeCommand("G", code) as MotionMode;
 }
 
 function wordsFor(block: ParsedBlock, letter: string): GcodeWord[] {

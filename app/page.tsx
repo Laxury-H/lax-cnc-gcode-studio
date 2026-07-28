@@ -16,6 +16,7 @@ import {
   cloneVec3 as cloneVec,
   distance2D as distance2,
   distance3D as distance3,
+  lerpVec3 as lerpVec,
 } from "@/core/geometry/line";
 import {
   DEFAULT_STOCK,
@@ -124,11 +125,7 @@ const SAMPLE_GCODE = buildSampleProgram();
 function pointOnSegment(segment: Segment, progress: number): Vec3 {
   const clamped = Math.max(0, Math.min(1, progress));
   if (segment.points.length <= 2) {
-    return {
-      x: segment.start.x + (segment.end.x - segment.start.x) * clamped,
-      y: segment.start.y + (segment.end.y - segment.start.y) * clamped,
-      z: segment.start.z + (segment.end.z - segment.start.z) * clamped,
-    };
+    return lerpVec(segment.start, segment.end, clamped);
   }
 
   const total = segment.length || 1;
@@ -139,11 +136,7 @@ function pointOnSegment(segment: Segment, progress: number): Vec3 {
     const length = distance3(from, to);
     if (target <= length || index === segment.points.length - 1) {
       const ratio = length <= EPSILON ? 0 : target / length;
-      return {
-        x: from.x + (to.x - from.x) * ratio,
-        y: from.y + (to.y - from.y) * ratio,
-        z: from.z + (to.z - from.z) * ratio,
-      };
+      return lerpVec(from, to, ratio);
     }
     target -= length;
   }
@@ -166,11 +159,7 @@ function partialPoints(segment: Segment, progress: number) {
       remaining -= length;
     } else {
       const ratio = length <= EPSILON ? 0 : remaining / length;
-      result.push({
-        x: from.x + (to.x - from.x) * ratio,
-        y: from.y + (to.y - from.y) * ratio,
-        z: from.z + (to.z - from.z) * ratio,
-      });
+      result.push(lerpVec(from, to, ratio));
       break;
     }
   }

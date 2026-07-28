@@ -117,3 +117,27 @@ export function boundsCenter(bounds: Bounds3): Vec3 {
     z: bounds.minZ / 2 + bounds.maxZ / 2,
   };
 }
+
+export type Bounds2D = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+export function bounds2DIntersect(a: Bounds2D, b: Bounds2D): boolean {
+  return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+}
+
+export function bounds2DContains(
+  outer: Bounds2D,
+  inner: Bounds2D,
+  tolerance = 0,
+): boolean {
+  return (
+    inner.minX >= outer.minX - tolerance &&
+    inner.maxX <= outer.maxX + tolerance &&
+    inner.minY >= outer.minY - tolerance &&
+    inner.maxY <= outer.maxY + tolerance
+  );
+}

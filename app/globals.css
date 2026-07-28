@@ -253,6 +253,57 @@ textarea:focus-visible {
   transform: translateY(0);
 }
 
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(82, 114, 131, 0.45);
+  border-radius: 4px;
+  background: rgba(14, 26, 32, 0.85);
+  color: #728896;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 150ms ease;
+  flex: 0 0 auto;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.lang-toggle:hover {
+  border-color: rgba(38, 217, 232, 0.65);
+  background: rgba(20, 38, 48, 0.95);
+  color: #cbeaf0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 242, 254, 0.15);
+}
+
+.lang-toggle:active {
+  transform: translateY(0);
+}
+
+.lang-toggle .lang-opt {
+  transition: all 150ms ease;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.lang-toggle .lang-opt.is-active {
+  color: #00f2fe;
+  background: rgba(0, 242, 254, 0.12);
+  text-shadow: 0 0 8px rgba(0, 242, 254, 0.6);
+}
+
+.lang-toggle .lang-divider {
+  color: #3e5360;
+  font-weight: 400;
+  margin: 0 2px;
+}
+
 .header-spacer,
 .toolbar-spacer {
   flex: 1 1 auto;

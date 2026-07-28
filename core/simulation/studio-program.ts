@@ -3,6 +3,7 @@ import {
   resolveArc,
   sampleArc,
 } from "../geometry/arc";
+import { bounds2DContains } from "../geometry/bounds";
 import { cloneVec3, distance2D } from "../geometry/line";
 import { createDiagnostic, mergeDiagnostics } from "../gcode/diagnostics";
 import {
@@ -143,10 +144,16 @@ export function orientStockForProgram(
   const preview = parseProgram(source, current, profile);
   const tolerance = Math.max(10, current.toolDiameter);
   const fits = (width: number, height: number) =>
-    preview.bounds.minX >= current.originX - tolerance &&
-    preview.bounds.maxX <= current.originX + width + tolerance &&
-    preview.bounds.minY >= current.originY - tolerance &&
-    preview.bounds.maxY <= current.originY + height + tolerance;
+    bounds2DContains(
+      {
+        minX: current.originX,
+        minY: current.originY,
+        maxX: current.originX + width,
+        maxY: current.originY + height,
+      },
+      preview.bounds,
+      tolerance,
+    );
   const currentFits = fits(current.width, current.height);
   const rotatedFits = fits(current.height, current.width);
   if (!currentFits && rotatedFits) {

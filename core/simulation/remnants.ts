@@ -1,3 +1,4 @@
+import { bounds2DIntersect } from "../geometry/bounds";
 import type { Offcut, Part, StockSettings } from "./types";
 
 const MIN_OFFCUT_DIM = 250; // Minimum 250mm width or height to be usable in woodworking
@@ -30,10 +31,10 @@ export function extractOffcuts(
   const ys = Array.from(ySet).sort((a, b) => a - b);
 
   type Candidate = {
-    x0: number;
-    y0: number;
-    x1: number;
-    y1: number;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
     w: number;
     h: number;
     area: number;
@@ -57,10 +58,11 @@ export function extractOffcuts(
           if (h < MIN_OFFCUT_DIM) continue;
 
           // Check if this box overlaps with any nested part
+          const candBounds = { minX: rx0, minY: ry0, maxX: rx1, maxY: ry1 };
           let overlapsPart = false;
           for (const p of parts) {
             // Two rectangles overlap if their interiors intersect strictly (allow sharing edges)
-            if (p.minX < rx1 && p.maxX > rx0 && p.minY < ry1 && p.maxY > ry0) {
+            if (bounds2DIntersect(p, candBounds)) {
               overlapsPart = true;
               break;
             }
@@ -68,10 +70,10 @@ export function extractOffcuts(
 
           if (!overlapsPart) {
             candidates.push({
-              x0: rx0,
-              y0: ry0,
-              x1: rx1,
-              y1: ry1,
+              minX: rx0,
+              minY: ry0,
+              maxX: rx1,
+              maxY: ry1,
               w,
               h,
               area: w * h,
@@ -90,12 +92,7 @@ export function extractOffcuts(
   for (const cand of candidates) {
     let overlapsSelected = false;
     for (const sel of selected) {
-      if (
-        cand.x0 < sel.x1 &&
-        cand.x1 > sel.x0 &&
-        cand.y0 < sel.y1 &&
-        cand.y1 > sel.y0
-      ) {
+      if (bounds2DIntersect(cand, sel)) {
         overlapsSelected = true;
         break;
       }
@@ -111,10 +108,10 @@ export function extractOffcuts(
     const label = `${Math.round(rect.w)} × ${Math.round(rect.h)} mm (${areaM2} m²)`;
     return {
       id,
-      minX: rect.x0,
-      minY: rect.y0,
-      maxX: rect.x1,
-      maxY: rect.y1,
+      minX: rect.minX,
+      minY: rect.minY,
+      maxX: rect.maxX,
+      maxY: rect.maxY,
       width: rect.w,
       height: rect.h,
       area: rect.area,
