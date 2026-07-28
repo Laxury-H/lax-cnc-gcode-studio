@@ -1730,12 +1730,13 @@ export default function Home() {
         return;
       }
       
-      if (soundEnabled) {
-        cncAudio.setSpindle(true, 18000); // Fixed RPM for now
-        cncAudio.setMove(true, segment.kind === "rapid", segment.feed || 1000);
-      } else {
-        cncAudio.stopAll();
-      }
+      // Temporarily disabled continuous machine sounds per user request
+      // if (soundEnabled) {
+      //   cncAudio.setSpindle(true, 18000); 
+      //   cncAudio.setMove(true, segment.kind === "rapid", segment.feed || 1000);
+      // } else {
+      //   cncAudio.stopAll();
+      // }
 
       const nominalFeed =
         segment.kind === "rapid"
@@ -1752,6 +1753,7 @@ export default function Home() {
           const remainder = next - stepsToAdvance;
           if (cursor + stepsToAdvance >= simulation.segments.length - 1) {
             setPlaying(false);
+            if (soundEnabled) cncAudio.playComplete();
             return 1;
           }
           setCursor((index) =>

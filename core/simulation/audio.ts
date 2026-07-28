@@ -83,6 +83,38 @@ export class CncAudio {
     }
   }
 
+  public playComplete() {
+    if (!this.isEnabled || !this.ctx) return;
+    
+    // Play a nice completion chime (e.g., C6 and E6)
+    const t = this.ctx.currentTime;
+    
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1046.50, t); // C6
+    gain1.gain.setValueAtTime(0, t);
+    gain1.gain.linearRampToValueAtTime(0.3, t + 0.05);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    osc1.connect(gain1);
+    gain1.connect(this.ctx.destination);
+    
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1318.51, t + 0.1); // E6
+    gain2.gain.setValueAtTime(0, t + 0.1);
+    gain2.gain.linearRampToValueAtTime(0.3, t + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+    osc2.connect(gain2);
+    gain2.connect(this.ctx.destination);
+
+    osc1.start(t);
+    osc1.stop(t + 1.5);
+    osc2.start(t + 0.1);
+    osc2.stop(t + 2.0);
+  }
+
   public stopAll() {
     this.setSpindle(false);
     this.setMove(false, false);

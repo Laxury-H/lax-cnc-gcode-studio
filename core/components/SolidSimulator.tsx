@@ -352,10 +352,10 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
         const centerY = part.minY + part.height / 2;
         return (
           <group key={part.id} position={[centerX, centerY, stock.thickness + 0.1]}>
-            <Text position={[0, 6, 0]} fontSize={14} color="#3e2723" anchorX="center" anchorY="middle">
+            <Text position={[0, 12, 0]} fontSize={28} color="#111111" anchorX="center" anchorY="middle" outlineWidth={0.5} outlineColor="rgba(255,255,255,0.5)">
               {part.id}
             </Text>
-            <Text position={[0, -6, 0]} fontSize={10} color="#5d4037" anchorX="center" anchorY="middle">
+            <Text position={[0, -12, 0]} fontSize={18} color="#222222" anchorX="center" anchorY="middle" outlineWidth={0.4} outlineColor="rgba(255,255,255,0.5)">
               {`${Math.round(part.width)} × ${Math.round(part.height)}`}
             </Text>
           </group>
