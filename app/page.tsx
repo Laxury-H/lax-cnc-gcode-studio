@@ -411,6 +411,7 @@ function ToolpathCanvas({
   onPan,
   onOrbit,
   onResetView,
+  resetTrigger,
 }: {
   simulation: Simulation;
   stock: StockSettings;
@@ -428,6 +429,7 @@ function ToolpathCanvas({
   onPan: (pan: { x: number; y: number }) => void;
   onOrbit: (orbit: OrbitCamera) => void;
   onResetView: () => void;
+  resetTrigger?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -1358,7 +1360,7 @@ function ToolpathCanvas({
           </strong>
         </span>
       </div>
-      {view === "iso" && (
+      {(view === "iso" || view === "solid") && (
         <>
           <button
             type="button"
@@ -1437,6 +1439,10 @@ function ToolpathCanvas({
           showRapids={showRapids}
           showBounds={showBounds}
           showTool={showTool}
+          showStock={showStock}
+          showGrid={showGrid}
+          resetTrigger={resetTrigger}
+          onOrbitChange={onOrbit}
         />
       ) : (
         <canvas
@@ -1556,6 +1562,7 @@ export default function Home() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [resetTrigger, setResetTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<HTMLElement>(null);
@@ -1600,10 +1607,11 @@ export default function Home() {
     setSegmentProgress(0);
   }, []);
 
-  const resetView = useCallback(() => {
+  const onResetView = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
     setOrbit({ ...DEFAULT_ORBIT });
+    setResetTrigger((prev) => prev + 1);
   }, []);
 
   const changeView = useCallback((nextView: ViewMode) => {
@@ -2042,7 +2050,7 @@ export default function Home() {
           <ToolbarButton
             icon="crosshair"
             label="Về gốc và vừa khung"
-            onClick={resetView}
+            onClick={onResetView}
           />
           <ToolbarButton
             icon={simulatorExpanded ? "collapse" : "fullscreen"}
@@ -2203,7 +2211,8 @@ export default function Home() {
             onZoom={setZoom}
             onPan={setPan}
             onOrbit={setOrbit}
-            onResetView={resetView}
+            onResetView={onResetView}
+            resetTrigger={resetTrigger}
           />
           <div className="scrubber">
             <span className="scrubber-clock">

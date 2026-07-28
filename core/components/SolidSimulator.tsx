@@ -12,8 +12,14 @@ interface SolidSimulatorProps {
   showRapids?: boolean;
   showBounds?: boolean;
   showTool?: boolean;
+  showStock?: boolean;
+  showGrid?: boolean;
+  resetTrigger?: number;
+  onOrbitChange?: (orbit: { yaw: number; pitch: number }) => void;
   quality?: "low" | "medium" | "high";
 }
+
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 
 function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number}, t: number) {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
@@ -143,8 +149,8 @@ function getDepthColor(z: number, topZ: number, bottomZ: number) {
   return `rgb(${intensity}, ${intensity}, ${intensity})`;
 }
 
-const STOCK_COLOR = "#c8a576"; // Wood color
-const CUT_COLOR = "#e2c598"; // Lighter cut wood
+const STOCK_COLOR = "#cd9a5b"; // Realistic plywood surface color
+const CUT_COLOR = "#e8c99b"; // Lighter exposed core color
 
 function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: SolidSimulatorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -364,9 +370,16 @@ export function SolidSimulator(props: SolidSimulatorProps) {
   const topZ = isBottomZero ? props.stock.thickness : 0;
   const bottomZ = isBottomZero ? 0 : -props.stock.thickness;
   const centerZ = (topZ + bottomZ) / 2;
+  const controlsRef = useRef<OrbitControlsImpl>(null);
+
+  useEffect(() => {
+    if (controlsRef.current && props.resetTrigger) {
+      controlsRef.current.reset();
+    }
+  }, [props.resetTrigger]);
 
   return (
-    <div className="solid-simulator" style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 10 }}>
+    <div className="solid-simulator" style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}>
       <Canvas shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
@@ -382,19 +395,21 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         </directionalLight>
         
         {/* Machine Bed Grid */}
-        <gridHelper 
-          args={[
-            Math.max(props.stock.width, props.stock.height) * 3, 
-            Math.round(Math.max(props.stock.width, props.stock.height) * 3 / 100), 
-            "#444444", 
-            "#222222"
-          ]} 
-          position={[0, 0, 0]} 
-        />
+        {props.showGrid !== false && (
+          <gridHelper 
+            args={[
+              Math.max(props.stock.width, props.stock.height) * 3, 
+              Math.round(Math.max(props.stock.width, props.stock.height) * 3 / 100), 
+              "#444444", 
+              "#222222"
+            ]} 
+            position={[0, 0, 0]} 
+          />
+        )}
 
         {/* Elevate the board so its bottom sits exactly at Y=0 (the machine bed) */}
         <group position={[0, props.stock.thickness / 2, 0]}>
-          <StockMesh {...props} />
+          {props.showStock !== false && <StockMesh {...props} />}
           
           {/* Overlay group mapping CNC coordinates to Local coordinates */}
           {/* CNC X -> Local X, CNC Y -> Local Y, CNC Z -> Local Z */}
@@ -423,7 +438,17 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           </group>
         </group>
 
-        <OrbitControls makeDefault />
+        <OrbitControls 
+          ref={controlsRef} 
+          makeDefault 
+          onChange={(e) => {
+            if (props.onOrbitChange && e?.target) {
+              const az = e.target.getAzimuthalAngle();
+              const pol = e.target.getPolarAngle();
+              props.onOrbitChange({ yaw: az, pitch: Math.PI / 2 - pol });
+            }
+          }}
+        />
         <ContactShadows resolution={1024} scale={Math.max(props.stock.width, props.stock.height) * 1.5} position={[0, -0.1, 0]} blur={2.5} opacity={0.6} />
       </Canvas>
     </div>
