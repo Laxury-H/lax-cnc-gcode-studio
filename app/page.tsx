@@ -616,11 +616,15 @@ function ToolpathCanvas({
         ) * zoom;
       horizontalScale = scale;
       verticalScale = scale;
+      const maxDim = Math.max(xMax - xMin, yMax - yMin, 1);
+      const focalLength = maxDim * 1.5;
       project = (point) => {
         const rotated = rotatePoint(point);
+        const zDepth = rotated.depth + focalLength;
+        const pScale = focalLength / Math.max(1, zDepth);
         return {
-          x: width / 2 + (rotated.u - centerU) * scale + pan.x,
-          y: height / 2 + (rotated.v - centerV) * scale + pan.y,
+          x: width / 2 + (rotated.u - centerU) * scale * pScale + pan.x,
+          y: height / 2 + (rotated.v - centerV) * scale * pScale + pan.y,
         };
       };
       orbitAxisVector = (vector) => {
