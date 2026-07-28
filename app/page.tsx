@@ -34,6 +34,7 @@ import type {
   Vec3,
 } from "@/core/simulation/types";
 import { Lang, translations, translateDiagnostic, type TranslationDict } from "./i18n";
+import { cncAudio } from "@/core/simulation/audio";
 import { SolidSimulator } from "@/core/components/SolidSimulator";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 
@@ -250,6 +251,20 @@ function Icon({
       <>
         <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" />
         <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+      </>
+    ),
+    volume: (
+      <>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </>
+    ),
+    "volume-x": (
+      <>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <line x1="23" y1="9" x2="17" y2="15" />
+        <line x1="17" y1="9" x2="23" y2="15" />
       </>
     ),
     crosshair: (
@@ -1563,6 +1578,7 @@ export default function Home() {
   const [dragActive, setDragActive] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [resetTrigger, setResetTrigger] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<HTMLElement>(null);
@@ -1605,6 +1621,7 @@ export default function Home() {
     setPlaying(false);
     setCursor(0);
     setSegmentProgress(0);
+    cncAudio.stopAll();
   }, []);
 
   const onResetView = useCallback(() => {
@@ -1709,8 +1726,17 @@ export default function Home() {
         simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
       if (!segment) {
         setPlaying(false);
+        if (soundEnabled) cncAudio.stopAll();
         return;
       }
+      
+      if (soundEnabled) {
+        cncAudio.setSpindle(true, 18000); // Fixed RPM for now
+        cncAudio.setMove(true, segment.kind === "rapid", segment.feed || 1000);
+      } else {
+        cncAudio.stopAll();
+      }
+
       const nominalFeed =
         segment.kind === "rapid"
           ? stock.rapidFeed
@@ -1739,7 +1765,10 @@ export default function Home() {
     };
 
     animationFrame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(animationFrame);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      cncAudio.stopAll();
+    };
   }, [
     playing,
     cursor,
@@ -1747,6 +1776,7 @@ export default function Home() {
     speed,
     stock.rapidFeed,
     quality,
+    soundEnabled,
   ]);
 
   useEffect(() => {
@@ -1978,6 +2008,21 @@ export default function Home() {
           <button className="secondary-control" type="button" onClick={stepForward}>
             <Icon name="step" size={19} />
             Step
+          </button>
+          <button
+            className={`secondary-control ${soundEnabled ? "is-active" : ""}`}
+            type="button"
+            onClick={async () => {
+              setSoundEnabled(!soundEnabled);
+              if (!soundEnabled) {
+                await cncAudio.init();
+              } else {
+                cncAudio.stopAll();
+              }
+            }}
+          >
+            <Icon name={soundEnabled ? "volume" : "volume-x"} size={19} />
+            Âm thanh
           </button>
           <button
             className="secondary-control"
