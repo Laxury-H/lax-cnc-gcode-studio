@@ -1433,6 +1433,10 @@ function ToolpathCanvas({
           simulation={simulation} 
           stock={{ ...stock, toolDiameter: stock.toolDiameter || 6 }} 
           cursor={cursor} 
+          segmentProgress={segmentProgress}
+          showRapids={showRapids}
+          showBounds={showBounds}
+          showTool={showTool}
         />
       ) : (
         <canvas
