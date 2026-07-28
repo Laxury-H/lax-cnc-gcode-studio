@@ -493,6 +493,7 @@ function ToolpathCanvas({
     const stockBottomZ = originZ - stock.thickness;
     let project: (point: Vec3) => { x: number; y: number };
     let boardCorners: Array<{ x: number; y: number }> = [];
+    let stockBottom: Vec3[] = [];
     let scale: number;
     let horizontalScale: number;
     let verticalScale: number;
@@ -594,26 +595,16 @@ function ToolpathCanvas({
           y: point.y - center.y,
           z: point.z - center.z,
         });
-      const fitPoints: Vec3[] = [];
-      [xMin, xMax].forEach((x) => {
-        [yMin, yMax].forEach((y) => {
-          [zMin, zMax].forEach((z) => fitPoints.push({ x, y, z }));
-        });
-      });
-      const rotatedFit = fitPoints.map(rotatePoint);
-      const minU = Math.min(...rotatedFit.map((point) => point.u));
-      const maxU = Math.max(...rotatedFit.map((point) => point.u));
-      const minV = Math.min(...rotatedFit.map((point) => point.v));
-      const maxV = Math.max(...rotatedFit.map((point) => point.v));
-      const centerU = (minU + maxU) / 2;
-      const centerV = (minV + maxV) / 2;
       const fitWidth = Math.max(180, width - 150);
       const fitHeight = Math.max(180, height - 130);
-      scale =
-        Math.min(
-          fitWidth / Math.max(1, maxU - minU),
-          fitHeight / Math.max(1, maxV - minV),
-        ) * zoom;
+      const radius = Math.hypot(
+        xMax - center.x,
+        yMax - center.y,
+        (zMax - center.z) * zVisualScale
+      );
+      scale = (Math.min(fitWidth, fitHeight) / (radius * 2)) * zoom * 1.35;
+      const centerU = 0;
+      const centerV = 0;
       horizontalScale = scale;
       verticalScale = scale;
       const maxDim = Math.max(xMax - xMin, yMax - yMin, 1);
@@ -642,7 +633,7 @@ function ToolpathCanvas({
         },
         { x: originX, y: originY + stock.height, z: originZ },
       ];
-      const stockBottom = stockTop.map((point) => ({
+      stockBottom = stockTop.map((point) => ({
         ...point,
         z: stockBottomZ,
       }));
@@ -705,16 +696,24 @@ function ToolpathCanvas({
           0.8,
         );
       });
-      drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.25);
+      if (orbit.pitch >= 0) {
+        drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.25);
+      } else {
+        drawPolygon(stockBottom.map(project), "#9e774a", "rgba(80,50,20,.45)", 1.25);
+      }
     } else if (shouldDrawStock) {
       drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.2);
     }
 
     if (shouldDrawStock) {
+      const isBottomView = view === "iso" && orbit.pitch < 0;
+      const visibleCorners = isBottomView ? stockBottom.map(project) : boardCorners;
+      const faceZ = isBottomView ? stockBottomZ : originZ;
+
       ctx.save();
       ctx.beginPath();
-      ctx.moveTo(boardCorners[0].x, boardCorners[0].y);
-      boardCorners.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+      ctx.moveTo(visibleCorners[0].x, visibleCorners[0].y);
+      visibleCorners.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
       ctx.closePath();
       ctx.clip();
 
@@ -724,12 +723,12 @@ function ToolpathCanvas({
         const from = project({
           x: originX,
           y: originY + ratio * stock.height,
-          z: originZ,
+          z: faceZ,
         });
         const to = project({
           x: originX + stock.width,
           y: originY + ratio * stock.height,
-          z: originZ,
+          z: faceZ,
         });
         ctx.beginPath();
         ctx.moveTo(from.x, from.y);
@@ -1230,9 +1229,9 @@ function ToolpathCanvas({
           dragRef.current.yaw +
           (event.clientX - dragRef.current.x) * 0.007,
         pitch: Math.max(
-          0.08,
+          -1.5,
           Math.min(
-            1.48,
+            1.5,
             dragRef.current.pitch -
               (event.clientY - dragRef.current.y) * 0.007,
           ),
