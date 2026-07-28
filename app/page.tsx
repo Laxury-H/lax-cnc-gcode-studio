@@ -2206,31 +2206,31 @@ export default function Home() {
         </MetricCard>
         <MetricCard
           icon="clock"
-          label="Thời gian"
-          detail={`Còn ${formatTime(simulation.estimatedSeconds * (1 - totalProgress / 100))}`}
+          label={t.estTime}
+          detail={`${lang === "EN" ? "Rem." : "Còn"} ${formatTime(simulation.estimatedSeconds * (1 - totalProgress / 100))}`}
         >
           {formatTime(simulation.estimatedSeconds)}
         </MetricCard>
         <MetricCard
           icon={errorCount ? "warning" : "check"}
-          label="Lỗi"
+          label={t.errorsMetric}
           tone={errorCount ? "danger" : "success"}
-          detail={errorCount ? "Cần xử lý" : "Không phát hiện"}
+          detail={errorCount ? t.errorsAction : t.errorsNone}
           onClick={() => setDrawer("diagnostics")}
         >
           {errorCount}
         </MetricCard>
         <MetricCard
           icon="warning"
-          label="Cảnh báo"
+          label={t.warningsMetric}
           tone={warningCount ? "warning" : "success"}
-          detail={warningCount ? "Nhấn để kiểm tra" : "An toàn"}
+          detail={warningCount ? t.warningsAction : t.warningsNone}
           onClick={() => setDrawer("diagnostics")}
         >
           {warningCount}
         </MetricCard>
         <div className="position-metric">
-          <span>Vị trí hiện tại (mm)</span>
+          <span>{t.currentPos}</span>
           <div className="position-grid">
             <span>
               <b>X</b>
@@ -2247,7 +2247,7 @@ export default function Home() {
           </div>
         </div>
         <div className="progress-metric">
-          <span>Tiến độ</span>
+          <span>{t.progressLabel}</span>
           <div className="progress-row">
             <div className="progress-track">
               <i style={{ width: `${totalProgress}%` }} />
@@ -2291,7 +2291,7 @@ export default function Home() {
         </span>
         <span>
           <small>DRILL</small>
-          <b>{simulation.drillHoles} LỖ</b>
+          <b>{simulation.drillHoles} {lang === "EN" ? "HOLES" : "LỖ"}</b>
         </span>
         <span className="statebar-spacer" />
         <span className={`statebar-health${errorCount ? " has-error" : ""}`}>
@@ -2305,26 +2305,26 @@ export default function Home() {
           <button
             className="drawer-backdrop"
             type="button"
-            aria-label="Đóng bảng phân tích"
+            aria-label={lang === "EN" ? "Close analysis drawer" : "Đóng bảng phân tích"}
             onClick={() => setDrawer(null)}
           />
-          <aside className="analysis-drawer" aria-label="Kết quả phân tích">
+          <aside className="analysis-drawer" aria-label={lang === "EN" ? "Analysis results" : "Kết quả phân tích"}>
             <div className="drawer-header">
               <div>
-                <small>PHÂN TÍCH CHƯƠNG TRÌNH</small>
+                <small>{t.analysisTitle}</small>
                 <h2>
                   {drawer === "diagnostics"
-                    ? "Lỗi & cảnh báo"
+                    ? t.tabErrors
                     : drawer === "parts"
-                      ? "Kích thước chi tiết"
+                      ? t.tabDimensions
                       : drawer === "offcuts"
-                        ? "Phôi dư khả dụng (MER)"
+                        ? t.tabRemnants
                         : drawer === "resume"
-                          ? "Phục hồi cắt dở (Smart Resume)"
-                          : "Xuất G-code CAM"}
+                          ? t.tabSmartResume
+                          : t.tabPostProc}
                 </h2>
               </div>
-              <button type="button" onClick={() => setDrawer(null)} aria-label="Đóng">
+              <button type="button" onClick={() => setDrawer(null)} aria-label={lang === "EN" ? "Close" : "Đóng"}>
                 <Icon name="close" />
               </button>
             </div>
@@ -2334,35 +2334,35 @@ export default function Home() {
                 className={drawer === "diagnostics" ? "is-active" : ""}
                 onClick={() => setDrawer("diagnostics")}
               >
-                Kiểm lỗi <span>{simulation.diagnostics.length}</span>
+                {lang === "EN" ? "Errors" : "Kiểm lỗi"} <span>{simulation.diagnostics.length}</span>
               </button>
               <button
                 type="button"
                 className={drawer === "parts" ? "is-active" : ""}
                 onClick={() => setDrawer("parts")}
               >
-                Chi tiết <span>{simulation.parts.length}</span>
+                {lang === "EN" ? "Parts" : "Chi tiết"} <span>{simulation.parts.length}</span>
               </button>
               <button
                 type="button"
                 className={drawer === "offcuts" ? "is-active" : ""}
                 onClick={() => setDrawer("offcuts")}
               >
-                Phôi dư <span>{simulation.offcuts?.length ?? 0}</span>
+                {lang === "EN" ? "Remnants" : "Phôi dư"} <span>{simulation.offcuts?.length ?? 0}</span>
               </button>
               <button
                 type="button"
                 className={drawer === "resume" ? "is-active" : ""}
                 onClick={() => setDrawer("resume")}
               >
-                Phục hồi
+                {lang === "EN" ? "Resume" : "Phục hồi"}
               </button>
               <button
                 type="button"
                 className={drawer === "export" ? "is-active" : ""}
                 onClick={() => setDrawer("export")}
               >
-                Xuất CAM
+                {lang === "EN" ? "CAM Export" : "Xuất CAM"}
               </button>
             </div>
             <div className="drawer-content">
@@ -2396,11 +2396,8 @@ export default function Home() {
                 ) : (
                   <div className="empty-state">
                     <Icon name="check" size={38} />
-                    <h3>Không phát hiện lỗi</h3>
-                    <p>
-                      Chương trình nằm trong giới hạn phôi và các trạng thái chính
-                      đã hợp lệ.
-                    </p>
+                    <h3>{t.noErrorsTitle}</h3>
+                    <p>{t.noErrorsDesc}</p>
                   </div>
                 )
               ) : drawer === "offcuts" ? (
@@ -2408,20 +2405,20 @@ export default function Home() {
                   <>
                     <div className="part-summary">
                       <div>
-                        <small>Phôi dư khả dụng</small>
-                        <strong>{simulation.offcuts.length} vùng trống (MER)</strong>
+                        <small>{t.remnantTitle}</small>
+                        <strong>{simulation.offcuts.length} {lang === "EN" ? "empty regions (MER)" : "vùng trống (MER)"}</strong>
                       </div>
                       <div>
-                        <small>Kích thước phôi chính</small>
+                        <small>{t.mainStockSize}</small>
                         <strong>{stock.width} × {stock.height} mm</strong>
                       </div>
                     </div>
                     <div className="parts-table">
                       <div className="parts-table-head">
-                        <span>Mã</span>
-                        <span>Kích thước (R × D)</span>
-                        <span>Tọa độ (X, Y)</span>
-                        <span>Tỷ lệ diện tích</span>
+                        <span>{t.colCode}</span>
+                        <span>{t.colSize}</span>
+                        <span>{lang === "EN" ? "Coord (X, Y)" : "Tọa độ (X, Y)"}</span>
+                        <span>{t.colAreaPct}</span>
                       </div>
                       {simulation.offcuts.map((off) => {
                         const pct = ((off.area / (stock.width * stock.height)) * 100).toFixed(1);
@@ -2437,33 +2434,33 @@ export default function Home() {
                             <b>{off.id}</b>
                             <span>{off.width.toFixed(1)} × {off.height.toFixed(1)} mm</span>
                             <span>({off.minX.toFixed(1)}, {off.minY.toFixed(1)})</span>
-                            <span><b>{pct}%</b> phôi</span>
+                            <span><b>{pct}%</b> {lang === "EN" ? "stock" : "phôi"}</span>
                           </button>
                         );
                       })}
                     </div>
                     <p className="method-note">
-                      Thuật toán Maximal Empty Rectangle (MER) tự động tính toán vùng phôi dư lớn nhất có thể tận dụng lại sau khi gia công các chi tiết trên tấm.
+                      {t.merExplanation}
                     </p>
                   </>
                 ) : (
                   <div className="empty-state">
                     <Icon name="cube" size={38} />
-                    <h3>Không có phôi dư đáng kể</h3>
-                    <p>Tấm phôi đã được tận dụng tối đa hoặc các chi tiết chiếm trọn không gian khả dụng.</p>
+                    <h3>{t.noRemnantsTitle}</h3>
+                    <p>{t.noRemnantsDesc}</p>
                   </div>
                 )
               ) : drawer === "resume" ? (
                 <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", color: "#e0e0e0" }}>
                   <div className="part-summary" style={{ background: "#181818", padding: "12px", borderRadius: "6px" }}>
                     <div>
-                      <small>Chức năng phục hồi cắt dở (Smart Resume)</small>
-                      <strong style={{ display: "block", marginTop: "4px" }}>Tự động sinh lệnh khôi phục trục Z an toàn và mở lại trục chính (M3/S) từ lệnh bất kỳ</strong>
+                      <small>{lang === "EN" ? "Smart Resume Recovery Function" : "Chức năng phục hồi cắt dở (Smart Resume)"}</small>
+                      <strong style={{ display: "block", marginTop: "4px" }}>{t.smartResumeDesc}</strong>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "12px" }}>
                     <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <small style={{ color: "#aaa" }}>Tiếp tục từ Block số:</small>
+                      <small style={{ color: "#aaa" }}>{lang === "EN" ? "Resume from Block #:" : "Tiếp tục từ Block số:"}</small>
                       <input
                         type="number"
                         min={1}
@@ -2474,7 +2471,7 @@ export default function Home() {
                       />
                     </label>
                     <label style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <small style={{ color: "#aaa" }}>Độ cao an toàn Z (Safe Z):</small>
+                      <small style={{ color: "#aaa" }}>{t.safeZLabel}:</small>
                       <input
                         type="number"
                         value={resumeSafeZ}
@@ -2484,11 +2481,11 @@ export default function Home() {
                     </label>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <small style={{ color: "#aaa" }}>G-code khôi phục an toàn (Chèn vào trước Block {resumeSegment}):</small>
+                    <small style={{ color: "#aaa" }}>{lang === "EN" ? `Safe recovery G-code (Insert before Block #${resumeSegment}):` : `G-code khôi phục an toàn (Chèn vào trước Block ${resumeSegment}):`}</small>
                     <textarea
                       readOnly
                       rows={8}
-                      value={generateSmartResume(simulation, resumeSegment, resumeSafeZ)}
+                      value={generateSmartResume(simulation, resumeSegment, resumeSafeZ, lang)}
                       style={{ width: "100%", padding: "10px", borderRadius: "4px", border: "1px solid #444", background: "#0d0d0d", color: "#00ff66", fontFamily: "monospace", fontSize: "12px", resize: "vertical" }}
                     />
                   </div>
@@ -2497,38 +2494,38 @@ export default function Home() {
                     className="accent-button"
                     style={{ alignSelf: "flex-start", padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
                     onClick={() => {
-                      navigator.clipboard.writeText(generateSmartResume(simulation, resumeSegment, resumeSafeZ));
-                      alert("Đã sao chép đoạn G-code phục hồi vào Clipboard!");
+                      navigator.clipboard.writeText(generateSmartResume(simulation, resumeSegment, resumeSafeZ, lang));
+                      alert(lang === "EN" ? "Recovery G-code copied to clipboard!" : "Đã sao chép đoạn G-code phục hồi vào Clipboard!");
                     }}
                   >
-                    <Icon name="copy" size={16} /> Sao chép G-code phục hồi
+                    <Icon name="copy" size={16} /> {lang === "EN" ? "Copy Recovery G-code" : "Sao chép G-code phục hồi"}
                   </button>
                 </div>
               ) : drawer === "export" ? (
                 <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px", color: "#e0e0e0" }}>
                   <div className="part-summary" style={{ background: "#181818", padding: "12px", borderRadius: "6px" }}>
                     <div>
-                      <small>Bộ xử lý hậu kỳ (CAM Post-Processor)</small>
-                      <strong style={{ display: "block", marginTop: "4px" }}>Chuyển đổi và chuẩn hóa chương trình sang hệ điều khiển máy phay gỗ CNC chuyên dụng</strong>
+                      <small>{t.postProcTitle}</small>
+                      <strong style={{ display: "block", marginTop: "4px" }}>{t.postProcDesc}</strong>
                     </div>
                   </div>
                   <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <small style={{ color: "#aaa" }}>Hệ điều khiển đích (Controller Dialect):</small>
+                    <small style={{ color: "#aaa" }}>{t.controllerDialect}:</small>
                     <select
                       value={exportType}
                       onChange={(e) => setExportType(e.target.value as PostProcessorType)}
                       style={{ padding: "8px", borderRadius: "4px", border: "1px solid #444", background: "#1e1e1e", color: "#fff" }}
                     >
-                      <option value="ncstudio">Weihong NcStudio V15 (Phay CNC 3 trục chuyên dụng)</option>
-                      <option value="syntec">Taiwan Syntec ATC (Trung tâm gia công phay có thay dao tự động)</option>
+                      <option value="ncstudio">{t.ncstudioLabel}</option>
+                      <option value="syntec">{t.syntecLabel}</option>
                     </select>
                   </label>
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <small style={{ color: "#aaa" }}>Kết quả G-code đã xử lý (CAM Post):</small>
+                    <small style={{ color: "#aaa" }}>{t.camPostResult}:</small>
                     <textarea
                       readOnly
                       rows={10}
-                      value={exportCAM(simulation, exportType, projectName)}
+                      value={exportCAM(simulation, exportType, projectName, lang)}
                       style={{ width: "100%", padding: "10px", borderRadius: "4px", border: "1px solid #444", background: "#0d0d0d", color: "#00eaff", fontFamily: "monospace", fontSize: "12px", resize: "vertical" }}
                     />
                   </div>
@@ -2538,7 +2535,7 @@ export default function Home() {
                       className="accent-button"
                       style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
                       onClick={() => {
-                        const content = exportCAM(simulation, exportType, projectName);
+                        const content = exportCAM(simulation, exportType, projectName, lang);
                         const blob = new Blob([content], { type: "text/plain" });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
@@ -2548,18 +2545,18 @@ export default function Home() {
                         URL.revokeObjectURL(url);
                       }}
                     >
-                      <Icon name="upload" size={16} /> Tải xuống file .NC ({exportType.toUpperCase()})
+                      <Icon name="upload" size={16} /> {lang === "EN" ? "Download .NC File" : "Tải xuống file .NC"} ({exportType.toUpperCase()})
                     </button>
                     <button
                       type="button"
                       className="ghost-button"
                       style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
                       onClick={() => {
-                        navigator.clipboard.writeText(exportCAM(simulation, exportType, projectName));
-                        alert("Đã sao chép G-code đã xuất vào Clipboard!");
+                        navigator.clipboard.writeText(exportCAM(simulation, exportType, projectName, lang));
+                        alert(lang === "EN" ? "Exported G-code copied to clipboard!" : "Đã sao chép G-code đã xuất vào Clipboard!");
                       }}
                     >
-                      <Icon name="copy" size={16} /> Sao chép
+                      <Icon name="copy" size={16} /> {t.copyBtn}
                     </button>
                   </div>
                 </div>
@@ -2567,20 +2564,20 @@ export default function Home() {
                 <>
                   <div className="part-summary">
                     <div>
-                      <small>Đã nhận diện</small>
-                      <strong>{simulation.parts.length} chi tiết</strong>
+                      <small>{t.detected}</small>
+                      <strong>{simulation.parts.length} {lang === "EN" ? "parts" : "chi tiết"}</strong>
                     </div>
                     <div>
-                      <small>Khoảng cách yêu cầu</small>
+                      <small>{t.requiredClearance}</small>
                       <strong>{stock.clearance.toFixed(1)} mm</strong>
                     </div>
                   </div>
                   <div className="parts-table">
                     <div className="parts-table-head">
-                      <span>Mã</span>
-                      <span>Kích thước bao</span>
-                      <span>Gần nhất</span>
-                      <span>Mép phôi</span>
+                      <span>{t.colCode}</span>
+                      <span>{t.colDim}</span>
+                      <span>{t.colNearest}</span>
+                      <span>{t.colEdge}</span>
                     </div>
                     {simulation.parts.map((part) => (
                       <button
@@ -2621,17 +2618,15 @@ export default function Home() {
                     ))}
                   </div>
                   <p className="method-note">
-                    Với biên dạng bo góc có bù dao, kích thước thành phẩm được trừ
-                    bán kính dao ở mỗi mép. Biên dạng lồng bên trong được xem là
-                    lỗ/rãnh và không tính thành tấm riêng.
+                    {t.partMethodNote}
                   </p>
                 </>
               ) : (
                 <div className="empty-state">
                   <Icon name="ruler" size={38} />
-                  <h3>Chưa tìm thấy đường bao kín</h3>
+                  <h3>{t.noPartsTitle}</h3>
                   <p>
-                    Hãy nhập chương trình có chuỗi G1/G2/G3 khép kín để đo chi tiết.
+                    {t.noPartsDesc}
                   </p>
                 </div>
               )}
@@ -2645,34 +2640,34 @@ export default function Home() {
           <button
             className="modal-backdrop"
             type="button"
-            aria-label="Đóng thiết lập"
+            aria-label={lang === "EN" ? "Close settings" : "Đóng thiết lập"}
             onClick={() => setSettingsOpen(false)}
           />
           <section className="settings-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
               <div>
-                <small>HỒ SƠ MÁY</small>
-                <h2>Phôi, dao và vùng an toàn</h2>
+                <small>{t.machineProfile}</small>
+                <h2>{t.stockToolTitle}</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setSettingsOpen(false)}
-                aria-label="Đóng"
+                aria-label={lang === "EN" ? "Close" : "Đóng"}
               >
                 <Icon name="close" />
               </button>
             </div>
             <div className="settings-grid">
               {[
-                ["width", "Dài phôi", "mm"],
-                ["height", "Rộng phôi", "mm"],
-                ["thickness", "Dày phôi", "mm"],
-                ["toolDiameter", "Đường kính dao", "mm"],
-                ["originX", "Gốc phôi X", "mm"],
-                ["originY", "Gốc phôi Y", "mm"],
-                ["safeZ", "Z an toàn", "mm"],
-                ["clearance", "Khoảng cách tối thiểu", "mm"],
-                ["rapidFeed", "Tốc độ G0", "mm/min"],
+                ["width", t.lblWidth, "mm"],
+                ["height", t.lblHeight, "mm"],
+                ["thickness", t.lblThickness, "mm"],
+                ["toolDiameter", t.lblToolDia, "mm"],
+                ["originX", t.lblOriginX, "mm"],
+                ["originY", t.lblOriginY, "mm"],
+                ["safeZ", t.lblSafeZ, "mm"],
+                ["clearance", t.lblClearance, "mm"],
+                ["rapidFeed", t.lblRapidFeed, "mm/min"],
               ].map(([key, label, unit]) => (
                 <label key={key}>
                   <span>{label}</span>
@@ -2696,9 +2691,7 @@ export default function Home() {
             <div className="profile-note">
               <Icon name="info" size={20} />
               <p>
-                <b>Router Custom:</b> `M33 S…` được hiểu là bật spindle và `G600
-                T…` là chọn dao. `M73/M83` được giữ như lệnh phụ trợ, không làm thay
-                đổi hình học cho đến khi bạn cung cấp quy tắc máy chính xác.
+                <b>Router Custom:</b> {t.routerNote}
               </p>
             </div>
             <div className="modal-actions">
@@ -2707,7 +2700,7 @@ export default function Home() {
                 className="ghost-button"
                 onClick={() => setStock(DEFAULT_STOCK)}
               >
-                Khôi phục mặc định
+                {t.restoreDefault}
               </button>
               <button
                 type="button"
@@ -2715,10 +2708,10 @@ export default function Home() {
                 onClick={() => {
                   setSettingsOpen(false);
                   resetPlayback();
-                  notify("Đã tính lại toàn bộ chương trình theo cấu hình mới.");
+                  notify(lang === "EN" ? "Recalculated program with new machine settings." : "Đã tính lại toàn bộ chương trình theo cấu hình mới.");
                 }}
               >
-                Áp dụng & tính lại
+                {t.applyRecalc}
               </button>
             </div>
           </section>
@@ -2730,19 +2723,19 @@ export default function Home() {
           <button
             className="modal-backdrop"
             type="button"
-            aria-label="Đóng trình sửa code"
+            aria-label={lang === "EN" ? "Close code editor" : "Đóng trình sửa code"}
             onClick={() => setEditorOpen(false)}
           />
           <section className="code-editor-modal" role="dialog" aria-modal="true">
             <div className="modal-header">
               <div>
-                <small>TRÌNH SOẠN THẢO</small>
+                <small>{t.editorTitle}</small>
                 <h2>{fileName}</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setEditorOpen(false)}
-                aria-label="Đóng"
+                aria-label={lang === "EN" ? "Close" : "Đóng"}
               >
                 <Icon name="close" />
               </button>
@@ -2751,11 +2744,11 @@ export default function Home() {
               value={draftCode}
               onChange={(event) => setDraftCode(event.target.value)}
               spellCheck={false}
-              aria-label="Nội dung G-code"
+              aria-label={lang === "EN" ? "G-code content" : "Nội dung G-code"}
             />
             <div className="editor-help">
-              <span>Không cần dấu cách: N100G1X20Y30 vẫn đọc được.</span>
-              <span>Space/F5: Play · F10: Step · F8: Reset</span>
+              <span>{t.editorHelp1}</span>
+              <span>{t.editorHelp2}</span>
             </div>
             <div className="modal-actions">
               <button
@@ -2763,7 +2756,7 @@ export default function Home() {
                 className="ghost-button"
                 onClick={() => setDraftCode(SAMPLE_GCODE)}
               >
-                Nạp lại code mẫu
+                {t.reloadSample}
               </button>
               <button
                 type="button"
@@ -2773,12 +2766,12 @@ export default function Home() {
                   setEditorOpen(false);
                   notify(
                     rotated
-                      ? "Đã dịch lại G-code và tự xoay chiều phôi cho đúng tọa độ."
-                      : "Đã dịch lại G-code và cập nhật mô phỏng.",
+                      ? (lang === "EN" ? "Re-parsed G-code and automatically rotated stock orientation." : "Đã dịch lại G-code và tự xoay chiều phôi cho đúng tọa độ.")
+                      : (lang === "EN" ? "Re-parsed G-code and updated simulation." : "Đã dịch lại G-code và cập nhật mô phỏng."),
                   );
                 }}
               >
-                Dịch & mô phỏng
+                {t.parseSimulate}
               </button>
             </div>
           </section>
@@ -2788,8 +2781,8 @@ export default function Home() {
       {dragActive && (
         <div className="drop-overlay">
           <Icon name="upload" size={44} />
-          <strong>Thả file G-code vào đây</strong>
-          <span>.NC · .TXT · .TAP · .GCODE · .CNC</span>
+          <strong>{t.dropTitle}</strong>
+          <span>{t.dropSub}</span>
         </div>
       )}
 

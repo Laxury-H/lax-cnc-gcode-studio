@@ -124,9 +124,15 @@ export const translations = {
 
     // Smart Resume & CAM Post-Processor
     smartResumeDesc: "Tự động sinh lệnh khôi phục trục Z an toàn và mở lại trục chính (M3/S) từ lệnh bất kỳ",
-    safeZLabel: "Độ cao an toàn Z (Safe Z):",
+    safeZLabel: "Độ cao an toàn Z (Safe Z)",
     copyRecoveryBtn: "Sao chép G-code phục hồi",
     copiedRecoveryAlert: "Đã sao chép đoạn G-code phục hồi vào Clipboard!",
+    postProcTitle: "Bộ xử lý hậu kỳ (CAM Post-Processor)",
+    postProcDesc: "Chuyển đổi và chuẩn hóa chương trình sang hệ điều khiển máy phay gỗ CNC chuyên dụng",
+    controllerDialect: "Hệ điều khiển đích (Controller Dialect)",
+    ncstudioLabel: "Weihong NcStudio V15 (Phay CNC 3 trục chuyên dụng)",
+    syntecLabel: "Taiwan Syntec ATC (Trung tâm gia công phay có thay dao tự động)",
+    camPostResult: "Kết quả G-code đã xử lý (CAM Post)",
     camPostTitle: "Bộ xử lý hậu kỳ (CAM Post-Processor)",
     camPostDesc: "Chuyển đổi và chuẩn hóa chương trình sang hệ điều khiển máy phay gỗ CNC chuyên dụng",
     targetControllerLabel: "Hệ điều khiển đích (Controller Dialect):",
@@ -138,6 +144,44 @@ export const translations = {
     fileTooLarge: "File lớn hơn 8 MB. Hãy chia chương trình trước khi nhập.",
     unsupportedFormat: "Định dạng chưa hỗ trợ. Dùng .NC, .TXT, .TAP, .GCODE hoặc .CNC.",
     recalculatedMsg: "Đã tính lại toàn bộ chương trình theo cấu hình mới.",
+
+    // Parts drawer extra keys
+    detected: "Đã nhận diện",
+    requiredClearance: "Khoảng cách yêu cầu",
+    colDim: "Kích thước bao",
+    colNearest: "Gần nhất",
+    partMethodNote: "Với biên dạng bo góc có bù dao, kích thước thành phẩm được trừ bán kính dao ở mỗi mép. Biên dạng lồng bên trong được xem là lỗ/rãnh và không tính thành tấm riêng.",
+    noPartsTitle: "Chưa tìm thấy đường bao kín",
+    noPartsDesc: "Hãy nhập chương trình có chuỗi G1/G2/G3 khép kín để đo chi tiết.",
+
+    // Settings modal
+    machineProfile: "HỒ SƠ MÁY",
+    stockToolTitle: "Phôi, dao và vùng an toàn",
+    routerNote: "`M33 S…` được hiểu là bật spindle và `G600 T…` là chọn dao. `M73/M83` được giữ như lệnh phụ trợ, không làm thay đổi hình học cho đến khi bạn cung cấp quy tắc máy chính xác.",
+    restoreDefault: "Khôi phục mặc định",
+    applyRecalc: "Áp dụng & tính lại",
+
+    // Settings field labels
+    lblWidth: "Dài phôi",
+    lblHeight: "Rộng phôi",
+    lblThickness: "Dày phôi",
+    lblToolDia: "Đường kính dao",
+    lblOriginX: "Gốc phôi X",
+    lblOriginY: "Gốc phôi Y",
+    lblSafeZ: "Z an toàn",
+    lblClearance: "Khoảng cách tối thiểu",
+    lblRapidFeed: "Tốc độ G0",
+
+    // Code editor modal
+    editorTitle: "TRÌNH SOẠN THẢO",
+    editorHelp1: "Không cần dấu cách: N100G1X20Y30 vẫn đọc được.",
+    editorHelp2: "Space/F5: Play · F10: Step · F8: Reset",
+    reloadSample: "Nạp lại code mẫu",
+    parseSimulate: "Dịch & mô phỏng",
+
+    // Drop overlay
+    dropTitle: "Thả file G-code vào đây",
+    dropSub: ".NC · .TXT · .TAP · .GCODE · .CNC",
 
     // 3D Cube
     cubeFront: "TRƯỚC",
@@ -270,9 +314,15 @@ export const translations = {
 
     // Smart Resume & CAM Post-Processor
     smartResumeDesc: "Automatically generate safe Z recovery and spindle start (M3/S) from any block",
-    safeZLabel: "Safe Z clearance height:",
+    safeZLabel: "Safe Z clearance height",
     copyRecoveryBtn: "Copy recovery G-code",
     copiedRecoveryAlert: "Recovery G-code copied to clipboard!",
+    postProcTitle: "CAM Post-Processor",
+    postProcDesc: "Convert and standardize program for specialized industrial CNC controllers",
+    controllerDialect: "Target Controller Dialect",
+    ncstudioLabel: "Weihong NcStudio V15 (Dedicated 3-Axis CNC Milling)",
+    syntecLabel: "Taiwan Syntec ATC (Milling Machining Center with ATC)",
+    camPostResult: "Processed G-code result (CAM Post)",
     camPostTitle: "CAM Post-Processor",
     camPostDesc: "Convert and standardize program for specialized industrial CNC controllers",
     targetControllerLabel: "Target Controller Dialect:",
@@ -285,6 +335,44 @@ export const translations = {
     unsupportedFormat: "Unsupported format. Use .NC, .TXT, .TAP, .GCODE or .CNC.",
     recalculatedMsg: "Recalculated entire program with new profile.",
 
+    // Parts drawer extra keys
+    detected: "Detected",
+    requiredClearance: "Req. clearance",
+    colDim: "Bounding box",
+    colNearest: "Nearest gap",
+    partMethodNote: "For compensated contours, finished dimensions subtract tool radius at edges. Nested inner contours are treated as pockets/holes and not counted as separate parts.",
+    noPartsTitle: "No closed contours found",
+    noPartsDesc: "Import a program with closed G1/G2/G3 sequences to measure parts.",
+
+    // Settings modal
+    machineProfile: "MACHINE PROFILE",
+    stockToolTitle: "Stock, Tool & Safe Zone",
+    routerNote: "`M33 S…` is interpreted as spindle on and `G600 T…` as tool select. `M73/M83` are treated as auxiliary commands with no geometry change until precise machine rules are provided.",
+    restoreDefault: "Restore Defaults",
+    applyRecalc: "Apply & Recalculate",
+
+    // Settings field labels
+    lblWidth: "Stock Length",
+    lblHeight: "Stock Width",
+    lblThickness: "Stock Thickness",
+    lblToolDia: "Tool Diameter",
+    lblOriginX: "Origin X",
+    lblOriginY: "Origin Y",
+    lblSafeZ: "Safe Z",
+    lblClearance: "Min. Clearance",
+    lblRapidFeed: "G0 Rapid Speed",
+
+    // Code editor modal
+    editorTitle: "CODE EDITOR",
+    editorHelp1: "No spaces needed: N100G1X20Y30 is valid.",
+    editorHelp2: "Space/F5: Play · F10: Step · F8: Reset",
+    reloadSample: "Reload Sample Code",
+    parseSimulate: "Parse & Simulate",
+
+    // Drop overlay
+    dropTitle: "Drop G-code file here",
+    dropSub: ".NC · .TXT · .TAP · .GCODE · .CNC",
+
     // 3D Cube
     cubeFront: "FRONT",
     cubeBack: "BACK",
@@ -292,6 +380,7 @@ export const translations = {
     cubeRight: "RIGHT",
     cubeTop: "TOP",
     cubeBottom: "BOTTOM",
+
   },
 } as const;
 
@@ -318,9 +407,67 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
   if (msg.includes("Chuyển động tạo ra NaN hoặc vô cực")) return "Motion produced NaN or infinity and was discarded.";
   if (msg.includes("Chuyển động cắt chưa có tốc độ F")) return "Cutting motion missing valid feed rate F.";
   if (msg.includes("Tọa độ X/Y nằm ngoài vùng phôi")) return "X/Y coordinates exceed declared stock boundaries.";
+  if (msg.includes("G0 chạy ngang dưới Z an toàn")) return msg.replace("G0 chạy ngang dưới Z an toàn", "G0 rapid move below safe Z clearance");
   if (msg.includes("Có chuyển động cắt khi trạng thái spindle chưa bật")) return "Cutting motion detected while spindle is stopped.";
-  if (msg.includes("đang chồng biên dạng")) return msg.replace("và", "and").replace("đang chồng biên dạng.", "are overlapping.");
-  if (msg.includes("chỉ")) return msg.replace("chỉ", "only").replace("nhỏ hơn mức", "less than clearance");
+  
+  // Arc & Geometry Errors
+  if (msg.includes("Chế độ tâm cung phải là tuyệt đối hoặc tương đối")) return "Arc center mode must be absolute or relative.";
+  if (msg.includes("Giá trị I/J/K của tâm cung phải là số hữu hạn")) return "Arc center I/J/K values must be finite numbers.";
+  if (msg.includes("Tọa độ tâm cung vượt giới hạn số hữu hạn")) return "Arc center coordinates exceed finite limits.";
+  if (msg.includes("Bán kính cung vượt giới hạn số hữu hạn")) return "Arc radius exceeds finite limits.";
+  if (msg.includes("Điểm đầu trùng với tâm nên bán kính cung bằng 0")) return "Start point coincides with center, resulting in 0 radius.";
+  if (msg.includes("Bán kính tại điểm đầu")) return msg.replace("Bán kính tại điểm đầu", "Radius at start point").replace("và điểm cuối", "and end point").replace("không khớp.", "do not match.");
+  if (msg.includes("Giá trị R của cung phải là số hữu hạn")) return "Arc R value must be a finite number.";
+  if (msg.includes("Không thể xác định full-circle chỉ bằng R; hãy dùng I/J/K")) return "Cannot define full-circle using only R; use I/J/K.";
+  if (msg.includes("Bán kính R phải lớn hơn 0")) return "Radius R must be greater than 0.";
+  if (msg.includes("Độ dài dây cung vượt giới hạn số hữu hạn")) return "Chord length exceeds finite limits.";
+  if (msg.includes("nhỏ hơn nửa dây cung")) return msg.replace("Bán kính R=", "Radius R=").replace("nhỏ hơn nửa dây cung", "is smaller than half chord length");
+  if (msg.includes("Không thể chọn được tâm phù hợp với hướng G2/G3 và dấu của R")) return "Cannot determine valid center matching G2/G3 direction and sign of R.";
+  if (msg.includes("Tâm hoặc bán kính cung không hợp lệ")) return "Invalid arc center or radius.";
+  if (msg.includes("Góc quét của cung không thể xác định")) return "Arc sweep angle cannot be determined.";
+  if (msg.includes("Kích thước hoặc chiều dài cung vượt giới hạn số hữu hạn")) return "Arc dimensions or length exceed finite limits.";
+  if (msg.includes("Chất lượng cung cần chordError > 0")) return msg.replace("Chất lượng cung cần", "Arc resolution requires");
+  if (msg.includes("Cần resolve cung thành công trước khi lấy mẫu")) return "Must resolve arc before sampling.";
+  if (msg.includes("Dữ liệu cung đã resolve không hợp lệ")) return "Resolved arc data is invalid.";
+  
+  // Bounds & Math Errors
+  if (msg.includes("Bounds phải hữu hạn và mỗi giá trị min không được lớn hơn max")) return "Bounds must be finite and min values cannot exceed max values.";
+  if (msg.includes("Chiều dài đường gấp khúc vượt giới hạn số hữu hạn")) return "Polyline length exceeds finite limits.";
+  if (msg.includes("Cận dưới không được lớn hơn cận trên")) return "Lower bound cannot exceed upper bound.";
+  if (msg.includes("vượt giới hạn số hữu hạn")) {
+    return msg.replace("vượt giới hạn số hữu hạn", "exceeds finite limits")
+      .replace("Khoảng cách", "Distance")
+      .replace("Tổng hai vector", "Sum of vectors")
+      .replace("Hiệu hai vector", "Difference of vectors")
+      .replace("Hệ số", "Factor")
+      .replace("Vector sau khi nhân", "Scaled vector")
+      .replace("Điểm đầu", "Start point")
+      .replace("Điểm cuối", "End point")
+      .replace("Tỷ lệ nội suy", "Interpolation ratio")
+      .replace("Điểm nội suy", "Interpolated point")
+      .replace("Điểm thứ", "Point #");
+  }
+  if (msg.includes("phải là một số hữu hạn")) {
+    return msg.replace("phải là một số hữu hạn.", "must be a finite number.")
+      .replace("Giá trị", "Value")
+      .replace("Cận dưới", "Lower bound")
+      .replace("Cận trên", "Upper bound");
+  }
+  if (msg.includes("phải có tọa độ X, Y, Z hữu hạn")) {
+    return msg.replace("Điểm", "Point").replace("phải có tọa độ X, Y, Z hữu hạn.", "must have finite X, Y, Z coordinates.");
+  }
+  
+  // Contour / Part / Clearances
+  if (msg.includes("đang chồng biên dạng")) return msg.replace("và", "and").replace("đang chồng biên dạng.", "are overlapping in contour.");
+  if (msg.includes("nhỏ hơn mức")) {
+    return msg.replace("Khoảng cách", "Distance")
+      .replace("chỉ", "is only")
+      .replace("nhỏ hơn mức", "below required clearance")
+      .replace("cách mép phôi", "is from stock edge");
+  }
+  if (msg.includes("cách mép phôi")) {
+    return msg.replace("cách mép phôi", "from stock edge").replace("nhỏ hơn mức", "below required clearance");
+  }
 
   return msg;
 }

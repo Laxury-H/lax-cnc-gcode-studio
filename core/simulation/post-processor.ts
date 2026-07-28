@@ -4,6 +4,7 @@ export function exportCAM(
   simulation: Simulation,
   target: PostProcessorType,
   projectName: string,
+  lang: "VN" | "EN" = "VN",
 ): string {
   if (target === "standard") {
     return simulation.lines.join("\n");
@@ -44,7 +45,11 @@ export function exportCAM(
     if (seg.tool && seg.tool !== currentTool && seg.tool !== "—") {
       currentTool = seg.tool;
       const toolNum = seg.tool.replace("T", "");
-      lines.push(`; --- ĐỔI DAO SANG ${seg.tool} ---`);
+      lines.push(
+        lang === "EN"
+          ? `; --- TOOL CHANGE TO ${seg.tool} ---`
+          : `; --- ĐỔI DAO SANG ${seg.tool} ---`,
+      );
       if (isSyntec) {
         lines.push(
           "M05",
