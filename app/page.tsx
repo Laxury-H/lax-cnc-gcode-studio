@@ -1232,7 +1232,7 @@ function ToolpathCanvas({
           -1.5,
           Math.min(
             1.5,
-            dragRef.current.pitch -
+            dragRef.current.pitch +
               (event.clientY - dragRef.current.y) * 0.007,
           ),
         ),

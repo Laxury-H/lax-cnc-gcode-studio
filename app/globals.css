@@ -447,9 +447,10 @@ textarea:focus-visible {
 }
 
 .speed-control select {
-  width: 65px;
+  width: auto;
+  min-width: 65px;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 24px 0 10px;
 }
 
 .canvas-tools {
@@ -915,7 +916,7 @@ textarea:focus-visible {
 .orbit-hint {
   position: absolute;
   z-index: 5;
-  bottom: 16px;
+  top: 14px;
   left: 50%;
   display: inline-flex;
   align-items: center;
@@ -1495,7 +1496,8 @@ button.metric-card {
   position: absolute;
   z-index: 7;
   bottom: 12px;
-  left: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   min-height: 40px;
   align-items: stretch;
@@ -1570,7 +1572,7 @@ button.metric-card {
 .orientation-widget {
   position: absolute;
   z-index: 8;
-  top: 65px;
+  top: 86px;
   right: 17px;
   display: grid;
   width: 62px;
@@ -1664,9 +1666,6 @@ button.metric-card {
   padding-inline: 8px;
 }
 
-.orbit-hint {
-  bottom: 64px;
-}
 
 .scrubber {
   grid-template-columns: 70px minmax(0, 1fr) 88px 70px;
@@ -2702,7 +2701,7 @@ button.metric-card {
 
   .canvas-telemetry {
     bottom: 10px;
-    left: 9px;
+    left: 50%;
   }
 
   .canvas-telemetry > span {
@@ -2713,9 +2712,12 @@ button.metric-card {
     display: none;
   }
 
-  .backplot-controls,
-  .orbit-hint {
+  .backplot-controls {
     bottom: 58px;
+  }
+
+  .orbit-hint {
+    display: none;
   }
 
   .scrubber {
@@ -2775,7 +2777,7 @@ button.metric-card {
   }
 
   .orientation-widget {
-    top: 63px;
+    top: 82px;
     right: 10px;
     transform: scale(0.88);
     transform-origin: top right;
