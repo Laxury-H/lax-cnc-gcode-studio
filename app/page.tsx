@@ -1964,28 +1964,10 @@ export default function Home() {
             }
           />
           <ToolbarButton
-            icon="ruler"
-            label="Kích thước và khoảng cách chi tiết"
-            onClick={() => setDrawer("parts")}
-            active={drawer === "parts"}
-          />
-          <ToolbarButton
-            icon="cube"
-            label="Phôi dư (Remnants & Offcuts)"
-            onClick={() => setDrawer("offcuts")}
-            active={drawer === "offcuts"}
-          />
-          <ToolbarButton
-            icon="step"
-            label="Phục hồi cắt dở (Smart Resume)"
-            onClick={() => setDrawer("resume")}
-            active={drawer === "resume"}
-          />
-          <ToolbarButton
-            icon="upload"
-            label="Xuất G-code CAM (Weihong / Syntec)"
-            onClick={() => setDrawer("export")}
-            active={drawer === "export"}
+            icon="panel"
+            label="Phân tích & Tiện ích (Kích thước, Phôi dư, Smart Resume...)"
+            onClick={() => setDrawer(drawer ? null : "diagnostics")}
+            active={!!drawer}
           />
           <ToolbarButton
             icon="settings"
