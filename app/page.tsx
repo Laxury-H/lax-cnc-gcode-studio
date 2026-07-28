@@ -585,8 +585,8 @@ function ToolpathCanvas({
         const rotatedY = sinYaw * x + cosYaw * y;
         return {
           u: rotatedX,
-          v: rotatedY * sinPitch - z * cosPitch,
-          depth: rotatedY * cosPitch + z * sinPitch,
+          v: -rotatedY * sinPitch - z * cosPitch,
+          depth: rotatedY * cosPitch - z * sinPitch,
         };
       };
       const rotatePoint = (point: Vec3) =>
@@ -1336,13 +1336,13 @@ function ToolpathCanvas({
               <span
                 className="cube-core"
                 style={{
-                  transform: `rotateX(${58 - (orbit.pitch * 180) / Math.PI}deg) rotateZ(${(orbit.yaw * 180) / Math.PI - 45}deg)`,
+                  transform: `rotateX(-${(orbit.pitch * 180) / Math.PI}deg) rotateY(${(orbit.yaw * 180) / Math.PI}deg)`,
                 }}
               >
-                <i className="cube-face cube-front">X+</i>
-                <i className="cube-face cube-back">X−</i>
-                <i className="cube-face cube-right">Y+</i>
-                <i className="cube-face cube-left">Y−</i>
+                <i className="cube-face cube-front">Y−</i>
+                <i className="cube-face cube-back">Y+</i>
+                <i className="cube-face cube-right">X+</i>
+                <i className="cube-face cube-left">X−</i>
                 <i className="cube-face cube-top">Z+</i>
                 <i className="cube-face cube-bottom">Z−</i>
               </span>
