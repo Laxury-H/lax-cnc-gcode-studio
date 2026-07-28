@@ -861,7 +861,25 @@ function ToolpathCanvas({
       }
       if (!hasPoints) return;
 
-      if (glowWidth > 0) {
+      if (glowWidth > 0 && filterKind === "cut") {
+        const toolWidth = Math.max(1, stock.toolDiameter * scale);
+        // Draw the dark edge/shadow of the cut
+        ctx.strokeStyle = `rgba(50, 30, 15, ${alpha * 0.9})`;
+        ctx.lineWidth = toolWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+        
+        // Draw the lighter bottom of the cut (MDF core)
+        ctx.strokeStyle = `rgba(145, 105, 65, ${alpha * 0.95})`;
+        ctx.lineWidth = Math.max(0.5, toolWidth - 1.5);
+        ctx.stroke();
+
+        // Draw a very faint toolpath tracking line in the center
+        ctx.strokeStyle = `rgba(${color}, ${alpha * 0.3})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      } else if (glowWidth > 0) {
         ctx.strokeStyle = view === "iso"
           ? `rgba(8,15,18,${Math.min(0.72, alpha * 0.72)})`
           : `rgba(38,217,232,${Math.min(0.16, alpha * 0.16)})`;
@@ -869,15 +887,23 @@ function ToolpathCanvas({
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.stroke();
+        
+        ctx.strokeStyle = `rgba(${color},${alpha})`;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        if (isRapid) ctx.setLineDash([7, 5]);
+        ctx.stroke();
+        if (isRapid) ctx.setLineDash([]);
+      } else {
+        ctx.strokeStyle = `rgba(${color},${alpha})`;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        if (isRapid) ctx.setLineDash([7, 5]);
+        ctx.stroke();
+        if (isRapid) ctx.setLineDash([]);
       }
-
-      ctx.strokeStyle = `rgba(${color},${alpha})`;
-      ctx.lineWidth = lineWidth;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      if (isRapid) ctx.setLineDash([7, 5]);
-      ctx.stroke();
-      if (isRapid) ctx.setLineDash([]);
     };
 
     const drawSingleSegmentDetail = (
@@ -953,8 +979,8 @@ function ToolpathCanvas({
     drawBatchedSegments(completedSegs, "drill", "", 0.88, 1);
     drawBatchedSegments(futureSegs, "drill", "", 0.2, 1);
 
-    const completedGlow = quality === "high" ? Math.max(3, stock.toolDiameter * scale * 0.9) : 0;
-    drawBatchedSegments(completedSegs, "cut", cutColor, 0.88, view === "iso" ? 1.25 : 1.45, false, completedGlow);
+    const completedGlow = quality === "high" ? Math.max(3, stock.toolDiameter * scale) : 0;
+    drawBatchedSegments(completedSegs, "cut", cutColor, 0.95, view === "iso" ? 1.25 : 1.45, false, completedGlow);
     drawBatchedSegments(futureSegs, "cut", cutColor, 0.2, view === "iso" ? 0.9 : 1.1, false, 0);
 
     const currentSeg = simulation.segments[cursor];
