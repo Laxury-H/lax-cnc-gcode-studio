@@ -33,6 +33,7 @@ import type {
   StudioMachineProfile as MachineProfile,
   Vec3,
 } from "@/core/simulation/types";
+import { Lang, translations, translateDiagnostic, type TranslationDict } from "./i18n";
 
 type ViewMode = "xoy" | "iso";
 type OrbitCamera = { yaw: number; pitch: number };
@@ -45,21 +46,20 @@ const DEFAULT_ORBIT: OrbitCamera = {
 
 const PLANE_GCODE = { XY: "G17", XZ: "G18", YZ: "G19" } as const;
 
-const VIEW_META: Record<
-  ViewMode,
-  { short: string; title: string; description: string }
-> = {
-  xoy: {
-    short: "📐 2D MẶT CẮT",
-    title: "Mặt phẳng 2D (XOY)",
-    description: "Nhìn từ trên xuống · Kéo để di chuyển",
-  },
-  iso: {
-    short: "📦 3D KHÔNG GIAN",
-    title: "Mô phỏng 3D (ISO)",
-    description: "Kéo để xoay · Shift+kéo để pan",
-  },
-};
+function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
+  if (viewMode === "xoy") {
+    return {
+      short: "📐 2D",
+      title: t.view2D,
+      description: t.desc2D,
+    };
+  }
+  return {
+    short: "📦 3D",
+    title: t.view3D,
+    description: t.desc3D,
+  };
+}
 
 function buildSampleProgram() {
   const panels = [
@@ -181,14 +181,14 @@ function formatLength(mm: number) {
   return mm >= 1000 ? `${(mm / 1000).toFixed(2)} m` : `${mm.toFixed(1)} mm`;
 }
 
-function motionLabel(segment: Segment | undefined) {
-  if (!segment) return "CHƯA CÓ CHUYỂN ĐỘNG";
-  if (segment.kind === "rapid") return "G0 · CHẠY NHANH";
-  if (segment.kind === "cut") return "G1 · CẮT TUYẾN TÍNH";
-  if (segment.kind === "arc-cw") return "G2 · CUNG TRÒN CW";
-  if (segment.kind === "arc-ccw") return "G3 · CUNG TRÒN CCW";
-  if (segment.kind === "dwell") return "G4 · TẠM DỪNG";
-  return "CHU TRÌNH KHOAN";
+function motionLabel(segment: Segment | undefined, t: TranslationDict) {
+  if (!segment) return t.noMotion;
+  if (segment.kind === "rapid") return t.rapidMove;
+  if (segment.kind === "cut") return t.linearCut;
+  if (segment.kind === "arc-cw") return t.arcCw;
+  if (segment.kind === "arc-ccw") return t.arcCcw;
+  if (segment.kind === "dwell") return t.dwell;
+  return t.drillCycle;
 }
 
 function Icon({
@@ -397,6 +397,7 @@ function ToolpathCanvas({
   orbit,
   showRapids,
   quality = "medium",
+  t,
   onZoom,
   onPan,
   onOrbit,
@@ -413,6 +414,7 @@ function ToolpathCanvas({
   orbit: OrbitCamera;
   showRapids: boolean;
   quality?: "low" | "medium" | "high";
+  t: TranslationDict;
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
   onOrbit: (orbit: OrbitCamera) => void;
@@ -1269,7 +1271,7 @@ function ToolpathCanvas({
     >
       <div className="active-command-hud" aria-hidden="true">
         <span className="command-mode">
-          <b>{motionLabel(currentSegment)}</b>
+          <b>{motionLabel(currentSegment, t)}</b>
           <small>
             BLOCK {currentSegment?.lineNumber ?? 0} · MOVE{" "}
             {Math.min(cursor + 1, simulation.segments.length)}/
@@ -1279,9 +1281,9 @@ function ToolpathCanvas({
         <code>{currentSegment?.raw.trim() || "—"}</code>
       </div>
       <div className="plane-badge" aria-hidden="true">
-        <strong>{VIEW_META[view].short}</strong>
-        <span>{VIEW_META[view].title}</span>
-        <small>{VIEW_META[view].description}</small>
+        <strong>{getViewMeta(view, t).short}</strong>
+        <span>{getViewMeta(view, t).title}</span>
+        <small>{getViewMeta(view, t).description}</small>
       </div>
       <div
         className="canvas-telemetry"
@@ -1289,7 +1291,7 @@ function ToolpathCanvas({
       >
         <span className={`telemetry-state${playing ? " is-running" : ""}`}>
           <i />
-          {playing ? "RUN" : "READY"}
+          {playing ? "RUN" : t.ready}
         </span>
         {(["x", "y", "z"] as const).map((axis) => (
           <span className={`telemetry-axis is-${axis}`} key={axis}>
@@ -1318,8 +1320,8 @@ function ToolpathCanvas({
             type="button"
             className="orientation-widget"
             onClick={onResetView}
-            aria-label="Đặt lại hướng camera 3D"
-            title="Nhấn để đặt lại camera 3D"
+            aria-label={t.resetView}
+            title={t.resetView}
           >
             <span className="cube-shell">
               <span
@@ -1345,7 +1347,7 @@ function ToolpathCanvas({
               aria-pressed={showStock}
               onClick={() => setShowStock((value) => !value)}
             >
-              PHÔI
+              {t.stock}
             </button>
             <button
               type="button"
@@ -1353,7 +1355,7 @@ function ToolpathCanvas({
               aria-pressed={showTool}
               onClick={() => setShowTool((value) => !value)}
             >
-              DAO
+              {t.tool}
             </button>
             <button
               type="button"
@@ -1361,7 +1363,7 @@ function ToolpathCanvas({
               aria-pressed={showBounds}
               onClick={() => setShowBounds((value) => !value)}
             >
-              KHUNG
+              {t.bounds}
             </button>
             <button
               type="button"
@@ -1369,22 +1371,22 @@ function ToolpathCanvas({
               aria-pressed={showGrid}
               onClick={() => setShowGrid((value) => !value)}
             >
-              LƯỚI
+              {t.grid}
             </button>
             <button type="button" onClick={onResetView}>
-              ĐẶT LẠI
+              {t.reset}
             </button>
           </div>
           <div className="orbit-hint" aria-hidden="true">
-            <span>Chuột trái: xoay</span>
-            <span>Shift/chuột phải: pan</span>
-            <span>Con lăn: zoom</span>
+            <span>{t.orbitHintLeft}</span>
+            <span>{t.orbitHintRight}</span>
+            <span>{t.orbitHintScroll}</span>
           </div>
         </>
       )}
       <canvas
         ref={canvasRef}
-        aria-label={`Mô phỏng đường chạy dao CNC · ${VIEW_META[view].title}`}
+        aria-label={`Mô phỏng đường chạy dao CNC · ${getViewMeta(view, t).title}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -1460,6 +1462,21 @@ export default function Home() {
   const [projectName, setProjectName] = useState("Tủ bếp căn A-01");
   const [stock, setStock] = useState(DEFAULT_STOCK);
   const [profile, setProfile] = useState<MachineProfile>("router-custom");
+  const [lang, setLang] = useState<Lang>("VN");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("lax_cnc_lang");
+    if (saved === "EN" || saved === "VN") {
+      setLang(saved);
+    }
+  }, []);
+
+  const toggleLanguage = useCallback((newLang: Lang) => {
+    setLang(newLang);
+    localStorage.setItem("lax_cnc_lang", newLang);
+  }, []);
+
+  const t = translations[lang];
   const [view, setView] = useState<ViewMode>("xoy");
   const [cursor, setCursor] = useState(0);
   const [segmentProgress, setSegmentProgress] = useState(0);
@@ -1800,11 +1817,11 @@ export default function Home() {
         </div>
         <div className="header-divider" />
         <label className="project-field">
-          <span>Dự án:</span>
+          <span>{t.projectLabel}</span>
           <input
             value={projectName}
             onChange={(event) => setProjectName(event.target.value)}
-            aria-label="Tên dự án"
+            aria-label={t.projectLabel}
           />
           <Icon name="edit" size={15} />
         </label>
@@ -1824,13 +1841,24 @@ export default function Home() {
           className="import-button"
           type="button"
           onClick={() => fileInputRef.current?.click()}
+          title={t.uploadFile}
         >
           <Icon name="upload" size={18} />
-          <span>Import .NC/.TXT</span>
+          <span>{t.importBtn}</span>
+        </button>
+        <button
+          className="lang-toggle"
+          type="button"
+          onClick={() => toggleLanguage(lang === "VN" ? "EN" : "VN")}
+          title={lang === "VN" ? "Switch to English" : "Chuyển sang Tiếng Việt"}
+        >
+          <span className={`lang-opt ${lang === "EN" ? "is-active" : ""}`}>EN</span>
+          <span className="lang-divider">|</span>
+          <span className={`lang-opt ${lang === "VN" ? "is-active" : ""}`}>VN</span>
         </button>
         <div className="header-spacer" />
         <label className="profile-select">
-          <span className="visually-hidden">Hồ sơ máy</span>
+          <span className="visually-hidden">{t.profileLabel}</span>
           <select
             value={profile}
             onChange={(event) => {
@@ -1838,15 +1866,15 @@ export default function Home() {
               resetPlayback();
             }}
           >
-            <option value="router-custom">Router 3 trục · Custom</option>
-            <option value="iso">ISO / Fanuc cơ bản</option>
+            <option value="router-custom">{t.routerCustom}</option>
+            <option value="iso">{t.isoBasic}</option>
           </select>
         </label>
         <div className="connection-state">
           <span className="status-dot" />
           <span>
             <b>CNC-01</b>
-            <small>Xử lý cục bộ</small>
+            <small>{t.localProcessing}</small>
           </span>
         </div>
       </header>
@@ -1898,7 +1926,7 @@ export default function Home() {
               type="button"
               className={view === viewMode ? "is-active" : ""}
               aria-pressed={view === viewMode}
-              title={`${VIEW_META[viewMode].title} · phím ${index + 1}`}
+              title={`${getViewMeta(viewMode, t).title} · phím ${index + 1}`}
               onClick={() => changeView(viewMode)}
               key={viewMode}
             >
@@ -1907,13 +1935,13 @@ export default function Home() {
               ) : (
                 <Icon name="panel" size={16} />
               )}
-              <span>{VIEW_META[viewMode].short}</span>
+              <span>{getViewMeta(viewMode, t).short}</span>
               <kbd>{index + 1}</kbd>
             </button>
           ))}
         </div>
         <label className="speed-control">
-          <span>Tốc độ</span>
+          <span>{t.speedControl}</span>
           <select
             value={speed}
             onChange={(event) => setSpeed(Number(event.target.value))}
@@ -1943,12 +1971,6 @@ export default function Home() {
         <div className="toolbar-spacer" />
         <div className="canvas-tools">
           <ToolbarButton
-            icon="panel"
-            label={codeCollapsed ? "Hiện bảng G-code" : "Ẩn bảng G-code"}
-            onClick={() => setCodeCollapsed((value) => !value)}
-            active={codeCollapsed}
-          />
-          <ToolbarButton
             icon="crosshair"
             label="Về gốc và vừa khung"
             onClick={resetView}
@@ -1972,21 +1994,6 @@ export default function Home() {
             icon="zoomIn"
             label="Phóng to"
             onClick={() => setZoom((value) => Math.min(6, value * 1.18))}
-          />
-          <ToolbarButton
-            icon="hand"
-            label={
-              view === "iso"
-                ? "Xoay và di chuyển góc nhìn 3D"
-                : "Kéo để di chuyển bản vẽ"
-            }
-            onClick={() =>
-              notify(
-                view === "iso"
-                  ? "Chuột trái để xoay; Shift hoặc chuột phải để pan."
-                  : "Giữ và kéo trực tiếp trên vùng mô phỏng.",
-              )
-            }
           />
           <ToolbarButton
             icon="panel"
@@ -2015,6 +2022,14 @@ export default function Home() {
               <span className="program-count">
                 {simulation.lines.length} LINES · {simulation.segments.length} MOVES
               </span>
+              <button
+                type="button"
+                onClick={() => setCodeCollapsed(true)}
+                aria-label="Thu gọn bảng G-code"
+                title="Thu gọn bảng G-code"
+              >
+                <Icon name="panel" size={17} />
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -2062,32 +2077,44 @@ export default function Home() {
         <section className="simulation-panel">
           <div className="simulation-titlebar">
             <div className="simulation-heading">
-              <span>{VIEW_META[view].title.toUpperCase()}</span>
+              {codeCollapsed ? (
+                <button
+                  type="button"
+                  onClick={() => setCodeCollapsed(false)}
+                  className="show-code-button"
+                  aria-label="Hiện bảng G-code"
+                  title="Hiện bảng G-code"
+                >
+                  <Icon name="panel" size={15} />
+                  <span>G-CODE</span>
+                </button>
+              ) : null}
+              <span>{getViewMeta(view, t).title.toUpperCase()}</span>
               <strong className={`simulation-state${playing ? " is-running" : ""}`}>
                 <i />
                 {playing ? "LIVE" : "READY"}
               </strong>
               <small>
                 BLOCK {activeSegment?.lineNumber ?? 0} · {simulation.segments.length}{" "}
-                chuyển động · {simulation.parts.length} chi tiết
+                {lang === "EN" ? "moves" : "chuyển động"} · {simulation.parts.length} {lang === "EN" ? "parts" : "chi tiết"}
               </small>
             </div>
             <div className="path-legend">
               <span>
-                <i className="legend-line cut" /> Cắt
+                <i className="legend-line cut" /> {t.cuts}
               </span>
               <button
                 type="button"
                 className={`rapid-toggle${showRapids ? " is-active" : ""}`}
                 aria-pressed={showRapids}
                 onClick={() => setShowRapids((value) => !value)}
-                title="Ẩn hoặc hiện đường chạy nhanh G0"
+                title={lang === "EN" ? "Toggle rapid G0 moves" : "Ẩn hoặc hiện đường chạy nhanh G0"}
               >
-                <i className="legend-line rapid" /> Chạy nhanh
-                <small>{showRapids ? "HIỆN" : "ẨN"}</small>
+                <i className="legend-line rapid" /> {t.rapids}
+                <small>{showRapids ? (lang === "EN" ? "ON" : "HIỆN") : (lang === "EN" ? "OFF" : "ẨN")}</small>
               </button>
               <span>
-                <i className="legend-dot" /> Vị trí dao
+                <i className="legend-dot" /> {t.toolPos}
               </span>
             </div>
           </div>
@@ -2103,6 +2130,7 @@ export default function Home() {
             orbit={orbit}
             showRapids={showRapids}
             quality={quality}
+            t={t}
             onZoom={setZoom}
             onPan={setPan}
             onOrbit={setOrbit}

@@ -755,6 +755,28 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.show-code-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--cyan);
+  border-radius: 4px;
+  background: var(--cyan-soft);
+  color: var(--cyan);
+  font-family: var(--condensed);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.show-code-button:hover {
+  background: rgba(38, 217, 232, 0.25);
+  box-shadow: 0 0 10px rgba(38, 217, 232, 0.3);
+}
+
 .path-legend {
   display: flex;
   align-items: center;
@@ -2632,6 +2654,12 @@ button.metric-card {
   .import-button {
     width: 40px;
     padding: 0;
+  }
+
+  .lang-toggle {
+    padding: 0 6px;
+    height: 36px;
+    font-size: 11px;
   }
 
   .playback-controls {

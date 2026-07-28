@@ -58,6 +58,9 @@ export const translations = {
     cuts: "ĐƯỜNG CẮT",
     rapids: "ĐƯỜNG KHÔNG",
     comp: "BÙ DAO",
+    bounds: "KHUNG",
+    grid: "LƯỚI",
+    reset: "ĐẶT LẠI",
 
     // Telemetry Dashboard
     ready: "SẴN SÀNG",
@@ -68,6 +71,7 @@ export const translations = {
     planeBadge: "MẶT PHAY",
     toolPos: "Vị trí dao",
     currentPos: "Vị trí hiện tại (mm)",
+    speedControl: "Tốc độ",
 
     // Metrics Strip / Statistics
     stockMetric: "Phôi",
@@ -200,6 +204,9 @@ export const translations = {
     cuts: "CUTS",
     rapids: "RAPIDS",
     comp: "COMP",
+    bounds: "BOUNDS",
+    grid: "GRID",
+    reset: "RESET",
 
     // Telemetry Dashboard
     ready: "READY",
@@ -210,6 +217,7 @@ export const translations = {
     planeBadge: "PLANE",
     toolPos: "Tool position",
     currentPos: "Current position (mm)",
+    speedControl: "Speed",
 
     // Metrics Strip / Statistics
     stockMetric: "Stock",
@@ -316,3 +324,5 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
 
   return msg;
 }
+
+export type TranslationDict = Record<keyof typeof translations.VN, string>;
