@@ -131,8 +131,15 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <planeGeometry args={[stock.width, stock.height, geomRes, geomRes]} />
+      <boxGeometry args={[stock.width, stock.height, stock.thickness, geomRes, geomRes, 1]} />
+      
+      {/* Faces: 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z (Top after rotation), 5: -Z (Bottom) */}
+      {[0, 1, 2, 3, 5].map((idx) => (
+        <meshStandardMaterial key={idx} attach={`material-${idx}`} color="#c8a576" roughness={0.8} />
+      ))}
+      
       <meshStandardMaterial 
+        attach="material-4"
         color="#c8a576" 
         roughness={0.8}
         displacementMap={texture}
@@ -162,8 +169,8 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           <orthographicCamera attach="shadow-camera" args={[-props.stock.width, props.stock.width, props.stock.height, -props.stock.height, 0.1, props.stock.width * 3]} />
         </directionalLight>
         
-        {/* The PlaneGeometry is already centered at 0,0,0 local, so we place it at origin */}
-        <group position={[0, 0, 0]}>
+        {/* Elevate the board so its bottom sits exactly at Y=0 (the machine bed) */}
+        <group position={[0, props.stock.thickness / 2, 0]}>
           <StockMesh {...props} />
         </group>
 
