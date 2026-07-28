@@ -59,7 +59,7 @@ function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
   if (viewMode === "solid") {
     return {
       short: "🪵 Solid",
-      title: "3D Solid",
+      title: "Solid 3D",
       description: "WebGL heightmap simulation",
     };
   }
@@ -1990,7 +1990,7 @@ export default function Home() {
         </div>
         <div className="toolbar-divider" />
         <div className="view-switch" aria-label="Góc nhìn mô phỏng">
-          {(["xoy", "solid"] as ViewMode[]).map((viewMode, index) => (
+          {(["xoy", "iso", "solid"] as ViewMode[]).map((viewMode, index) => (
             <button
               type="button"
               className={view === viewMode ? "is-active" : ""}

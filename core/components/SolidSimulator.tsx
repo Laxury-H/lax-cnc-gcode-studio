@@ -350,6 +350,17 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           <orthographicCamera attach="shadow-camera" args={[-props.stock.width, props.stock.width, props.stock.height, -props.stock.height, 0.1, props.stock.width * 3]} />
         </directionalLight>
         
+        {/* Machine Bed Grid */}
+        <gridHelper 
+          args={[
+            Math.max(props.stock.width, props.stock.height) * 3, 
+            Math.round(Math.max(props.stock.width, props.stock.height) * 3 / 100), 
+            "#444444", 
+            "#222222"
+          ]} 
+          position={[0, 0, 0]} 
+        />
+
         {/* Elevate the board so its bottom sits exactly at Y=0 (the machine bed) */}
         <group position={[0, props.stock.thickness / 2, 0]}>
           <StockMesh {...props} />

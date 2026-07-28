@@ -213,7 +213,7 @@ export const translations = {
     guideViewTitle: "Chế độ xem",
     guideView2D: "2D: Nhìn từ trên xuống. Click chuột trái kéo để di chuyển (Pan).",
     guideView3D: "3D ISO: Chế độ 3D khung lưới. Click chuột trái để xoay (Orbit), Shift + Trái để di chuyển.",
-    guideViewSolid: "Solid 3D: Chế độ đục phôi thực tế. Đòi hỏi cấu hình máy tốt.",
+    guideViewSolid: "3D Solid: Chế độ đục phôi thực tế. Đòi hỏi cấu hình máy tốt.",
     
     // Guide content - Play
     guidePlayTitle: "Điều khiển Mô phỏng",

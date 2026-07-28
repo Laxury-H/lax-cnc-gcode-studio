@@ -124,7 +124,7 @@ export function UserGuideModal({ t, onClose }: UserGuideModalProps) {
                   <span style={{ color: '#cbd5e1', lineHeight: 1.5 }}>{t.guideView3D}</span>
                 </li>
                 <li style={{ background: 'rgba(255,255,255,0.03)', padding: 20, borderRadius: 12, border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <strong style={{ color: '#38bdf8', display: 'block', marginBottom: 8 }}>🪵 Solid 3D</strong>
+                  <strong style={{ color: '#38bdf8', display: 'block', marginBottom: 8 }}>🪵 3D Solid</strong>
                   <span style={{ color: '#cbd5e1', lineHeight: 1.5 }}>{t.guideViewSolid}</span>
                 </li>
               </ul>
