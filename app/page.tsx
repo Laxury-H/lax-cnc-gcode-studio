@@ -1808,7 +1808,7 @@ export default function Home() {
           </div>
           <div className="brand-copy">
             <span className="brand-title">
-              <span className="brand-accent">LAX</span> CNC
+              <span className="brand-accent">Lax's</span> CNC
             </span>
             <span className="brand-subtitle">
               <span className="status-dot" /> G-CODE WORKSTATION <span className="pro-badge">PRO</span>
