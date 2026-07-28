@@ -23,7 +23,7 @@ function distance3(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:numb
   return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
 }
 
-function pointOnSegment(segment: any, progress: number) {
+function pointOnSegment(segment: Simulation["segments"][0], progress: number) {
   const clamped = Math.max(0, Math.min(1, progress));
   if (segment.points.length <= 2) {
     return lerpVec(segment.start, segment.end, clamped);
@@ -43,7 +43,7 @@ function pointOnSegment(segment: any, progress: number) {
   return { ...segment.end };
 }
 
-function ToolpathOverlay({ simulation, showRapids, showBounds, stock }: { simulation: Simulation, showRapids: boolean, showBounds: boolean, stock: any }) {
+function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: Simulation, showRapids: boolean, showBounds: boolean, stock: SolidSimulatorProps["stock"] }) {
   const { cutGeom, rapidGeom, boundsGeom } = useMemo(() => {
     const cutPositions: number[] = [];
     const rapidPositions: number[] = [];
@@ -114,7 +114,7 @@ function ToolpathOverlay({ simulation, showRapids, showBounds, stock }: { simula
   );
 }
 
-function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool }: { simulation: Simulation, cursor: number, segmentProgress: number, stock: any, showTool: boolean }) {
+function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool }: { simulation: Simulation, cursor: number, segmentProgress: number, stock: SolidSimulatorProps["stock"], showTool: boolean }) {
   if (!showTool) return null;
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
   const pos = activeSegment ? pointOnSegment(activeSegment, segmentProgress) : { x: stock.originX, y: stock.originY, z: stock.safeZ };
@@ -143,17 +143,21 @@ function getDepthColor(z: number, topZ: number, bottomZ: number) {
   return `rgb(${intensity}, ${intensity}, ${intensity})`;
 }
 
-function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimulatorProps) {
-  // Use a ref for the canvas and texture so we don't recreate them on every frame
+const STOCK_COLOR = "#c8a576"; // Wood color
+const CUT_COLOR = "#e2c598"; // Lighter cut wood
+
+function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: SolidSimulatorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
+  
+  // Track exactly how much we've drawn
   const lastCursorRef = useRef<number>(0);
+  const lastProgressRef = useRef<number>(0);
 
   // Determine resolution based on quality
   const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
   const geomRes = quality === "high" ? 1024 : quality === "medium" ? 512 : 256;
 
-  // Initialize the canvas and texture once
   const { canvas, texture } = useMemo(() => {
     const el = document.createElement("canvas");
     el.width = MAP_RES;
@@ -172,30 +176,29 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
   useEffect(() => {
     canvasRef.current = canvas;
     textureRef.current = texture;
-    return () => {
-      texture.dispose();
-    };
+    return () => { texture.dispose(); };
   }, [canvas, texture]);
 
-  // Update the heightmap progressively
+  // Delta-based canvas drawing
   useEffect(() => {
     const el = canvasRef.current;
     const tex = textureRef.current;
     if (!el || !tex) return;
-    const ctx = el.getContext("2d");
+    const ctx = el.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
 
-    let startIdx = lastCursorRef.current;
+    let startCursor = lastCursorRef.current;
+    let startProgress = lastProgressRef.current;
     
-    // If cursor went backwards, clear the canvas and redraw from 0
-    if (cursor < startIdx) {
+    // Determine if we went backwards
+    if (cursor < startCursor || (cursor === startCursor && segmentProgress < startProgress)) {
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, MAP_RES, MAP_RES);
-      startIdx = 0;
+      startCursor = 0;
+      startProgress = 0;
     }
-
-    // If there's nothing new to draw, return
-    if (cursor === startIdx) return;
+    
+    if (cursor === startCursor && segmentProgress === startProgress) return;
 
     const scaleX = MAP_RES / Math.max(1, stock.width);
     const scaleY = MAP_RES / Math.max(1, stock.height);
@@ -206,41 +209,41 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
     ctx.lineWidth = scaledToolWidth;
 
     let hasChanges = false;
-    
-    // Auto-detect if stock top is at Z=thickness (bottom is Z=0) or Z=0 (bottom is Z=-thickness)
     const isBottomZero = simulation.bounds.minZ >= -0.1;
     const topZ = isBottomZero ? stock.thickness : 0;
     const bottomZ = isBottomZero ? 0 : -stock.thickness;
 
-    // Progressively draw only the newly added segments
-    for (let i = startIdx; i < cursor; i++) {
-      const seg = simulation.segments[i];
-      if (seg.kind === "rapid" || seg.kind === "drill" || seg.kind === "dwell") continue;
-
+    // Helper to draw a line from ptA to ptB
+    const drawLine = (from: {x:number,y:number,z:number}, to: {x:number,y:number,z:number}) => {
+      const startX = (from.x - stock.originX) * scaleX;
+      const startY = MAP_RES - ((from.y - stock.originY) * scaleY);
+      const endX = (to.x - stock.originX) * scaleX;
+      const endY = MAP_RES - ((to.y - stock.originY) * scaleY);
+      const avgZ = (from.z + to.z) / 2;
+      ctx.strokeStyle = getDepthColor(avgZ, topZ, bottomZ);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
       hasChanges = true;
-      const points = seg.points;
-      if (points.length < 2) continue;
+    };
 
-      // Draw segment by segment. For arcs, points array will have multiple points.
-      for (let j = 1; j < points.length; j++) {
-        const from = points[j - 1];
-        const to = points[j];
+    for (let i = startCursor; i <= cursor; i++) {
+      const seg = simulation.segments[i];
+      if (!seg || seg.kind === "rapid" || seg.kind === "drill" || seg.kind === "dwell") continue;
+      
+      const isCurrentSegment = i === cursor;
+      const isStartSegment = i === startCursor;
+      
+      const segStartProgress = isStartSegment ? startProgress : 0;
+      const segEndProgress = isCurrentSegment ? segmentProgress : 1;
+      
+      if (segStartProgress >= segEndProgress) continue; // Nothing to draw in this segment
 
-        // Convert physical X,Y to canvas coordinates
-        const startX = (from.x - stock.originX) * scaleX;
-        const startY = MAP_RES - ((from.y - stock.originY) * scaleY);
-        const endX = (to.x - stock.originX) * scaleX;
-        const endY = MAP_RES - ((to.y - stock.originY) * scaleY);
-
-        // Approximate depth mapping (averaging start and end Z for this small line)
-        const avgZ = (from.z + to.z) / 2;
-        ctx.strokeStyle = getDepthColor(avgZ, topZ, bottomZ);
-
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.stroke();
-      }
+      // It's a continuous line segment or arc
+      const ptFrom = pointOnSegment(seg, segStartProgress);
+      const ptTo = pointOnSegment(seg, segEndProgress);
+      drawLine(ptFrom, ptTo);
     }
 
     if (hasChanges) {
@@ -248,7 +251,57 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
     }
 
     lastCursorRef.current = cursor;
-  }, [simulation, cursor, stock, MAP_RES]);
+    lastProgressRef.current = segmentProgress;
+  }, [simulation, cursor, segmentProgress, stock, MAP_RES]);
+
+  // Material Shader Injection
+  const onBeforeCompile = (shader: THREE.Shader) => {
+    shader.uniforms.uStockColor = { value: new THREE.Color(STOCK_COLOR) };
+    shader.uniforms.uCutColor = { value: new THREE.Color(CUT_COLOR) };
+    
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <common>',
+      `#include <common>
+       varying float vDisplacement;`
+    );
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <displacementmap_vertex>',
+      `#include <displacementmap_vertex>
+       #ifdef USE_DISPLACEMENTMAP
+         vDisplacement = texture2D( displacementMap, uv ).x;
+       #endif`
+    );
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      `#include <common>
+       varying float vDisplacement;
+       uniform vec3 uStockColor;
+       uniform vec3 uCutColor;`
+    );
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'vec4 diffuseColor = vec4( diffuse, opacity );',
+      `
+       vec3 finalColor = mix(uCutColor, uStockColor, smoothstep(0.95, 0.99, vDisplacement));
+       vec4 diffuseColor = vec4( finalColor, opacity );
+      `
+    );
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <roughnessmap_fragment>',
+      `#include <roughnessmap_fragment>
+       float cutFactor = 1.0 - smoothstep(0.95, 0.99, vDisplacement);
+       roughnessFactor = mix(0.9, 0.7, cutFactor);
+       `
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <metalnessmap_fragment>',
+      `#include <metalnessmap_fragment>
+       metalnessFactor = 0.05;
+       `
+    );
+  };
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
@@ -256,18 +309,20 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
       
       {/* Faces: 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z (Top after rotation), 5: -Z (Bottom) */}
       {[0, 1, 2, 3, 5].map((idx) => (
-        <meshStandardMaterial key={idx} attach={`material-${idx}`} color="#c8a576" roughness={0.8} />
+        <meshStandardMaterial key={idx} attach={`material-${idx}`} color={STOCK_COLOR} roughness={0.9} metalness={0.1} />
       ))}
       
       <meshStandardMaterial 
         attach="material-4"
-        color="#c8a576" 
-        roughness={0.8}
+        roughness={0.9}
+        metalness={0.1}
         displacementMap={texture}
         displacementScale={stock.thickness}
         displacementBias={-stock.thickness}
         bumpMap={texture}
-        bumpScale={stock.thickness * 0.5}
+        bumpScale={stock.thickness * 0.3}
+        onBeforeCompile={onBeforeCompile}
+        customProgramCacheKey={() => 'solid-wood'}
       />
     </mesh>
   );
