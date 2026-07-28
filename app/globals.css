@@ -86,12 +86,11 @@ textarea:focus-visible {
 
 .cnc-app {
   position: relative;
-  display: grid;
-  grid-template-rows: 56px 56px minmax(380px, 1fr) 100px 30px;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   min-width: 760px;
   height: 100vh;
-  min-height: 650px;
   overflow: hidden;
   background:
     radial-gradient(circle at 70% 20%, rgba(27, 53, 65, 0.22), transparent 34%),
@@ -102,9 +101,11 @@ textarea:focus-visible {
   position: relative;
   z-index: 20;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 14px;
   min-width: 0;
+  min-height: 56px;
   padding: 0 18px;
   border-bottom: 1px solid var(--border);
   background:
@@ -299,10 +300,13 @@ textarea:focus-visible {
   position: relative;
   z-index: 18;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 11px;
   min-width: 0;
+  min-height: 56px;
   padding: 7px 12px;
+  overflow-x: auto;
   border-bottom: 1px solid var(--border);
   background:
     linear-gradient(180deg, rgba(24, 31, 37, 0.96), rgba(14, 19, 23, 0.96)),
@@ -466,15 +470,11 @@ textarea:focus-visible {
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(270px, 24%) minmax(0, 1fr);
+  display: flex;
+  flex: 1;
   gap: 6px;
   min-height: 0;
   padding: 6px 7px 0;
-}
-
-.workspace.is-code-collapsed {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .workspace.is-code-collapsed .code-panel {
@@ -495,8 +495,14 @@ textarea:focus-visible {
 }
 
 .code-panel {
+  flex: 0 0 clamp(280px, 25vw, 400px);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 40px minmax(0, 1fr) 32px;
+}
+
+.simulation-panel {
+  flex: 1;
 }
 
 .panel-titlebar,
@@ -1743,7 +1749,6 @@ button.metric-card {
 
 .cnc-app.is-simulator-expanded,
 .cnc-app:fullscreen {
-  grid-template-rows: 0 58px minmax(0, 1fr) 0 0;
   min-width: 0;
   height: 100vh;
   min-height: 100vh;
@@ -1762,7 +1767,6 @@ button.metric-card {
 
 .cnc-app.is-simulator-expanded .workspace,
 .cnc-app:fullscreen .workspace {
-  grid-template-columns: minmax(0, 1fr);
   padding: 0;
 }
 
