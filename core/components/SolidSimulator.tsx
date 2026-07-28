@@ -140,7 +140,7 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
 export function SolidSimulator(props: SolidSimulatorProps) {
   return (
     <div className="solid-simulator" style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 10 }}>
-      <Canvas shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.0, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45 }}>
+      <Canvas shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
         <directionalLight 
@@ -150,10 +150,12 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
           shadow-bias={-0.0005}
-        />
+        >
+          <orthographicCamera attach="shadow-camera" args={[-props.stock.width, props.stock.width, props.stock.height, -props.stock.height, 0.1, props.stock.width * 3]} />
+        </directionalLight>
         
-        {/* Center the stock in the view */}
-        <group position={[-(props.stock.width / 2 + props.stock.originX), 0, -(props.stock.height / 2 + props.stock.originY)]}>
+        {/* The PlaneGeometry is already centered at 0,0,0 local, so we place it at origin */}
+        <group position={[0, 0, 0]}>
           <StockMesh {...props} />
         </group>
 

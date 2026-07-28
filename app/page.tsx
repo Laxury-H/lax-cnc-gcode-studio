@@ -35,6 +35,7 @@ import type {
 } from "@/core/simulation/types";
 import { Lang, translations, translateDiagnostic, type TranslationDict } from "./i18n";
 import { SolidSimulator } from "@/core/components/SolidSimulator";
+import { UserGuideModal } from "@/core/components/UserGuideModal";
 
 type ViewMode = "xoy" | "iso" | "solid";
 type OrbitCamera = { yaw: number; pitch: number };
@@ -1548,6 +1549,7 @@ export default function Home() {
   const [exportType, setExportType] = useState<PostProcessorType>("ncstudio");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1896,6 +1898,18 @@ export default function Home() {
         >
           <Icon name="upload" size={18} />
           <span>{t.importBtn}</span>
+        </button>
+        <button
+          className="guide-button"
+          type="button"
+          onClick={() => setIsGuideOpen(true)}
+          title={t.guideBtn}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+        >
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <span>{t.guideBtn}</span>
         </button>
         <button
           className="lang-toggle"
@@ -2839,6 +2853,7 @@ export default function Home() {
       )}
 
       {toast && <div className="toast">{toast}</div>}
+      {isGuideOpen && <UserGuideModal t={t} onClose={() => setIsGuideOpen(false)} />}
     </main>
   );
 }

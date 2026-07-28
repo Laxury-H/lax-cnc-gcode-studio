@@ -190,6 +190,42 @@ export const translations = {
     cubeRight: "PHẢI",
     cubeTop: "TRÊN",
     cubeBottom: "DƯỚI",
+
+    // User Guide
+    guideBtn: "Hướng dẫn",
+    guideTitle: "Hướng dẫn Sử dụng",
+    guideIntroMenu: "Tổng quan",
+    guideSetupMenu: "Thiết lập",
+    guideViewMenu: "Góc nhìn",
+    guidePlayMenu: "Mô phỏng",
+    guideToolsMenu: "Tiện ích",
+    
+    // Guide content - Intro
+    guideIntroTitle: "Chào mừng đến với Lax CNC Studio",
+    guideIntroDesc: "Phần mềm mô phỏng, phân tích và tối ưu hóa mã lệnh CNC nền web chuyên nghiệp. Dưới đây là cách khai thác sức mạnh của ứng dụng.",
+    
+    // Guide content - Setup
+    guideSetupTitle: "Tải tệp & Thiết lập",
+    guideSetupFile: "Tải tệp G-code: Bấm nút 'Nhập tệp' hoặc kéo thả file .NC, .TXT vào màn hình.",
+    guideSetupProfile: "Cấu hình máy: Nhấn icon ⚙️ để chỉnh sửa kích thước phôi (X, Y, Z), dao phay, gốc tọa độ, và Safe Z.",
+    
+    // Guide content - View
+    guideViewTitle: "Chế độ xem",
+    guideView2D: "2D: Nhìn từ trên xuống. Click chuột trái kéo để di chuyển (Pan).",
+    guideView3D: "3D ISO: Chế độ 3D khung lưới. Click chuột trái để xoay (Orbit), Shift + Trái để di chuyển.",
+    guideViewSolid: "Solid 3D: Chế độ đục phôi thực tế (Cimco). Đòi hỏi cấu hình máy tốt.",
+    
+    // Guide content - Play
+    guidePlayTitle: "Điều khiển Mô phỏng",
+    guidePlayDesc: "Dùng bảng điều khiển bên dưới để Play, Pause, hoặc Step-by-step (chạy từng dòng). Bấm F10 để chạy từng bước nhanh.",
+    
+    // Guide content - Tools
+    guideToolsTitle: "Bảng Phân tích Tiện ích",
+    guideToolsErrors: "Lỗi & Cảnh báo: Tự động cảnh báo đâm dao, quá phôi, hoặc cài đặt sai.",
+    guideToolsParts: "Kích thước chi tiết: Tự động gom các đường cắt thành 'Parts' và đo kích thước thành phẩm.",
+    guideToolsMER: "Phôi dư (MER): Tìm phần phôi còn dư lớn nhất sau khi cắt để tận dụng.",
+    guideToolsRecovery: "Phục hồi: Sinh mã G-code an toàn để chạy tiếp khi bị gãy dao hoặc mất điện.",
+    guideToolsPost: "Xuất CAM: Chuyển G-code sang hệ điều khiển chuyên dụng (NcStudio, Syntec).",
   },
   EN: {
     // Header & Topbar
@@ -380,6 +416,42 @@ export const translations = {
     cubeRight: "RIGHT",
     cubeTop: "TOP",
     cubeBottom: "BOTTOM",
+
+    // User Guide
+    guideBtn: "Guide",
+    guideTitle: "User Manual",
+    guideIntroMenu: "Overview",
+    guideSetupMenu: "Setup",
+    guideViewMenu: "Viewports",
+    guidePlayMenu: "Playback",
+    guideToolsMenu: "Utilities",
+    
+    // Guide content - Intro
+    guideIntroTitle: "Welcome to Lax CNC Studio",
+    guideIntroDesc: "A professional web-based CNC simulation, analysis, and optimization software. Here's how to harness its power.",
+    
+    // Guide content - Setup
+    guideSetupTitle: "Import & Setup",
+    guideSetupFile: "Load G-code: Click 'Import File' or drag and drop .NC, .TXT files into the screen.",
+    guideSetupProfile: "Machine Profile: Click the ⚙️ icon to edit stock size (X, Y, Z), tool dia, origin, and Safe Z.",
+    
+    // Guide content - View
+    guideViewTitle: "Viewing Modes",
+    guideView2D: "2D: Top-down view. Left click and drag to pan.",
+    guideView3D: "3D ISO: Wireframe 3D. Left click to orbit, Shift + Left click to pan.",
+    guideViewSolid: "Solid 3D: Realistic heightmap carving simulation. Requires decent GPU.",
+    
+    // Guide content - Play
+    guidePlayTitle: "Playback Controls",
+    guidePlayDesc: "Use the bottom scrubber to Play, Pause, or Step through code. Press F10 for quick stepping.",
+    
+    // Guide content - Tools
+    guideToolsTitle: "Analysis & Utilities",
+    guideToolsErrors: "Errors: Auto-detects tool crashes, out-of-bounds, and wrong commands.",
+    guideToolsParts: "Part Dimensions: Auto-detects closed contours and calculates finished part sizes.",
+    guideToolsMER: "Remnants (MER): Finds the Maximal Empty Rectangle to reuse leftover stock.",
+    guideToolsRecovery: "Smart Resume: Generates safe restart G-code if tool breaks or power fails.",
+    guideToolsPost: "CAM Post: Translates generic G-code for NcStudio or Syntec ATC.",
   },
 } as const;
 
