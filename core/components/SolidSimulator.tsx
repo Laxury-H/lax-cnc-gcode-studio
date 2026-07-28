@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, ContactShadows } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { Simulation } from "../simulation/types";
 
@@ -283,7 +283,13 @@ function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "
     shader.fragmentShader = shader.fragmentShader.replace(
       'vec4 diffuseColor = vec4( diffuse, opacity );',
       `
-       vec3 finalColor = mix(uCutColor, uStockColor, smoothstep(0.95, 0.99, vDisplacement));
+       vec2 pos = vUv * vec2(150.0, 10.0);
+       float n = sin(pos.y) * 0.5 + sin(pos.x * 0.5) * 0.5;
+       float ring = fract(pos.x * 0.1 + n * 0.3);
+       float grain = smoothstep(0.0, 0.1, ring) * (1.0 - smoothstep(0.8, 1.0, ring));
+       vec3 grainColor = mix(uStockColor * 0.85, uStockColor, grain);
+       
+       vec3 finalColor = mix(uCutColor, grainColor, smoothstep(0.95, 0.99, vDisplacement));
        vec4 diffuseColor = vec4( finalColor, opacity );
       `
     );
@@ -325,6 +331,28 @@ function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "
         customProgramCacheKey={() => 'solid-wood'}
       />
     </mesh>
+  );
+}
+
+function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stock: SolidSimulatorProps["stock"] }) {
+  if (!simulation.parts || simulation.parts.length === 0) return null;
+  return (
+    <>
+      {simulation.parts.map((part) => {
+        const centerX = part.minX + part.width / 2;
+        const centerY = part.minY + part.height / 2;
+        return (
+          <group key={part.id} position={[centerX, centerY, stock.thickness + 0.1]}>
+            <Text position={[0, 6, 0]} fontSize={14} color="#3e2723" anchorX="center" anchorY="middle">
+              {part.id}
+            </Text>
+            <Text position={[0, -6, 0]} fontSize={10} color="#5d4037" anchorX="center" anchorY="middle">
+              {`${Math.round(part.width)} × ${Math.round(part.height)}`}
+            </Text>
+          </group>
+        );
+      })}
+    </>
   );
 }
 
@@ -375,6 +403,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               (props.stock.originY + props.stock.height / 2)
             ]}
           >
+            <PartLabelsOverlay simulation={props.simulation} stock={props.stock} />
             <ToolpathOverlay 
               simulation={props.simulation} 
               stock={props.stock} 

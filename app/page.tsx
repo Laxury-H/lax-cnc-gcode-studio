@@ -58,7 +58,7 @@ function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
   }
   if (viewMode === "solid") {
     return {
-      short: "🪵 Solid",
+      short: "🪵 3D Solid",
       title: "3D Solid",
       description: "WebGL heightmap simulation",
     };
