@@ -31,8 +31,8 @@ export function generateSmartResume(
     "%",
     "(==============================================================)",
     isEn
-      ? "( LAX CNC STUDIO - SMART RESUME RECOVERY )"
-      : "( LAX CNC STUDIO - SMART RESUME / PHỤC HỒI CẮT DỞ )",
+      ? "( Lax's CNC - SMART RESUME RECOVERY )"
+      : "( Lax's CNC - SMART RESUME / PHỤC HỒI CẮT DỞ )",
     isEn
       ? `( INTERRUPTION AT LINE: ${segment.lineNumber} / SEGMENT #${clampedId + 1} )`
       : `( PHÁT HIỆN DỪNG TẠI DÒNG SỐ: ${segment.lineNumber} / PHÂN ĐOẠN #${clampedId + 1} )`,

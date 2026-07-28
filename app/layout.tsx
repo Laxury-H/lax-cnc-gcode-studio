@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LAX CNC Studio — Dịch & mô phỏng G-code",
+  title: "Lax's CNC — Dịch & mô phỏng G-code",
   description:
     "Ứng dụng cá nhân để đọc, kiểm tra, đo kích thước và mô phỏng đường chạy dao CNC từ file G-code.",
   other: {

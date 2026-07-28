@@ -40,7 +40,7 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "Lax CNC G-code Studio",
+  "displayName": "Lax's CNC",
   "allowScripts": {
     "esbuild@0.28.0": true,
     "esbuild@0.25.12": true,

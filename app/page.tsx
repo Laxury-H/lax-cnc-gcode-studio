@@ -79,7 +79,7 @@ function buildSampleProgram() {
 
   const lines = [
     "%",
-    "(LAX CNC STUDIO - TU BEP CAN A-01)",
+    "(Lax's CNC - TU BEP CAN A-01)",
     "(PHOI 2440 X 1220 X 18)",
     "G90 G21 G17",
     "G54",
@@ -1770,8 +1770,8 @@ export default function Home() {
       }}
     >
       <header className="app-header">
-        <div className="brand" aria-label="LAX CNC Pro Workstation">
-          <div className="brand-badge" title="LAX CNC Workstation PRO">
+        <div className="brand" aria-label="Lax's CNC Pro Workstation">
+          <div className="brand-badge" title="Lax's CNC Workstation PRO">
             <div className="brand-logo-icon">
               <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cnc-logo-svg">
                 <defs>
