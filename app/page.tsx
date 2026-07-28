@@ -1578,7 +1578,9 @@ export default function Home() {
   const [dragActive, setDragActive] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [resetTrigger, setResetTrigger] = useState(0);
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [machineSound, setMachineSound] = useState(false);
+  const [finishSound, setFinishSound] = useState(true);
+  const [soundMenuOpen, setSoundMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<HTMLElement>(null);
@@ -1726,17 +1728,16 @@ export default function Home() {
         simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
       if (!segment) {
         setPlaying(false);
-        if (soundEnabled) cncAudio.stopAll();
+        cncAudio.stopAll();
         return;
       }
       
-      // Temporarily disabled continuous machine sounds per user request
-      // if (soundEnabled) {
-      //   cncAudio.setSpindle(true, 18000); 
-      //   cncAudio.setMove(true, segment.kind === "rapid", segment.feed || 1000);
-      // } else {
-      //   cncAudio.stopAll();
-      // }
+      if (machineSound) {
+        cncAudio.setSpindle(true, 18000); 
+        cncAudio.setMove(true, segment.kind === "rapid", segment.feed || 1000);
+      } else {
+        cncAudio.stopAll();
+      }
 
       const nominalFeed =
         segment.kind === "rapid"
@@ -1753,7 +1754,7 @@ export default function Home() {
           const remainder = next - stepsToAdvance;
           if (cursor + stepsToAdvance >= simulation.segments.length - 1) {
             setPlaying(false);
-            if (soundEnabled) cncAudio.playComplete();
+            if (finishSound) cncAudio.playComplete();
             return 1;
           }
           setCursor((index) =>
@@ -1778,7 +1779,8 @@ export default function Home() {
     speed,
     stock.rapidFeed,
     quality,
-    soundEnabled,
+    machineSound,
+    finishSound,
   ]);
 
   useEffect(() => {
@@ -2011,21 +2013,38 @@ export default function Home() {
             <Icon name="step" size={19} />
             Step
           </button>
-          <button
-            className={`secondary-control ${soundEnabled ? "is-active" : ""}`}
-            type="button"
-            onClick={async () => {
-              setSoundEnabled(!soundEnabled);
-              if (!soundEnabled) {
+          <div style={{ position: "relative" }}>
+            <button
+              className={`secondary-control ${(machineSound || finishSound) ? "is-active" : ""}`}
+              type="button"
+              onClick={async () => {
+                setSoundMenuOpen(!soundMenuOpen);
                 await cncAudio.init();
-              } else {
-                cncAudio.stopAll();
-              }
-            }}
-          >
-            <Icon name={soundEnabled ? "volume" : "volume-x"} size={19} />
-            Âm thanh
-          </button>
+              }}
+            >
+              <Icon name={(machineSound || finishSound) ? "volume" : "volume-x"} size={19} />
+              Âm thanh
+            </button>
+            {soundMenuOpen && (
+              <div className="sound-settings-popover">
+                <label>
+                  <input type="checkbox" checked={machineSound} onChange={async (e) => { 
+                    setMachineSound(e.target.checked);
+                    if (e.target.checked) await cncAudio.init();
+                    else cncAudio.stopAll();
+                  }} />
+                  Âm thanh máy
+                </label>
+                <label>
+                  <input type="checkbox" checked={finishSound} onChange={async (e) => { 
+                    setFinishSound(e.target.checked);
+                    if (e.target.checked) await cncAudio.init();
+                  }} />
+                  Âm kết thúc
+                </label>
+              </div>
+            )}
+          </div>
           <button
             className="secondary-control"
             type="button"
