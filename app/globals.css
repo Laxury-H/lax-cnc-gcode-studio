@@ -2027,43 +2027,53 @@ button.metric-card {
   display: flex;
   overflow-x: auto;
   flex-wrap: nowrap;
+  gap: 6px;
+  padding: 10px 15px;
   border-bottom: 1px solid var(--border);
   background: #0e1418;
 }
 
 .drawer-tabs button {
-  flex: 1 0 auto;
-  padding: 13px 18px;
-  border: 0;
-  border-right: 1px solid var(--border);
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
+  transition: all 0.2s ease;
 }
 
-.drawer-tabs button:last-child {
-  border-right: 0;
+.drawer-tabs button:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
 }
 
 .drawer-tabs button.is-active {
-  background: var(--cyan-soft);
+  background: rgba(38, 217, 232, 0.08);
+  border-color: rgba(38, 217, 232, 0.3);
   color: var(--cyan);
-  box-shadow: inset 0 -2px 0 var(--cyan);
+  box-shadow: 0 0 12px rgba(38, 217, 232, 0.1);
 }
 
 .drawer-tabs span {
-  display: inline-grid;
-  place-items: center;
-  min-width: 19px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
   height: 18px;
-  margin-left: 5px;
+  margin-left: 6px;
   padding: 0 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   font-family: var(--mono);
   font-size: 9px;
+}
+.drawer-tabs button.is-active span {
+  background: rgba(38, 217, 232, 0.2);
+  color: var(--cyan);
 }
 
 .drawer-content {
@@ -2082,65 +2092,114 @@ button.metric-card {
 .diagnostic-item {
   display: grid;
   grid-template-columns: 34px 1fr;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--border);
-  border-radius: 4px;
-  background: #151d23;
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: rgba(21, 29, 35, 0.6);
+  backdrop-filter: blur(8px);
   color: var(--text);
   cursor: pointer;
   text-align: left;
   transition:
-    border-color 120ms ease,
-    background 120ms ease;
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
 }
 
 .diagnostic-item:hover {
-  border-color: #4d5c67;
-  background: #1a242b;
+  transform: translateY(-1px);
+  background: rgba(26, 36, 43, 0.8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.diagnostic-item.is-error {
+  border-left-color: var(--danger);
+}
+.diagnostic-item.is-error:hover {
+  border-color: rgba(255, 95, 104, 0.3);
+  border-left-color: var(--danger);
+  box-shadow: -2px 0 12px rgba(255, 95, 104, 0.15), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.diagnostic-item.is-warning {
+  border-left-color: var(--warning);
+}
+.diagnostic-item.is-warning:hover {
+  border-color: rgba(255, 159, 26, 0.3);
+  border-left-color: var(--warning);
+  box-shadow: -2px 0 12px rgba(255, 159, 26, 0.15), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.diagnostic-item.is-info {
+  border-left-color: var(--cyan);
+}
+.diagnostic-item.is-info:hover {
+  border-color: rgba(38, 217, 232, 0.3);
+  border-left-color: var(--cyan);
+  box-shadow: -2px 0 12px rgba(38, 217, 232, 0.15), 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .diagnostic-icon {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.04);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: transparent;
 }
 
 .diagnostic-item.is-error .diagnostic-icon {
   color: var(--danger);
-  background: rgba(255, 95, 104, 0.09);
 }
 
 .diagnostic-item.is-warning .diagnostic-icon {
   color: var(--warning);
-  background: rgba(255, 159, 26, 0.09);
 }
 
 .diagnostic-item.is-info .diagnostic-icon {
   color: var(--cyan);
-  background: rgba(38, 217, 232, 0.09);
 }
 
-.diagnostic-item > span:last-child {
+.diagnostic-text {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
+  justify-content: center;
 }
 
-.diagnostic-item b {
+.diagnostic-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.line-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
   font-family: var(--mono);
   font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.error-code {
+  font-family: var(--mono);
+  font-size: 11px;
   font-weight: 600;
+  color: #e0e6eb;
 }
 
 .diagnostic-item small {
   color: #aeb7bd;
-  font-size: 11px;
-  line-height: 1.55;
+  font-size: 11.5px;
+  line-height: 1.5;
 }
 
 .empty-state {

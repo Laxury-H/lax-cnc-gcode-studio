@@ -475,8 +475,6 @@ function ToolpathCanvas({
     const width = size.width;
     const height = size.height;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#0c1217";
-    ctx.fillRect(0, 0, width, height);
 
     const originX = stock.originX;
     const originY = stock.originY;
@@ -863,17 +861,28 @@ function ToolpathCanvas({
 
       if (glowWidth > 0 && filterKind === "cut") {
         const toolWidth = Math.max(1, stock.toolDiameter * scale);
-        // Draw the dark edge/shadow of the cut
-        ctx.strokeStyle = `rgba(50, 30, 15, ${alpha * 0.9})`;
+        
+        // 1. Cut the hole (Erase material)
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.strokeStyle = `rgba(0,0,0,1)`;
         ctx.lineWidth = toolWidth;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
         ctx.stroke();
         
-        // Draw the lighter bottom of the cut (MDF core)
-        ctx.strokeStyle = `rgba(145, 105, 65, ${alpha * 0.95})`;
+        // 2. Fill center with MDF core
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.strokeStyle = `rgba(152, 117, 75, ${alpha})`; // MDF core
         ctx.lineWidth = Math.max(0.5, toolWidth - 1.5);
         ctx.stroke();
+        
+        // 3. Fill edges with shadow
+        ctx.strokeStyle = `rgba(74, 44, 16, ${alpha})`; // Deep shadow
+        ctx.lineWidth = toolWidth;
+        ctx.stroke();
+        
+        // Reset to normal
+        ctx.globalCompositeOperation = "source-over";
 
         // Draw a very faint toolpath tracking line in the center
         ctx.strokeStyle = `rgba(${color}, ${alpha * 0.3})`;
@@ -979,7 +988,7 @@ function ToolpathCanvas({
     drawBatchedSegments(completedSegs, "drill", "", 0.88, 1);
     drawBatchedSegments(futureSegs, "drill", "", 0.2, 1);
 
-    const completedGlow = quality === "high" ? Math.max(3, stock.toolDiameter * scale) : 0;
+    const completedGlow = quality !== "low" ? Math.max(3, stock.toolDiameter * scale) : 0;
     drawBatchedSegments(completedSegs, "cut", cutColor, 0.95, view === "iso" ? 1.25 : 1.45, false, completedGlow);
     drawBatchedSegments(futureSegs, "cut", cutColor, 0.2, view === "iso" ? 0.9 : 1.1, false, 0);
 
@@ -2410,10 +2419,11 @@ export default function Home() {
                             size={18}
                           />
                         </span>
-                        <span>
-                          <b>
-                            Dòng {diagnostic.lineIndex + 1} · {diagnostic.code}
-                          </b>
+                        <span className="diagnostic-text">
+                          <div className="diagnostic-header">
+                            <span className="line-badge">{lang === "EN" ? "Line" : "Dòng"} {diagnostic.lineIndex + 1}</span>
+                            <span className="error-code">{diagnostic.code}</span>
+                          </div>
                           <small>{diagnostic.message}</small>
                         </span>
                       </button>
