@@ -1764,14 +1764,50 @@ export default function Home() {
       }}
     >
       <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark">
-            <Icon name="crosshair" size={23} />
-          </span>
-          <span className="brand-copy">
-            <b>LAX CNC STUDIO</b>
-            <small>G-CODE WORKSTATION · PRO</small>
-          </span>
+        <div className="brand" aria-label="LAX CNC Pro Workstation">
+          <div className="brand-badge" title="LAX CNC Workstation PRO">
+            <div className="brand-logo-icon">
+              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cnc-logo-svg">
+                <defs>
+                  <linearGradient id="lax-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#00f2fe" />
+                    <stop offset="100%" stopColor="#4facfe" />
+                  </linearGradient>
+                  <linearGradient id="lax-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#26d9e8" />
+                    <stop offset="100%" stopColor="#70eccb" />
+                  </linearGradient>
+                  <filter id="glow-drop" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#00f2fe" floodOpacity="0.5" />
+                  </filter>
+                </defs>
+                <path
+                  d="M 26 12 A 11 11 0 1 1 20 6"
+                  stroke="url(#lax-grad)"
+                  strokeWidth="2.8"
+                  strokeLinecap="round"
+                  fill="none"
+                  filter="url(#glow-drop)"
+                />
+                <circle cx="20" cy="6" r="3" fill="#70eccb" filter="drop-shadow(0 0 4px #70eccb)" />
+                <circle cx="20" cy="6" r="1.2" fill="#ffffff" />
+                <path
+                  d="M 16 9 L 18 14 L 23 16 L 18 18 L 16 23 L 14 18 L 9 16 L 14 14 Z"
+                  fill="url(#lax-glow)"
+                  filter="drop-shadow(0 0 3px rgba(112, 236, 203, 0.4))"
+                />
+                <circle cx="16" cy="16" r="2" fill="#ffffff" />
+              </svg>
+            </div>
+          </div>
+          <div className="brand-copy">
+            <span className="brand-title">
+              <span className="brand-accent">LAX</span> CNC
+            </span>
+            <span className="brand-subtitle">
+              <span className="status-dot" /> G-CODE WORKSTATION <span className="pro-badge">PRO</span>
+            </span>
+          </div>
         </div>
         <div className="header-divider" />
         <label className="project-field">
