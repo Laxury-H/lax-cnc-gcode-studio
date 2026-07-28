@@ -12,10 +12,11 @@ interface SolidSimulatorProps {
 }
 
 // Map Z depth to a grayscale string for the displacement map
-function getDepthColor(z: number, thickness: number) {
-  // z = 0 is the top of the stock, z = -thickness is the bottom.
-  // texture value 1.0 (white) = top, 0.0 (black) = bottom.
-  const ratio = (z + thickness) / thickness;
+function getDepthColor(z: number, topZ: number, bottomZ: number) {
+  // z >= topZ -> white (no displacement)
+  // z <= bottomZ -> black (full displacement)
+  const range = Math.max(0.01, topZ - bottomZ);
+  const ratio = (z - bottomZ) / range;
   const clamped = Math.max(0, Math.min(1, ratio));
   const intensity = Math.round(clamped * 255);
   return `rgb(${intensity}, ${intensity}, ${intensity})`;
@@ -29,7 +30,7 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
 
   // Determine resolution based on quality
   const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
-  const geomRes = quality === "high" ? 512 : quality === "medium" ? 256 : 128;
+  const geomRes = quality === "high" ? 1024 : quality === "medium" ? 512 : 256;
 
   // Initialize the canvas and texture once
   const { canvas, texture } = useMemo(() => {
@@ -84,6 +85,11 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
     ctx.lineWidth = scaledToolWidth;
 
     let hasChanges = false;
+    
+    // Auto-detect if stock top is at Z=thickness (bottom is Z=0) or Z=0 (bottom is Z=-thickness)
+    const isBottomZero = simulation.bounds.minZ >= -0.1;
+    const topZ = isBottomZero ? stock.thickness : 0;
+    const bottomZ = isBottomZero ? 0 : -stock.thickness;
 
     // Progressively draw only the newly added segments
     for (let i = startIdx; i < cursor; i++) {
@@ -107,7 +113,7 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
 
         // Approximate depth mapping (averaging start and end Z for this small line)
         const avgZ = (from.z + to.z) / 2;
-        ctx.strokeStyle = getDepthColor(avgZ, stock.thickness);
+        ctx.strokeStyle = getDepthColor(avgZ, topZ, bottomZ);
 
         ctx.beginPath();
         ctx.moveTo(startX, startY);
@@ -132,6 +138,8 @@ function StockMesh({ simulation, stock, cursor, quality = "medium" }: SolidSimul
         displacementMap={texture}
         displacementScale={stock.thickness}
         displacementBias={-stock.thickness}
+        bumpMap={texture}
+        bumpScale={stock.thickness * 0.5}
       />
     </mesh>
   );
