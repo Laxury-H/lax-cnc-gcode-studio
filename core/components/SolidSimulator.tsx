@@ -262,20 +262,23 @@ function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
       `#include <common>
-       varying float vDisplacement;`
+       varying float vDisplacement;
+       varying vec2 vUvWood;`
     );
     shader.vertexShader = shader.vertexShader.replace(
       '#include <displacementmap_vertex>',
       `#include <displacementmap_vertex>
        #ifdef USE_DISPLACEMENTMAP
          vDisplacement = texture2D( displacementMap, uv ).x;
-       #endif`
+       #endif
+       vUvWood = uv;`
     );
 
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       `#include <common>
        varying float vDisplacement;
+       varying vec2 vUvWood;
        uniform vec3 uStockColor;
        uniform vec3 uCutColor;`
     );
@@ -283,7 +286,7 @@ function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "
     shader.fragmentShader = shader.fragmentShader.replace(
       'vec4 diffuseColor = vec4( diffuse, opacity );',
       `
-       vec2 pos = vUv * vec2(150.0, 10.0);
+       vec2 pos = vUvWood * vec2(150.0, 10.0);
        float n = sin(pos.y) * 0.5 + sin(pos.x * 0.5) * 0.5;
        float ring = fract(pos.x * 0.1 + n * 0.3);
        float grain = smoothstep(0.0, 0.1, ring) * (1.0 - smoothstep(0.8, 1.0, ring));
