@@ -34,8 +34,9 @@ import type {
   Vec3,
 } from "@/core/simulation/types";
 import { Lang, translations, translateDiagnostic, type TranslationDict } from "./i18n";
+import { SolidSimulator } from "@/core/components/SolidSimulator";
 
-type ViewMode = "xoy" | "iso";
+type ViewMode = "xoy" | "iso" | "solid";
 type OrbitCamera = { yaw: number; pitch: number };
 
 const EPSILON = 0.001;
@@ -52,6 +53,13 @@ function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
       short: "📐 2D",
       title: t.view2D,
       description: t.desc2D,
+    };
+  }
+  if (viewMode === "solid") {
+    return {
+      short: "🪵 Solid",
+      title: "Cimco Solid 3D",
+      description: "WebGL heightmap simulation",
     };
   }
   return {
@@ -1419,17 +1427,25 @@ function ToolpathCanvas({
           </div>
         </>
       )}
-      <canvas
-        ref={canvasRef}
-        aria-label={`Mô phỏng đường chạy dao CNC · ${getViewMeta(view, t).title}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onWheel={handleWheel}
-        onDoubleClick={onResetView}
-        onContextMenu={(event) => event.preventDefault()}
-      />
+      {view === "solid" ? (
+        <SolidSimulator 
+          simulation={simulation} 
+          stock={{ ...stock, toolDiameter: stock.toolDiameter || 6 }} 
+          cursor={cursor} 
+        />
+      ) : (
+        <canvas
+          ref={canvasRef}
+          aria-label={`Mô phỏng đường chạy dao CNC · ${getViewMeta(view, t).title}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
+          onDoubleClick={onResetView}
+          onContextMenu={(event) => event.preventDefault()}
+        />
+      )}
     </div>
   );
 }
@@ -1956,7 +1972,7 @@ export default function Home() {
         </div>
         <div className="toolbar-divider" />
         <div className="view-switch" aria-label="Góc nhìn mô phỏng">
-          {(["xoy", "iso"] as ViewMode[]).map((viewMode, index) => (
+          {(["xoy", "iso", "solid"] as ViewMode[]).map((viewMode, index) => (
             <button
               type="button"
               className={view === viewMode ? "is-active" : ""}
@@ -1965,7 +1981,7 @@ export default function Home() {
               onClick={() => changeView(viewMode)}
               key={viewMode}
             >
-              {viewMode === "iso" ? (
+              {viewMode === "iso" || viewMode === "solid" ? (
                 <Icon name="cube" size={16} />
               ) : (
                 <Icon name="panel" size={16} />
