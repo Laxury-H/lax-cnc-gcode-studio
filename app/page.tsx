@@ -36,6 +36,7 @@ import type {
 import { Lang, translations, translateDiagnostic, type TranslationDict } from "./i18n";
 import { cncAudio } from "@/core/simulation/audio";
 import { SolidSimulator } from "@/core/components/SolidSimulator";
+import { MachineSimulator } from "@/core/components/MachineSimulator";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 
 import { Icon } from "@/core/components/ui/Icon";
@@ -1183,7 +1184,19 @@ function ToolpathCanvas({
           </div>
         </>
       )}
-      {view === "solid" ? (
+      {view === "machine" ? (
+          <MachineSimulator 
+            simulation={simulation} 
+            stock={{ ...stock, toolDiameter: stock.toolDiameter || 6 }} 
+            cursor={cursor} 
+            segmentProgress={segmentProgress}
+            showTool={showTool}
+            showStock={showStock}
+            resetTrigger={resetTrigger}
+            onOrbitChange={onOrbit}
+            quality={quality}
+          />
+        ) : view === "solid" ? (
         <SolidSimulator 
           simulation={simulation} 
           stock={{ ...stock, toolDiameter: stock.toolDiameter || 6 }} 
@@ -1748,7 +1761,7 @@ export default function Home() {
         </div>
         <div className="toolbar-divider" />
         <div className="view-switch" aria-label="Góc nhìn mô phỏng">
-          {(["xoy", "solid"] as ViewMode[]).map((viewMode, index) => (
+          {(["xoy", "solid", "machine"] as ViewMode[]).map((viewMode, index) => (
             <button
               type="button"
               className={view === viewMode ? "is-active" : ""}
@@ -1757,7 +1770,7 @@ export default function Home() {
               onClick={() => changeView(viewMode)}
               key={viewMode}
             >
-              {viewMode === "iso" || viewMode === "solid" ? (
+              {viewMode === "iso" || viewMode === "solid" || viewMode === "machine" ? (
                 <Icon name="cube" size={16} />
               ) : (
                 <Icon name="panel" size={16} />

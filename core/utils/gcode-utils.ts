@@ -2,7 +2,7 @@ import { cloneVec3, distance3D, lerpVec3 } from "@/core/geometry/line";
 import type { Segment, Vec3 } from "@/core/simulation/types";
 import type { TranslationDict } from "@/app/i18n";
 
-export type ViewMode = "xoy" | "iso" | "solid";
+export type ViewMode = "xoy" | "iso" | "solid" | "machine";
 export type OrbitCamera = { yaw: number; pitch: number };
 
 const EPSILON = 0.001;
@@ -20,6 +20,13 @@ export function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
       short: "🪵 3D Solid",
       title: "3D Solid",
       description: "WebGL heightmap simulation",
+    };
+  }
+  if (viewMode === "machine") {
+    return {
+      short: "🤖 3D Machine",
+      title: "Machine Kinematics",
+      description: "Full machine simulation",
     };
   }
   return {
