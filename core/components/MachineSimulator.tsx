@@ -4,6 +4,7 @@ import { OrbitControls, ContactShadows, Environment, Box, Cylinder } from "@reac
 import * as THREE from "three";
 import { Simulation } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { StockMesh } from "./SolidSimulator";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
@@ -21,22 +22,29 @@ function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
 }
 
-function MachineKinematics({
+export function MachineKinematics({
   simulation,
   stock,
   cursor,
   segmentProgress = 1,
   showTool = true,
   showStock = true,
-}: Omit<MachineSimulatorProps, "resetTrigger" | "onOrbitChange" | "quality">) {
+  quality = "medium",
+}: Omit<MachineSimulatorProps, "resetTrigger" | "onOrbitChange">) {
   const gantryRef = useRef<THREE.Group>(null);
   const carriageRef = useRef<THREE.Group>(null);
   const zAxisRef = useRef<THREE.Group>(null);
+  const spindleRef = useRef<THREE.Group>(null);
   
+  // Get current segment to read spindle RPM
+  const curSeg = useMemo(() => {
+    if (!simulation.segments.length) return null;
+    return simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
+  }, [simulation, cursor]);
+
   // Interpolate current tool position
   const currentPos = useMemo(() => {
-    if (!simulation.segments.length) return { x: 0, y: 0, z: stock.safeZ };
-    const curSeg = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
+    if (!curSeg) return { x: 0, y: 0, z: stock.safeZ };
     
     const start = {
       x: curSeg.start?.x ?? 0,
@@ -50,21 +58,21 @@ function MachineKinematics({
     };
     
     return lerpVec(start, end, segmentProgress);
-  }, [simulation, cursor, segmentProgress, stock.safeZ]);
+  }, [curSeg, segmentProgress, stock.safeZ]);
+
+  // Machine limits
+  const isXLimit = currentPos.x < 0 || currentPos.x > stock.width + 10;
+  const isYLimit = currentPos.y < 0 || currentPos.y > stock.height + 10;
 
   useFrame(() => {
     // Kinematic chain mapping
-    // Gantry moves in Y
-    if (gantryRef.current) {
-      gantryRef.current.position.y = currentPos.y;
-    }
-    // Carriage moves in X (relative to Gantry)
-    if (carriageRef.current) {
-      carriageRef.current.position.x = currentPos.x;
-    }
-    // Z-Axis moves in Z (relative to Carriage)
-    if (zAxisRef.current) {
-      zAxisRef.current.position.z = currentPos.z;
+    if (gantryRef.current) gantryRef.current.position.y = currentPos.y;
+    if (carriageRef.current) carriageRef.current.position.x = currentPos.x;
+    if (zAxisRef.current) zAxisRef.current.position.z = currentPos.z;
+    
+    // Spindle Rotation Animation
+    if (spindleRef.current && curSeg && curSeg.spindle > 0) {
+      spindleRef.current.rotation.z -= 0.3; // Rotate CCW/CW
     }
   });
 
@@ -72,8 +80,8 @@ function MachineKinematics({
   const bedW = Math.max(stock.width + 200, 600);
   const bedH = Math.max(stock.height + 200, 600);
   
-  const stockOffsetX = -stock.width * stock.originX;
-  const stockOffsetY = -stock.height * stock.originY;
+  const stockOffsetX = stock.originX;
+  const stockOffsetY = stock.originY;
 
   return (
     <group>
@@ -83,54 +91,76 @@ function MachineKinematics({
       </Box>
 
       {/* Grid on bed */}
-      <gridHelper args={[Math.max(bedW, bedH), 20, 0x000000, 0x444444]} rotation={[Math.PI / 2, 0, 0]} position={[stock.width/2 + stockOffsetX, stock.height/2 + stockOffsetY, 0.1]} />
+      <gridHelper args={[Math.max(bedW, bedH), Math.max(bedW, bedH) / 100, 0x444444, 0x444444]} rotation={[Math.PI / 2, 0, 0]} position={[stock.width/2 + stockOffsetX, stock.height/2 + stockOffsetY, 0.1]} />
 
-      {/* Stock (Static) */}
+      {/* Y-Axis Rails (Static on Bed) */}
+      <Box args={[15, bedH, 15]} position={[stock.width/2 + stockOffsetX - bedW/2 + 40, stock.height/2 + stockOffsetY, 7.5]} receiveShadow castShadow>
+        <meshStandardMaterial color="#bdc3c7" roughness={0.3} metalness={0.7} />
+      </Box>
+      <Box args={[15, bedH, 15]} position={[stock.width/2 + stockOffsetX + bedW/2 - 40, stock.height/2 + stockOffsetY, 7.5]} receiveShadow castShadow>
+        <meshStandardMaterial color="#bdc3c7" roughness={0.3} metalness={0.7} />
+      </Box>
+
+      {/* Stock (Heightmap via StockMesh) */}
       {showStock && (
-        <Box args={[stock.width, stock.height, stock.thickness]} position={[stock.width/2 + stockOffsetX, stock.height/2 + stockOffsetY, stock.thickness/2]} receiveShadow castShadow>
-          <meshStandardMaterial color="#d4a373" roughness={0.9} />
-        </Box>
+        <group position={[stock.width/2 + stockOffsetX, stock.height/2 + stockOffsetY, stock.thickness/2]} rotation={[Math.PI / 2, 0, 0]}>
+          <StockMesh simulation={simulation} stock={stock} cursor={cursor} segmentProgress={segmentProgress} quality={quality} />
+        </group>
       )}
 
       {/* 2. Gantry (Moves in Y) */}
       <group ref={gantryRef}>
         {/* Left Leg */}
-        <Box args={[40, 60, 150]} position={[-bedW/2 + stock.width/2 + stockOffsetX + 20, 0, 75]} castShadow>
-          <meshStandardMaterial color="#e74c3c" roughness={0.5} metalness={0.4} />
+        <Box args={[40, 60, 150]} position={[-bedW/2 + stock.width/2 + stockOffsetX + 40, 50, 75]} castShadow>
+          <meshStandardMaterial color={isYLimit ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
         </Box>
         {/* Right Leg */}
-        <Box args={[40, 60, 150]} position={[bedW/2 + stock.width/2 + stockOffsetX - 20, 0, 75]} castShadow>
-          <meshStandardMaterial color="#e74c3c" roughness={0.5} metalness={0.4} />
+        <Box args={[40, 60, 150]} position={[bedW/2 + stock.width/2 + stockOffsetX - 40, 50, 75]} castShadow>
+          <meshStandardMaterial color={isYLimit ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
         </Box>
         {/* Bridge */}
-        <Box args={[bedW, 40, 60]} position={[stock.width/2 + stockOffsetX, 0, 180]} castShadow>
-          <meshStandardMaterial color="#e74c3c" roughness={0.5} metalness={0.4} />
+        <Box args={[bedW, 40, 80]} position={[stock.width/2 + stockOffsetX, 50, 190]} castShadow>
+          <meshStandardMaterial color={isYLimit ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
+        </Box>
+        
+        {/* X-Axis Rails (On Gantry) */}
+        <Box args={[bedW - 80, 10, 10]} position={[stock.width/2 + stockOffsetX, 30, 190 + 20]} castShadow>
+          <meshStandardMaterial color="#bdc3c7" roughness={0.3} metalness={0.7} />
+        </Box>
+        <Box args={[bedW - 80, 10, 10]} position={[stock.width/2 + stockOffsetX, 30, 190 - 20]} castShadow>
+          <meshStandardMaterial color="#bdc3c7" roughness={0.3} metalness={0.7} />
         </Box>
 
         {/* 3. Carriage (Moves in X) */}
         <group ref={carriageRef}>
-          <Box args={[80, 60, 80]} position={[0, -10, 180]} castShadow>
-            <meshStandardMaterial color="#34495e" roughness={0.6} metalness={0.3} />
+          <Box args={[80, 70, 100]} position={[0, 25, 190]} castShadow>
+            <meshStandardMaterial color={isXLimit ? "#f39c12" : "#34495e"} roughness={0.6} metalness={0.3} />
           </Box>
 
           {/* 4. Z-Axis (Moves in Z) */}
           <group ref={zAxisRef}>
             {/* Z-axis rail block */}
-            <Box args={[50, 40, 120]} position={[0, -30, 120]} castShadow>
+            <Box args={[60, 40, 140]} position={[0, 0, 120]} castShadow>
               <meshStandardMaterial color="#7f8c8d" roughness={0.4} metalness={0.6} />
             </Box>
             
-            {/* 5. Spindle */}
-            <Cylinder args={[15, 15, 80, 16]} position={[0, -30, 80]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-              <meshStandardMaterial color="#ecf0f1" roughness={0.3} metalness={0.8} />
-            </Cylinder>
-
-            {/* 6. Tool */}
-            {showTool && (
-              <Cylinder args={[stock.toolDiameter / 2, stock.toolDiameter / 2, 40, 16]} position={[0, -30, 20]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-                <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+            {/* Spindle Assembly (Rotates) */}
+            <group ref={spindleRef} position={[0, 0, 80]}>
+              {/* Spindle Motor */}
+              <Cylinder args={[20, 20, 90, 32]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+                <meshStandardMaterial color="#ecf0f1" roughness={0.3} metalness={0.8} />
               </Cylinder>
-            )}
+              {/* Collet Nut (ER20) */}
+              <Cylinder args={[10, 14, 20, 6]} position={[0, 0, -50]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+                <meshStandardMaterial color="#f1c40f" roughness={0.4} metalness={0.9} />
+              </Cylinder>
+              {/* Tool */}
+              {showTool && (
+                <Cylinder args={[stock.toolDiameter / 2, stock.toolDiameter / 2, 40, 16]} position={[0, 0, -70]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+                  <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                </Cylinder>
+              )}
+            </group>
           </group>
         </group>
       </group>
@@ -185,6 +215,7 @@ export function MachineSimulator({
         segmentProgress={segmentProgress}
         showTool={showTool}
         showStock={showStock}
+        quality={quality}
       />
 
       {quality !== "low" && (

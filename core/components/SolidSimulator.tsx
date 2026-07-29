@@ -152,7 +152,7 @@ function getDepthColor(z: number, topZ: number, bottomZ: number) {
 const STOCK_COLOR = "#cd9a5b"; // Realistic plywood surface color
 const CUT_COLOR = "#e8c99b"; // Lighter exposed core color
 
-function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: SolidSimulatorProps) {
+export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: SolidSimulatorProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
   
@@ -292,6 +292,10 @@ function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "
     shader.fragmentShader = shader.fragmentShader.replace(
       'vec4 diffuseColor = vec4( diffuse, opacity );',
       `
+       if (vDisplacement <= 0.01) {
+         discard; // True cut-through (nesting)
+       }
+
        vec2 pos = vUvWood * vec2(150.0, 10.0);
        float n = sin(pos.y) * 0.5 + sin(pos.x * 0.5) * 0.5;
        float ring = fract(pos.x * 0.1 + n * 0.3);
@@ -323,9 +327,10 @@ function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "
       <boxGeometry args={[stock.width, stock.height, stock.thickness, geomRes, geomRes, 1]} />
       
       {/* Faces: 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z (Top after rotation), 5: -Z (Bottom) */}
-      {[0, 1, 2, 3, 5].map((idx) => (
+      {[0, 1, 2, 3].map((idx) => (
         <meshStandardMaterial key={idx} attach={`material-${idx}`} color={STOCK_COLOR} roughness={0.9} metalness={0.1} />
       ))}
+      <meshStandardMaterial attach="material-5" transparent={true} opacity={0} depthWrite={false} />
       
       <meshStandardMaterial 
         attach="material-4"
