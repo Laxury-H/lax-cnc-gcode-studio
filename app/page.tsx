@@ -1570,7 +1570,8 @@ export default function Home() {
         if (file) void readFile(file);
       }}
     >
-      <header className="app-header">
+      <div className="top-navigation-island">
+        <header className="app-header">
         <div className="brand" aria-label="Lax's CNC Pro Workstation">
           <div className="brand-badge" title="Lax's CNC Workstation PRO">
             <div className="brand-logo-icon">
@@ -1611,12 +1612,9 @@ export default function Home() {
             <span className="brand-title">
               <span className="brand-accent">Lax's</span> CNC
             </span>
-            <span className="brand-subtitle">
-              <span className="status-dot" /> G-CODE WORKSTATION <span className="pro-badge">PRO</span>
-            </span>
           </div>
         </div>
-        <div className="header-divider" />
+        
         <label className="project-field">
           <span>{t.projectLabel}</span>
           <input
@@ -1764,7 +1762,7 @@ export default function Home() {
           <i />
           <b>{playing ? "RUNNING" : "READY"}</b>
         </div>
-        <div className="toolbar-divider" />
+        
         <div className="view-switch" aria-label="Góc nhìn mô phỏng">
           {(["xoy", "solid", "machine"] as ViewMode[]).map((viewMode, index) => (
             <button
@@ -1813,7 +1811,7 @@ export default function Home() {
             <option value="high">💎 Máy Cao</option>
           </select>
         </label>
-        <div className="toolbar-spacer" />
+        
         <div className="canvas-tools">
           <ToolbarButton
             icon="crosshair"
@@ -1853,6 +1851,8 @@ export default function Home() {
           />
         </div>
       </section>
+      </div>
+
 
       <section
         className={`workspace${codeCollapsed ? " is-code-collapsed" : ""}`}
