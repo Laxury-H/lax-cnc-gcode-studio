@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, ContactShadows, Text } from "@react-three/drei";
 import * as THREE from "three";
-import { Simulation } from "../simulation/types";
+import { Simulation, StockSettings, ToolProfile } from "../simulation/types";
 
 interface SolidSimulatorProps {
   simulation: Simulation;
-  stock: { width: number; height: number; thickness: number; toolDiameter: number; originX: number; originY: number; safeZ: number };
+  stock: StockSettings;
   cursor: number;
   segmentProgress?: number;
   showRapids?: boolean;
@@ -120,28 +120,51 @@ function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: S
   );
 }
 
-function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool }: { simulation: Simulation, cursor: number, segmentProgress: number, stock: SolidSimulatorProps["stock"], showTool: boolean }) {
+function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool }: { simulation: Simulation, cursor: number, segmentProgress: number, stock: StockSettings, showTool: boolean }) {
   if (!showTool) return null;
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
   const pos = activeSegment ? pointOnSegment(activeSegment, segmentProgress) : { x: stock.originX, y: stock.originY, z: stock.safeZ };
   
   const fluteLength = Math.max(38, stock.thickness * 2.2);
+  const activeToolId = activeSegment?.tool || "1";
+  const activeTool = stock.tools?.find(t => t.id === activeToolId);
+  const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
+  const toolType = activeTool?.type || "flat";
   
   return (
-    <group position={[pos.x, pos.y, pos.z]}>
-      {/* Align cylinder with local Z axis (which maps to world Y axis after parent rotation) */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, fluteLength / 2]}>
-        <cylinderGeometry args={[stock.toolDiameter / 2, stock.toolDiameter / 2, fluteLength, 16]} />
-        <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
-      </mesh>
+    <group>
+      <group position={[pos.x, pos.y, pos.z]}>
+        <group rotation={[Math.PI / 2, 0, 0]} position={[0, 0, fluteLength / 2]}>
+          {toolType === "vbit" ? (
+            <group>
+              <cylinderGeometry args={[toolDiameter / 2, toolDiameter / 2, fluteLength - 10, 16]} />
+              <mesh position={[0, -(fluteLength / 2) + 5, 0]}>
+                <coneGeometry args={[toolDiameter / 2, 10, 16]} />
+                <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
+              </mesh>
+            </group>
+          ) : toolType === "ball" ? (
+            <group>
+              <cylinderGeometry args={[toolDiameter / 2, toolDiameter / 2, fluteLength - toolDiameter / 2, 16]} />
+              <mesh position={[0, -(fluteLength / 2) + toolDiameter / 4, 0]}>
+                <sphereGeometry args={[toolDiameter / 2, 16, 16]} />
+                <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
+              </mesh>
+            </group>
+          ) : (
+            <mesh>
+              <cylinderGeometry args={[toolDiameter / 2, toolDiameter / 2, fluteLength, 16]} />
+              <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
+            </mesh>
+          )}
+        </group>
+      </group>
     </group>
   );
 }
 
 // Map Z depth to a grayscale string for the displacement map
 function getDepthColor(z: number, topZ: number, bottomZ: number) {
-  // z >= topZ -> white (no displacement)
-  // z <= bottomZ -> black (full displacement)
   const range = Math.max(0.01, topZ - bottomZ);
   const ratio = (z - bottomZ) / range;
   const clamped = Math.max(0, Math.min(1, ratio));
@@ -156,11 +179,9 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
   
-  // Track exactly how much we've drawn
   const lastCursorRef = useRef<number>(0);
   const lastProgressRef = useRef<number>(0);
 
-  // Determine resolution based on quality
   const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
   const geomRes = quality === "high" ? 1024 : quality === "medium" ? 512 : 256;
 
@@ -185,7 +206,6 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     return () => { texture.dispose(); };
   }, [canvas, texture]);
 
-  // Delta-based canvas drawing
   useEffect(() => {
     const el = canvasRef.current;
     const tex = textureRef.current;
@@ -196,7 +216,6 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     let startCursor = lastCursorRef.current;
     let startProgress = lastProgressRef.current;
     
-    // Determine if we went backwards
     if (cursor < startCursor || (cursor === startCursor && segmentProgress < startProgress)) {
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, MAP_RES, MAP_RES);
@@ -208,35 +227,49 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
 
     const scaleX = MAP_RES / Math.max(1, stock.width);
     const scaleY = MAP_RES / Math.max(1, stock.height);
-    const scaledToolWidth = Math.max(1, stock.toolDiameter * Math.min(scaleX, scaleY));
-
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = scaledToolWidth;
 
     let hasChanges = false;
     const isBottomZero = simulation.bounds.minZ >= -0.1;
     const topZ = isBottomZero ? stock.thickness : 0;
     const bottomZ = isBottomZero ? 0 : -stock.thickness;
 
-    // Helper to draw a line from ptA to ptB
-    const drawLine = (from: {x:number,y:number,z:number}, to: {x:number,y:number,z:number}) => {
-      const startX = (from.x - stock.originX) * scaleX;
-      const startY = MAP_RES - ((from.y - stock.originY) * scaleY);
-      const endX = (to.x - stock.originX) * scaleX;
-      const endY = MAP_RES - ((to.y - stock.originY) * scaleY);
-      const avgZ = (from.z + to.z) / 2;
-      ctx.strokeStyle = getDepthColor(avgZ, topZ, bottomZ);
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
-      ctx.stroke();
-      hasChanges = true;
+    const drawLine = (from: {x:number,y:number,z:number}, to: {x:number,y:number,z:number}, tDia: number) => {
+        const startX = (from.x - stock.originX) * scaleX;
+        const startY = MAP_RES - ((from.y - stock.originY) * scaleY);
+        const endX = (to.x - stock.originX) * scaleX;
+        const endY = MAP_RES - ((to.y - stock.originY) * scaleY);
+        const avgZ = (from.z + to.z) / 2;
+        ctx.strokeStyle = getDepthColor(avgZ, topZ, bottomZ);
+        ctx.lineWidth = tDia * scaleX;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+        hasChanges = true;
+    };
+
+    const drawArcSeg = (seg: Segment, tDia: number) => {
+        if (!seg.center || seg.radius === undefined || seg.sweepRadians === undefined) return;
+        ctx.strokeStyle = getDepthColor(seg.end.z, topZ, bottomZ);
+        ctx.lineWidth = tDia * scaleX;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        const startAngle = Math.atan2(seg.start.y - seg.center.y, seg.start.x - seg.center.x);
+        const endAngle = startAngle + seg.sweepRadians;
+        const centerX = (seg.center.x - stock.originX) * scaleX;
+        const centerY = MAP_RES - ((seg.center.y - stock.originY) * scaleY);
+        const rX = seg.radius * scaleX;
+        ctx.ellipse(centerX, centerY, rX, rX, 0, startAngle, endAngle, seg.sweepRadians < 0);
+        ctx.stroke();
+        hasChanges = true;
     };
 
     for (let i = startCursor; i <= cursor; i++) {
       const seg = simulation.segments[i];
-      if (!seg || seg.kind === "rapid" || seg.kind === "drill" || seg.kind === "dwell") continue;
+      if (!seg || seg.kind === "rapid" || seg.kind === "dwell") continue;
       
       const isCurrentSegment = i === cursor;
       const isStartSegment = i === startCursor;
@@ -244,12 +277,26 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
       const segStartProgress = isStartSegment ? startProgress : 0;
       const segEndProgress = isCurrentSegment ? segmentProgress : 1;
       
-      if (segStartProgress >= segEndProgress) continue; // Nothing to draw in this segment
+      if (segStartProgress >= segEndProgress) continue; 
 
-      // It's a continuous line segment or arc
-      const ptFrom = pointOnSegment(seg, segStartProgress);
-      const ptTo = pointOnSegment(seg, segEndProgress);
-      drawLine(ptFrom, ptTo);
+      const activeTool = stock.tools?.find(t => t.id === seg.tool) || stock.tools?.[0];
+      const tDia = activeTool?.diameter || stock.toolDiameter || 6;
+
+      if (seg.kind === "cut") {
+        const ptFrom = pointOnSegment(seg, segStartProgress);
+        const ptTo = pointOnSegment(seg, segEndProgress);
+        drawLine(ptFrom, ptTo, tDia);
+      } else if (seg.kind === "arc-cw" || seg.kind === "arc-ccw") {
+        if (segEndProgress < 1) {
+          const ptFrom = pointOnSegment(seg, segStartProgress);
+          const ptTo = pointOnSegment(seg, segEndProgress);
+          drawLine(ptFrom, ptTo, tDia);
+        } else {
+          drawArcSeg(seg, tDia);
+        }
+      } else if (seg.kind === "drill" && segEndProgress > 0) {
+        drawLine(seg.start, seg.end, tDia);
+      }
     }
 
     if (hasChanges) {

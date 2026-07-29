@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Environment, Box, Cylinder } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Environment, Box, Cylinder, Cone, Sphere } from "@react-three/drei";
 import * as THREE from "three";
-import { Simulation } from "../simulation/types";
+import { Simulation, StockSettings, ToolProfile } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { StockMesh } from "./SolidSimulator";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
-  stock: { width: number; height: number; thickness: number; toolDiameter: number; originX: number; originY: number; safeZ: number };
+  stock: StockSettings;
   cursor: number;
   segmentProgress?: number;
   showTool?: boolean;
@@ -83,6 +83,12 @@ export function MachineKinematics({
   const stockOffsetX = stock.originX;
   const stockOffsetY = stock.originY;
 
+  const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
+  const activeToolId = activeSegment?.tool || "1";
+  const activeTool = stock.tools?.find(t => t.id === activeToolId);
+  const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
+  const toolType = activeTool?.type || "flat";
+
   return (
     <group>
       {/* 1. Base / Bed (Static) */}
@@ -156,9 +162,31 @@ export function MachineKinematics({
               </Cylinder>
               {/* Tool */}
               {showTool && (
-                <Cylinder args={[stock.toolDiameter / 2, stock.toolDiameter / 2, 40, 16]} position={[0, 0, -70]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-                  <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
-                </Cylinder>
+                <group position={[0, 0, -70]} rotation={[Math.PI / 2, 0, 0]}>
+                  {toolType === "vbit" ? (
+                    <group>
+                      <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 30, 16]} castShadow>
+                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                      </Cylinder>
+                      <Cone args={[toolDiameter / 2, 10, 16]} position={[0, -20, 0]} castShadow>
+                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                      </Cone>
+                    </group>
+                  ) : toolType === "ball" ? (
+                    <group>
+                      <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 40 - toolDiameter / 2, 16]} position={[0, toolDiameter / 4, 0]} castShadow>
+                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                      </Cylinder>
+                      <Sphere args={[toolDiameter / 2, 16, 16]} position={[0, -20 + toolDiameter / 4, 0]} castShadow>
+                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                      </Sphere>
+                    </group>
+                  ) : (
+                    <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 40, 16]} castShadow>
+                      <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                    </Cylinder>
+                  )}
+                </group>
               )}
             </group>
           </group>

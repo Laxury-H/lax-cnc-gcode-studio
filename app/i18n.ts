@@ -171,6 +171,15 @@ export const translations = {
     lblSafeZ: "Chiều cao an toàn Z",
     lblClearance: "Khoảng cách an toàn tối thiểu",
     lblRapidFeed: "Tốc độ chạy dao nhanh (G0)",
+    toolLibrary: "Thư viện Dao cụ",
+    toolId: "ID Dao (VD: 1, 25)",
+    toolType: "Loại dao",
+    toolAngle: "Góc mũi (V-bit)",
+    addTool: "Thêm Dao Mới",
+    deleteTool: "Xóa",
+    typeFlat: "Dao Phay Phẳng (Flat)",
+    typeBall: "Dao Cầu (Ball Nose)",
+    typeVBit: "Dao Đầu Nhọn (V-Bit)",
 
     // Code editor modal
     editorTitle: "TRÌNH SOẠN THẢO MÃ LỆNH",
@@ -397,6 +406,15 @@ export const translations = {
     lblSafeZ: "Safe Z Height",
     lblClearance: "Minimum Clearance",
     lblRapidFeed: "Rapid Feed Rate (G0)",
+    toolLibrary: "Tool Library",
+    toolId: "Tool ID (e.g. 1, 25)",
+    toolType: "Type",
+    toolAngle: "V-Angle",
+    addTool: "Add Tool",
+    deleteTool: "Delete",
+    typeFlat: "Flat End Mill",
+    typeBall: "Ball Nose",
+    typeVBit: "V-Bit",
 
     // Code editor modal
     editorTitle: "G-CODE EDITOR",

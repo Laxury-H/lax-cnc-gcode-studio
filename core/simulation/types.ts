@@ -9,6 +9,13 @@ import type {
 
 export type StudioMachineProfile = "router-custom" | "iso";
 
+export type ToolProfile = {
+  id: string; // e.g., "1", "25"
+  diameter: number; // mm
+  type: "flat" | "ball" | "vbit";
+  angle?: number; // degrees, only for vbit
+};
+
 export type StockSettings = {
   width: number;
   height: number;
@@ -16,9 +23,10 @@ export type StockSettings = {
   originX: number;
   originY: number;
   safeZ: number;
-  toolDiameter: number;
+  toolDiameter: number; // Default fallback tool diameter
   clearance: number;
   rapidFeed: number;
+  tools?: ToolProfile[]; // Array of defined tools
 };
 
 export type MotionKind =
