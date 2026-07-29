@@ -37,17 +37,16 @@ function MachineKinematics({
   const currentPos = useMemo(() => {
     if (!simulation.segments.length) return { x: 0, y: 0, z: stock.safeZ };
     const curSeg = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
-    const prevSeg = cursor > 0 ? simulation.segments[cursor - 1] : null;
     
     const start = {
-      x: prevSeg?.x ?? 0,
-      y: prevSeg?.y ?? 0,
-      z: prevSeg?.z ?? stock.safeZ,
+      x: curSeg.start?.x ?? 0,
+      y: curSeg.start?.y ?? 0,
+      z: curSeg.start?.z ?? stock.safeZ,
     };
     const end = {
-      x: curSeg.x ?? start.x,
-      y: curSeg.y ?? start.y,
-      z: curSeg.z ?? start.z,
+      x: curSeg.end?.x ?? start.x,
+      y: curSeg.end?.y ?? start.y,
+      z: curSeg.end?.z ?? start.z,
     };
     
     return lerpVec(start, end, segmentProgress);
