@@ -38,6 +38,8 @@ import { cncAudio } from "@/core/simulation/audio";
 import { SolidSimulator } from "@/core/components/SolidSimulator";
 import { MachineSimulator } from "@/core/components/MachineSimulator";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
+import { FileCompareModal } from "@/core/components/FileCompareModal";
+import { MiniCamModal } from "@/core/components/MiniCamModal";
 
 import { Icon } from "@/core/components/ui/Icon";
 import { MetricCard } from "@/core/components/ui/MetricCard";
@@ -1271,6 +1273,8 @@ export default function Home() {
   const [exportType, setExportType] = useState<PostProcessorType>("ncstudio");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [minicamOpen, setMinicamOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -1869,6 +1873,22 @@ export default function Home() {
                 title="Thu gọn bảng G-code"
               >
                 <Icon name="panel" size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompareOpen(true)}
+                aria-label="So sánh File (File Compare)"
+                title="So sánh File (File Compare)"
+              >
+                <Icon name="compare" size={17} fallback="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMinicamOpen(true)}
+                aria-label="Mini CAM (CNC-Calc)"
+                title="Mini CAM (CNC-Calc)"
+              >
+                <Icon name="layer" size={17} fallback="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </button>
               <button
                 type="button"
@@ -2618,6 +2638,34 @@ export default function Home() {
             </div>
           </section>
         </div>
+      )}
+
+      {isGuideOpen && <UserGuideModal t={t} onClose={() => setIsGuideOpen(false)} />}
+
+      {compareOpen && (
+        <FileCompareModal 
+          t={t} 
+          currentCode={code} 
+          onClose={() => setCompareOpen(false)} 
+          onApply={(newCode) => {
+            applyCode(newCode);
+            setCompareOpen(false);
+            notify("Đã áp dụng thay đổi từ File Compare.");
+          }} 
+        />
+      )}
+      
+      {minicamOpen && (
+        <MiniCamModal
+          t={t}
+          onClose={() => setMinicamOpen(false)}
+          onGenerate={(generatedCode) => {
+            const newCode = code ? `${code}\n${generatedCode}` : generatedCode;
+            applyCode(newCode);
+            setMinicamOpen(false);
+            notify("Đã sinh G-Code và chèn vào Editor.");
+          }}
+        />
       )}
 
       {dragActive && (
