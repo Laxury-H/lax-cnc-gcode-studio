@@ -2526,8 +2526,9 @@ export default function Home() {
                 <Icon name="close" />
               </button>
             </div>
-            <div className="settings-grid">
-              {[
+            <div className="modal-body">
+              <div className="settings-grid">
+                {[
                 ["width", t.lblWidth, "mm"],
                 ["height", t.lblHeight, "mm"],
                 ["thickness", t.lblThickness, "mm"],
@@ -2747,10 +2748,11 @@ export default function Home() {
               </div>
 
               <div className="profile-note">
-              <Icon name="info" size={20} />
-              <p>
-                <b>Router Custom:</b> {t.routerNote}
-              </p>
+                <Icon name="info" size={20} />
+                <p>
+                  <b>Router Custom:</b> {t.routerNote}
+                </p>
+              </div>
             </div>
             <div className="modal-actions">
               <button

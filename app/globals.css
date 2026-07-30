@@ -1815,6 +1815,7 @@ button.metric-card {
 
 .metric-value {
   margin-top: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .metric-detail,
@@ -1851,6 +1852,7 @@ button.metric-card {
   color: #dce5e9;
   font-family: var(--mono);
   font-size: clamp(8px, 0.72vw, 10px);
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
 }
 
@@ -1862,6 +1864,9 @@ button.metric-card {
 
 .progress-row {
   margin-top: 8px;
+}
+.progress-row strong {
+  font-variant-numeric: tabular-nums;
 }
 
 .machine-statebar {
@@ -2389,8 +2394,14 @@ button.metric-card {
 }
 
 .settings-modal {
-  grid-template-rows: 72px auto auto 62px;
+  grid-template-rows: 72px minmax(0, 1fr) 62px;
   width: min(720px, 94vw);
+  max-height: min(900px, 94vh);
+}
+
+.modal-body {
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .code-editor-modal {
