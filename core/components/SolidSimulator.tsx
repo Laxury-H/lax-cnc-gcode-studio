@@ -440,7 +440,7 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
   const snapPoints = useMemo(() => {
     const pts: THREE.Vector3[] = [];
     simulation.segments.forEach(seg => {
-      if (seg.points.length > 0) {
+      if (seg.kind !== "rapid" && seg.kind !== "dwell") {
         pts.push(new THREE.Vector3(seg.start.x, seg.start.y, seg.start.z));
         pts.push(new THREE.Vector3(seg.end.x, seg.end.y, seg.end.z));
       }
@@ -506,37 +506,32 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
     }
   });
 
-  useEffect(() => {
-    if (!isMeasuring) {
-      setPoints([]);
-      hoverPointRef.current = null;
-      return;
-    }
 
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      
-      const currentHover = hoverPointRef.current;
-      if (currentHover) {
-        setPoints(prev => {
-          if (prev.length >= 2) return [currentHover];
-          return [...prev, currentHover];
-        });
-      } else {
-        setPoints([]); 
-      }
-    };
-    
-    gl.domElement.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      gl.domElement.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [isMeasuring, gl.domElement]);
 
   if (!isMeasuring) return null;
 
   return (
     <group ref={groupRef}>
+      <mesh 
+        position={[0, 0, 0]}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          const currentHover = hoverPointRef.current;
+          if (currentHover) {
+            setPoints(prev => {
+              if (prev.length >= 2) return [currentHover];
+              return [...prev, currentHover];
+            });
+          } else {
+            setPoints([]); 
+          }
+        }}
+      >
+        <planeGeometry args={[10000, 10000]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+
       <mesh ref={cursorMeshRef} visible={false}>
         <sphereGeometry args={[1.5, 16, 16]} />
         <meshBasicMaterial color="#00ff00" depthTest={false} transparent opacity={0.8} />

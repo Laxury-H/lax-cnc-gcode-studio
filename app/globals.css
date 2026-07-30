@@ -2427,7 +2427,9 @@ button.metric-card {
   background: #0d1317;
 }
 
-.settings-grid input {
+.settings-grid input,
+.tool-item input,
+.tool-item select {
   width: 100%;
   height: 37px;
   padding: 0 10px;
@@ -2439,7 +2441,17 @@ button.metric-card {
   font-size: 12px;
 }
 
-.settings-grid label > div:focus-within {
+.tool-item select {
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.settings-grid label > div:focus-within,
+.tool-item label > div:focus-within {
   border-color: rgba(38, 217, 232, 0.62);
   box-shadow: 0 0 0 2px rgba(38, 217, 232, 0.08);
 }
@@ -2449,6 +2461,81 @@ button.metric-card {
   color: var(--muted-2);
   font-family: var(--mono);
   font-size: 8px;
+}
+
+.tool-library {
+  padding: 0 20px 20px;
+}
+
+.tool-library h3 {
+  margin-top: 20px;
+  margin-bottom: 15px;
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tool-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.tool-item label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tool-item label > span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.tool-item label > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #0d1317;
+}
+
+.tool-item label small {
+  padding: 0 10px;
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 8px;
+}
+
+.tool-item .btn-delete-tool {
+  width: 37px;
+  height: 37px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tool-item .btn-delete-tool:hover {
+  border-color: #ff4757;
+  color: #ff4757;
+  background: rgba(255, 71, 87, 0.1);
 }
 
 .profile-note {

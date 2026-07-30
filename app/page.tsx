@@ -2559,98 +2559,136 @@ export default function Home() {
               </div>
 
               <div className="tool-library">
-                <h3 style={{ marginTop: "20px", marginBottom: "10px", fontSize: "14px", color: "#888" }}>{t.toolLibrary}</h3>
-                <div className="tool-list" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <h3>{t.toolLibrary}</h3>
+                <div className="tool-list">
                   {(stock.tools || []).map((tool, index) => (
-                    <div key={index} className="tool-item" style={{ display: "flex", gap: "10px", alignItems: "flex-end", background: "#1a1a1a", padding: "10px", borderRadius: "4px" }}>
+                    <div key={index} className="tool-item">
                       <label style={{ flex: 1 }}>
-                        <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>{t.toolId}</span>
-                        <input
-                          type="text"
-                          value={tool.id}
-                          onChange={(e) => {
-                            const newTools = [...(stock.tools || [])];
-                            newTools[index] = { ...tool, id: e.target.value };
-                            setStock({ ...stock, tools: newTools });
-                          }}
-                          style={{ width: "100%", padding: "6px", background: "#2a2a2a", border: "none", color: "#fff", borderRadius: "2px" }}
-                        />
+                        <span>{t.toolId}</span>
+                        <div>
+                          <input
+                            type="text"
+                            value={tool.id}
+                            onChange={(e) => {
+                              const newTools = [...(stock.tools || [])];
+                              newTools[index] = { ...tool, id: e.target.value };
+                              setStock({ ...stock, tools: newTools });
+                            }}
+                          />
+                        </div>
                       </label>
                       <label style={{ flex: 1.5 }}>
-                        <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>{t.toolType}</span>
-                        <select
-                          value={tool.type}
-                          onChange={(e) => {
-                            const newTools = [...(stock.tools || [])];
-                            newTools[index] = { ...tool, type: e.target.value as "flat" | "ball" | "vbit" };
-                            setStock({ ...stock, tools: newTools });
-                          }}
-                          style={{ width: "100%", padding: "6px", background: "#2a2a2a", border: "none", color: "#fff", borderRadius: "2px" }}
-                        >
-                          <option value="flat">{t.typeFlat}</option>
-                          <option value="ball">{t.typeBall}</option>
-                          <option value="vbit">{t.typeVBit}</option>
-                        </select>
+                        <span>{t.toolType}</span>
+                        <div>
+                          <select
+                            value={tool.type}
+                            onChange={(e) => {
+                              const newTools = [...(stock.tools || [])];
+                              newTools[index] = { ...tool, type: e.target.value as "flat" | "ball" | "vbit" };
+                              setStock({ ...stock, tools: newTools });
+                            }}
+                          >
+                            <option value="flat">{t.typeFlat}</option>
+                            <option value="ball">{t.typeBall}</option>
+                            <option value="vbit">{t.typeVBit}</option>
+                          </select>
+                        </div>
                       </label>
                       <label style={{ flex: 1 }}>
-                        <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>{t.lblToolDia}</span>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={tool.diameter}
-                          onChange={(e) => {
-                            const newTools = [...(stock.tools || [])];
-                            newTools[index] = { ...tool, diameter: Number(e.target.value) || 0 };
-                            setStock({ ...stock, tools: newTools });
-                          }}
-                          style={{ width: "100%", padding: "6px", background: "#2a2a2a", border: "none", color: "#fff", borderRadius: "2px" }}
-                        />
+                        <span>{t.lblToolDia}</span>
+                        <div>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={tool.diameter}
+                            onChange={(e) => {
+                              const newTools = [...(stock.tools || [])];
+                              newTools[index] = { ...tool, diameter: Number(e.target.value) || 0 };
+                              setStock({ ...stock, tools: newTools });
+                            }}
+                          />
+                          <small>mm</small>
+                        </div>
                       </label>
                       {tool.type === "vbit" && (
                         <label style={{ flex: 1 }}>
-                          <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>{t.toolAngle}</span>
-                          <input
-                            type="number"
-                            step="1"
-                            value={tool.angle || 90}
-                            onChange={(e) => {
-                              const newTools = [...(stock.tools || [])];
-                              newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
-                              setStock({ ...stock, tools: newTools });
-                            }}
-                            style={{ width: "100%", padding: "6px", background: "#2a2a2a", border: "none", color: "#fff", borderRadius: "2px" }}
-                          />
+                          <span>{t.toolAngle}</span>
+                          <div>
+                            <input
+                              type="number"
+                              step="1"
+                              value={tool.angle || 90}
+                              onChange={(e) => {
+                                const newTools = [...(stock.tools || [])];
+                                newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
+                                setStock({ ...stock, tools: newTools });
+                              }}
+                            />
+                            <small>°</small>
+                          </div>
                         </label>
                       )}
                       <button
                         type="button"
-                        className="ghost-button"
+                        className="btn-delete-tool"
                         title={t.deleteTool}
                         onClick={() => {
                           const newTools = [...(stock.tools || [])];
                           newTools.splice(index, 1);
                           setStock({ ...stock, tools: newTools });
                         }}
-                        style={{ padding: "6px 10px", minWidth: "auto", background: "rgba(255,0,0,0.1)", color: "#ff4444" }}
                       >
                         <Icon name="close" size={16} />
                       </button>
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => {
-                    setStock({
-                      ...stock,
-                      tools: [...(stock.tools || []), { id: `${(stock.tools?.length || 0) + 1}`, diameter: 6, type: "flat" }]
-                    });
-                  }}
-                  style={{ marginTop: "10px", width: "100%" }}
-                >
-                  <Icon name="play" size={14} /> {t.addTool}
-                </button>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    className="ghost-button add-tool-button"
+                    onClick={() => {
+                      setStock({
+                        ...stock,
+                        tools: [...(stock.tools || []), { id: `${(stock.tools?.length || 0) + 1}`, diameter: 6, type: "flat" }]
+                      });
+                    }}
+                    style={{ width: "100%", borderStyle: "dashed" }}
+                  >
+                    <Icon name="play" size={14} /> {t.addTool}
+                  </button>
+                  
+                  <button
+                    type="button"
+                    className="ghost-button add-tool-button"
+                    title="Phát hiện dao từ G-code"
+                    onClick={() => {
+                      const detected = new Set<string>();
+                      simulation.segments.forEach(seg => {
+                        if (seg.tool) detected.add(String(seg.tool));
+                      });
+                      
+                      const newTools = [...(stock.tools || [])];
+                      let addedCount = 0;
+                      
+                      detected.forEach(tId => {
+                        if (!newTools.find(t => String(t.id) === tId)) {
+                          newTools.push({ id: tId, diameter: 6, type: "flat" });
+                          addedCount++;
+                        }
+                      });
+                      
+                      if (addedCount > 0) {
+                        setStock({ ...stock, tools: newTools });
+                      } else if (detected.size === 0) {
+                        alert("Không tìm thấy thông tin dao (T) nào trong mã G-code hiện tại.");
+                      }
+                    }}
+                    style={{ width: "100%", borderStyle: "dashed", borderColor: "rgba(38, 217, 232, 0.4)", color: "var(--cyan)" }}
+                  >
+                    <Icon name="sparkles" size={14} /> {t.autoDetectTool}
+                  </button>
+                </div>
               </div>
 
               <div className="profile-note">
