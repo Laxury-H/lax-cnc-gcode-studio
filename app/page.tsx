@@ -202,6 +202,7 @@ function ToolpathCanvas({
     mode: "pan" | "orbit";
   } | null>(null);
   const [size, setSize] = useState({ width: 900, height: 600 });
+  const [showToolpath, setShowToolpath] = useState(true);
   const [showBounds, setShowBounds] = useState(true);
   const [showTool, setShowTool] = useState(true);
   const [showStock, setShowStock] = useState(true);
@@ -1164,6 +1165,14 @@ function ToolpathCanvas({
             </button>
             <button
               type="button"
+              className={showToolpath ? "is-active" : ""}
+              aria-pressed={showToolpath}
+              onClick={() => setShowToolpath((value) => !value)}
+            >
+              {t.toolpath}
+            </button>
+            <button
+              type="button"
               className={showBounds ? "is-active" : ""}
               aria-pressed={showBounds}
               onClick={() => setShowBounds((value) => !value)}
@@ -1211,6 +1220,7 @@ function ToolpathCanvas({
           showBounds={showBounds}
           showTool={showTool}
           showStock={showStock}
+          showToolpath={showToolpath}
           showGrid={showGrid}
           resetTrigger={resetTrigger}
           onOrbitChange={onOrbit}

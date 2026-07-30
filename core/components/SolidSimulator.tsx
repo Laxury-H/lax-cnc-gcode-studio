@@ -11,6 +11,7 @@ interface SolidSimulatorProps {
   segmentProgress?: number;
   showRapids?: boolean;
   showBounds?: boolean;
+  showToolpath?: boolean;
   showTool?: boolean;
   showStock?: boolean;
   showGrid?: boolean;
@@ -50,7 +51,7 @@ function pointOnSegment(segment: Simulation["segments"][0], progress: number) {
   return { ...segment.end };
 }
 
-function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: Simulation, showRapids: boolean, showBounds: boolean, stock: SolidSimulatorProps["stock"] }) {
+function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds }: { simulation: Simulation, showRapids: boolean, showToolpath?: boolean, showBounds: boolean, stock: SolidSimulatorProps["stock"] }) {
   const { cutPositions, rapidPositions, boundsPositions } = useMemo(() => {
     const cutPositions: number[] = [];
     const rapidPositions: number[] = [];
@@ -96,7 +97,7 @@ function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: S
 
   return (
     <group>
-      {cutPositions.length > 0 && (
+      {showToolpath !== false && cutPositions.length > 0 && (
         <Line 
           points={cutPositions} 
           color="#00e5ff" 
@@ -106,13 +107,15 @@ function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: S
           segments 
         />
       )}
-      {showRapids && rapidPositions.length > 0 && (
+      {showToolpath !== false && showRapids && rapidPositions.length > 0 && (
         <Line 
           points={rapidPositions} 
           color="#ff3366" 
           lineWidth={1.5} 
           opacity={0.3} 
           transparent 
+          dashed 
+          dashScale={50} 
           segments 
         />
       )}
@@ -429,8 +432,10 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
 
 function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean, simulation: Simulation }) {
   const [points, setPoints] = useState<THREE.Vector3[]>([]);
-  const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null);
+  const hoverPointRef = useRef<THREE.Vector3 | null>(null);
   const groupRef = useRef<THREE.Group>(null);
+  const cursorMeshRef = useRef<THREE.Mesh>(null);
+  const dynamicLineRef = useRef<any>(null); // Drei Line component ref
   
   const snapPoints = useMemo(() => {
     const pts: THREE.Vector3[] = [];
@@ -443,51 +448,79 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
     return pts;
   }, [simulation]);
 
-  const { raycaster, pointer, camera, gl } = useThree();
+  const { pointer, camera, raycaster, gl } = useThree();
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
 
   useFrame(() => {
     if (!isMeasuring || !groupRef.current) return;
     
-    raycaster.setFromCamera(pointer, camera);
-    const localRay = raycaster.ray.clone().applyMatrix4(groupRef.current.matrixWorld.clone().invert());
-    
     let closestPoint = null;
-    let minDistance = Infinity;
+    let minDistanceSq = Infinity;
     
-    const thresholdSq = 25; 
+    // Increased threshold to ~5% of screen
+    const screenThresholdSq = 0.1 * 0.1; 
     
-    for (let i=0; i<snapPoints.length; i++) {
+    for (let i = 0; i < snapPoints.length; i++) {
       const p = snapPoints[i];
-      const distSq = localRay.distanceSqToPoint(p);
-      if (distSq < minDistance) {
-        minDistance = distSq;
+      const worldP = p.clone().applyMatrix4(groupRef.current.matrixWorld);
+      worldP.project(camera);
+      
+      const dx = worldP.x - pointer.x;
+      const dy = worldP.y - pointer.y;
+      const distSq = dx * dx + dy * dy;
+      
+      if (worldP.z >= -1 && worldP.z <= 1 && distSq < minDistanceSq) {
+        minDistanceSq = distSq;
         closestPoint = p;
       }
     }
     
-    if (closestPoint && minDistance < thresholdSq) {
-      if (!hoverPoint || !hoverPoint.equals(closestPoint)) {
-        setHoverPoint(closestPoint);
+    let activePoint: THREE.Vector3 | null = null;
+    if (closestPoint && minDistanceSq < screenThresholdSq) {
+      activePoint = closestPoint;
+    } else {
+      // Freeform intersection with Z=0 plane (usually the board surface)
+      raycaster.setFromCamera(pointer, camera);
+      const localRay = raycaster.ray.clone().applyMatrix4(groupRef.current.matrixWorld.clone().invert());
+      const target = new THREE.Vector3();
+      if (localRay.intersectPlane(plane, target)) {
+        activePoint = target;
+      }
+    }
+
+    if (activePoint) {
+      if (cursorMeshRef.current) {
+        cursorMeshRef.current.visible = points.length < 2;
+        cursorMeshRef.current.position.copy(activePoint);
+      }
+      hoverPointRef.current = activePoint.clone();
+
+      if (points.length === 1 && dynamicLineRef.current) {
+        dynamicLineRef.current.setPoints([points[0], activePoint]);
+        dynamicLineRef.current.visible = true;
       }
     } else {
-      if (hoverPoint) setHoverPoint(null);
+      if (cursorMeshRef.current) cursorMeshRef.current.visible = false;
+      if (dynamicLineRef.current) dynamicLineRef.current.visible = false;
+      hoverPointRef.current = null;
     }
   });
 
   useEffect(() => {
     if (!isMeasuring) {
       setPoints([]);
-      setHoverPoint(null);
+      hoverPointRef.current = null;
       return;
     }
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
       
-      if (hoverPoint) {
+      const currentHover = hoverPointRef.current;
+      if (currentHover) {
         setPoints(prev => {
-          if (prev.length >= 2) return [hoverPoint];
-          return [...prev, hoverPoint];
+          if (prev.length >= 2) return [currentHover];
+          return [...prev, currentHover];
         });
       } else {
         setPoints([]); 
@@ -498,18 +531,16 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
     return () => {
       gl.domElement.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [isMeasuring, hoverPoint, gl.domElement]);
+  }, [isMeasuring, gl.domElement]);
 
   if (!isMeasuring) return null;
 
   return (
     <group ref={groupRef}>
-      {hoverPoint && points.length < 2 && (
-        <mesh position={hoverPoint}>
-          <sphereGeometry args={[1.5, 16, 16]} />
-          <meshBasicMaterial color="#00ff00" depthTest={false} transparent opacity={0.8} />
-        </mesh>
-      )}
+      <mesh ref={cursorMeshRef} visible={false}>
+        <sphereGeometry args={[1.5, 16, 16]} />
+        <meshBasicMaterial color="#00ff00" depthTest={false} transparent opacity={0.8} />
+      </mesh>
       
       {points.map((p, i) => (
         <mesh key={i} position={p}>
@@ -518,9 +549,16 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
         </mesh>
       ))}
 
-      {points.length === 1 && hoverPoint && (
-        <Line points={[points[0], hoverPoint]} color="#ffff00" lineWidth={2} depthTest={false} transparent />
-      )}
+      {/* Dynamic line when drawing */}
+      <Line 
+        ref={dynamicLineRef} 
+        points={[new THREE.Vector3(), new THREE.Vector3()]} 
+        color="#ffff00" 
+        lineWidth={2} 
+        depthTest={false} 
+        transparent 
+        visible={false} 
+      />
 
       {points.length === 2 && (
         <>
@@ -603,6 +641,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               simulation={props.simulation} 
               stock={props.stock} 
               showRapids={props.showRapids ?? true} 
+              showToolpath={props.showToolpath ?? true}
               showBounds={props.showBounds ?? true} 
             />
             <MeasureToolOverlay 
