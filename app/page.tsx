@@ -1706,12 +1706,10 @@ export default function Home() {
               setPlaying((value) => !value);
             }}
           >
-            <Icon name={playing ? "pause" : "play"} size={20} />
-            {playing ? "Pause" : "Play"}
+            <Icon name={playing ? "pause" : "play"} size={22} />
           </button>
           <button className="secondary-control" type="button" onClick={stepForward}>
-            <Icon name="step" size={19} />
-            Step
+            <Icon name="step" size={20} />
           </button>
           <div style={{ position: "relative" }}>
             <button
@@ -1722,8 +1720,7 @@ export default function Home() {
                 await cncAudio.init();
               }}
             >
-              <Icon name={(machineSound || finishSound) ? "volume" : "volume-x"} size={19} />
-              Âm thanh
+              <Icon name={(machineSound || finishSound) ? "volume" : "volume-x"} size={20} />
             </button>
             {soundMenuOpen && (
               <div className="sound-settings-popover">
@@ -1750,8 +1747,7 @@ export default function Home() {
             type="button"
             onClick={resetPlayback}
           >
-            <Icon name="reset" size={19} />
-            Reset
+            <Icon name="reset" size={20} />
           </button>
         </div>
         <div className={`playback-readout${playing ? " is-running" : ""}`}>
@@ -1827,16 +1823,6 @@ export default function Home() {
             }
             onClick={() => void handleFullscreen()}
             active={simulatorExpanded}
-          />
-          <ToolbarButton
-            icon="zoomOut"
-            label="Thu nhỏ"
-            onClick={() => setZoom((value) => Math.max(0.35, value / 1.18))}
-          />
-          <ToolbarButton
-            icon="zoomIn"
-            label="Phóng to"
-            onClick={() => setZoom((value) => Math.min(6, value * 1.18))}
           />
           <ToolbarButton
             icon="panel"
