@@ -169,6 +169,7 @@ function ToolpathCanvas({
   onOrbit,
   onResetView,
   resetTrigger,
+  isMeasuring,
 }: {
   simulation: Simulation;
   stock: StockSettings;
@@ -187,6 +188,7 @@ function ToolpathCanvas({
   onOrbit: (orbit: OrbitCamera) => void;
   onResetView: () => void;
   resetTrigger?: number;
+  isMeasuring?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -1212,6 +1214,7 @@ function ToolpathCanvas({
           showGrid={showGrid}
           resetTrigger={resetTrigger}
           onOrbitChange={onOrbit}
+          isMeasuring={isMeasuring}
         />
       ) : (
         <canvas
@@ -1265,6 +1268,7 @@ export default function Home() {
   const [orbit, setOrbit] = useState<OrbitCamera>({ ...DEFAULT_ORBIT });
   const [showRapids, setShowRapids] = useState(true);
   const [codeCollapsed, setCodeCollapsed] = useState(false);
+  const [isMeasuring, setIsMeasuring] = useState(false);
   const [simulatorExpanded, setSimulatorExpanded] = useState(false);
   const [drawer, setDrawer] = useState<
     "diagnostics" | "parts" | "offcuts" | "resume" | "export" | null
@@ -1809,6 +1813,12 @@ export default function Home() {
         </label>
         
         <div className="canvas-tools">
+          <ToolbarButton
+            icon="ruler"
+            label="Đo khoảng cách 3D (Bật/Tắt)"
+            onClick={() => setIsMeasuring(!isMeasuring)}
+            active={isMeasuring}
+          />
           <ToolbarButton
             icon="crosshair"
             label="Về gốc và vừa khung"

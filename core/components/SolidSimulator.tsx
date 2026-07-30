@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Text } from "@react-three/drei";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useThree, useFrame } from "@react-three/fiber";
+import { OrbitControls, ContactShadows, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 import { Simulation, StockSettings, ToolProfile } from "../simulation/types";
 
@@ -17,6 +17,7 @@ interface SolidSimulatorProps {
   resetTrigger?: number;
   onOrbitChange?: (orbit: { yaw: number; pitch: number }) => void;
   quality?: "low" | "medium" | "high";
+  isMeasuring?: boolean;
 }
 
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -50,7 +51,7 @@ function pointOnSegment(segment: Simulation["segments"][0], progress: number) {
 }
 
 function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: Simulation, showRapids: boolean, showBounds: boolean, stock: SolidSimulatorProps["stock"] }) {
-  const { cutGeom, rapidGeom, boundsGeom } = useMemo(() => {
+  const { cutPositions, rapidPositions, boundsPositions } = useMemo(() => {
     const cutPositions: number[] = [];
     const rapidPositions: number[] = [];
     
@@ -70,13 +71,7 @@ function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: S
       }
     });
 
-    const cutGeom = new THREE.BufferGeometry();
-    if (cutPositions.length > 0) cutGeom.setAttribute('position', new THREE.Float32BufferAttribute(cutPositions, 3));
-    
-    const rapidGeom = new THREE.BufferGeometry();
-    if (rapidPositions.length > 0) rapidGeom.setAttribute('position', new THREE.Float32BufferAttribute(rapidPositions, 3));
-
-    const boundsGeom = new THREE.BufferGeometry();
+    let boundsPositions: number[] = [];
     if (showBounds) {
       const { minX, maxX, minY, maxY, minZ, maxZ } = simulation.bounds;
       const pts = [
@@ -93,28 +88,43 @@ function ToolpathOverlay({ simulation, showRapids, showBounds }: { simulation: S
         [maxX, maxY, minZ], [maxX, maxY, maxZ],
         [minX, maxY, minZ], [minX, maxY, maxZ],
       ];
-      boundsGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts.flat(), 3));
+      boundsPositions = pts.flat();
     }
 
-    return { cutGeom, rapidGeom, boundsGeom };
+    return { cutPositions, rapidPositions, boundsPositions };
   }, [simulation, showRapids, showBounds]);
 
   return (
     <group>
-      {cutGeom.attributes.position && (
-        <lineSegments geometry={cutGeom}>
-          <lineBasicMaterial color="#00e5ff" linewidth={1} opacity={0.5} transparent />
-        </lineSegments>
+      {cutPositions.length > 0 && (
+        <Line 
+          points={cutPositions} 
+          color="#00e5ff" 
+          lineWidth={2} 
+          opacity={0.7} 
+          transparent 
+          segments 
+        />
       )}
-      {showRapids && rapidGeom.attributes.position && (
-        <lineSegments geometry={rapidGeom}>
-          <lineBasicMaterial color="#ff3366" linewidth={1} opacity={0.2} transparent />
-        </lineSegments>
+      {showRapids && rapidPositions.length > 0 && (
+        <Line 
+          points={rapidPositions} 
+          color="#ff3366" 
+          lineWidth={1.5} 
+          opacity={0.3} 
+          transparent 
+          segments 
+        />
       )}
-      {showBounds && boundsGeom.attributes.position && (
-        <lineSegments geometry={boundsGeom}>
-          <lineBasicMaterial color="#81a7bd" opacity={0.34} transparent />
-        </lineSegments>
+      {showBounds && boundsPositions.length > 0 && (
+        <Line 
+          points={boundsPositions} 
+          color="#81a7bd" 
+          lineWidth={1} 
+          opacity={0.4} 
+          transparent 
+          segments 
+        />
       )}
     </group>
   );
@@ -417,6 +427,121 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
   );
 }
 
+function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean, simulation: Simulation }) {
+  const [points, setPoints] = useState<THREE.Vector3[]>([]);
+  const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  
+  const snapPoints = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    simulation.segments.forEach(seg => {
+      if (seg.points.length > 0) {
+        pts.push(new THREE.Vector3(seg.start.x, seg.start.y, seg.start.z));
+        pts.push(new THREE.Vector3(seg.end.x, seg.end.y, seg.end.z));
+      }
+    });
+    return pts;
+  }, [simulation]);
+
+  const { raycaster, pointer, camera, gl } = useThree();
+
+  useFrame(() => {
+    if (!isMeasuring || !groupRef.current) return;
+    
+    raycaster.setFromCamera(pointer, camera);
+    const localRay = raycaster.ray.clone().applyMatrix4(groupRef.current.matrixWorld.clone().invert());
+    
+    let closestPoint = null;
+    let minDistance = Infinity;
+    
+    const thresholdSq = 25; 
+    
+    for (let i=0; i<snapPoints.length; i++) {
+      const p = snapPoints[i];
+      const distSq = localRay.distanceSqToPoint(p);
+      if (distSq < minDistance) {
+        minDistance = distSq;
+        closestPoint = p;
+      }
+    }
+    
+    if (closestPoint && minDistance < thresholdSq) {
+      if (!hoverPoint || !hoverPoint.equals(closestPoint)) {
+        setHoverPoint(closestPoint);
+      }
+    } else {
+      if (hoverPoint) setHoverPoint(null);
+    }
+  });
+
+  useEffect(() => {
+    if (!isMeasuring) {
+      setPoints([]);
+      setHoverPoint(null);
+      return;
+    }
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      
+      if (hoverPoint) {
+        setPoints(prev => {
+          if (prev.length >= 2) return [hoverPoint];
+          return [...prev, hoverPoint];
+        });
+      } else {
+        setPoints([]); 
+      }
+    };
+    
+    gl.domElement.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      gl.domElement.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [isMeasuring, hoverPoint, gl.domElement]);
+
+  if (!isMeasuring) return null;
+
+  return (
+    <group ref={groupRef}>
+      {hoverPoint && points.length < 2 && (
+        <mesh position={hoverPoint}>
+          <sphereGeometry args={[1.5, 16, 16]} />
+          <meshBasicMaterial color="#00ff00" depthTest={false} transparent opacity={0.8} />
+        </mesh>
+      )}
+      
+      {points.map((p, i) => (
+        <mesh key={i} position={p}>
+          <sphereGeometry args={[1.5, 16, 16]} />
+          <meshBasicMaterial color="#ffff00" depthTest={false} transparent opacity={0.8} />
+        </mesh>
+      ))}
+
+      {points.length === 1 && hoverPoint && (
+        <Line points={[points[0], hoverPoint]} color="#ffff00" lineWidth={2} depthTest={false} transparent />
+      )}
+
+      {points.length === 2 && (
+        <>
+          <Line points={[points[0], points[1]]} color="#00ff00" lineWidth={3} depthTest={false} transparent />
+          <Text
+            position={points[0].clone().add(points[1]).multiplyScalar(0.5).add(new THREE.Vector3(0,0,5))}
+            fontSize={8}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+            depthTest={false}
+            renderOrder={999}
+          >
+            {`${points[0].distanceTo(points[1]).toFixed(3)} mm`}
+          </Text>
+        </>
+      )}
+    </group>
+  );
+}
+
 export function SolidSimulator(props: SolidSimulatorProps) {
   const isBottomZero = props.simulation.bounds.minZ >= -0.1;
   const topZ = isBottomZero ? props.stock.thickness : 0;
@@ -480,6 +605,10 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               showRapids={props.showRapids ?? true} 
               showBounds={props.showBounds ?? true} 
             />
+            <MeasureToolOverlay 
+              simulation={props.simulation} 
+              isMeasuring={props.isMeasuring}
+            />
             <ToolMeshOverlay 
               simulation={props.simulation} 
               cursor={props.cursor} 
@@ -493,6 +622,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         <OrbitControls 
           ref={controlsRef} 
           makeDefault 
+          enableRotate={!props.isMeasuring}
           onChange={(e) => {
             if (props.onOrbitChange && e?.target) {
               const az = e.target.getAzimuthalAngle();
