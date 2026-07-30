@@ -2558,6 +2558,61 @@ export default function Home() {
                 ))}
               </div>
 
+              <div className="quick-origin-widget" style={{ padding: "0 20px 10px" }}>
+                <span style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "8px" }}>
+                  {t.quickOrigin}
+                </span>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  {[
+                    { id: "tl", x: 0, y: -stock.height, title: "Top-Left" },
+                    { id: "tc", x: -stock.width / 2, y: -stock.height, title: "Top-Center" },
+                    { id: "tr", x: -stock.width, y: -stock.height, title: "Top-Right" },
+                    { id: "c", x: -stock.width / 2, y: -stock.height / 2, title: "Center" },
+                    { id: "bl", x: 0, y: 0, title: "Bottom-Left" },
+                    { id: "bc", x: -stock.width / 2, y: 0, title: "Bottom-Center" },
+                    { id: "br", x: -stock.width, y: 0, title: "Bottom-Right" },
+                  ].map((preset) => {
+                    const isActive = stock.originX === preset.x && stock.originY === preset.y;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        title={preset.title}
+                        onClick={() => setStock({ ...stock, originX: preset.x, originY: preset.y })}
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          padding: 0,
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: isActive ? "var(--cyan)" : "var(--muted)",
+                          transition: "color 0.2s",
+                          flexShrink: 0
+                        }}
+                        onMouseOver={(e) => {
+                          if (!isActive) e.currentTarget.style.color = "#888";
+                        }}
+                        onMouseOut={(e) => {
+                          if (!isActive) e.currentTarget.style.color = "var(--muted)";
+                        }}
+                      >
+                        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+                          <rect x="15" y="15" width="70" height="70" fill="none" stroke="currentColor" strokeWidth="6" />
+                          <circle cx="15" cy="15" r="10" fill={preset.id.includes('t') && preset.id.includes('l') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                          <circle cx="50" cy="15" r="10" fill={preset.id === 'tc' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                          <circle cx="85" cy="15" r="10" fill={preset.id.includes('t') && preset.id.includes('r') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                          <circle cx="15" cy="85" r="10" fill={preset.id.includes('b') && preset.id.includes('l') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                          <circle cx="50" cy="85" r="10" fill={preset.id === 'bc' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                          <circle cx="85" cy="85" r="10" fill={preset.id.includes('b') && preset.id.includes('r') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                          <circle cx="50" cy="50" r="10" fill={preset.id === 'c' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                        </svg>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="tool-library">
                 <h3>{t.toolLibrary}</h3>
                 <div className="tool-list">
