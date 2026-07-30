@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Text, Line } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Text, Line, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Simulation, StockSettings, ToolProfile } from "../simulation/types";
 
@@ -433,10 +433,20 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
 function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean, simulation: Simulation }) {
   const [points, setPoints] = useState<THREE.Vector3[]>([]);
   const hoverPointRef = useRef<THREE.Vector3 | null>(null);
+  const hoverPosTextRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<THREE.Group>(null);
   const cursorMeshRef = useRef<THREE.Mesh>(null);
-  const dynamicLineRef = useRef<any>(null); // Drei Line component ref
+  const dynamicLineRef = useRef<any>(null); 
   
+  useEffect(() => {
+    if (!isMeasuring) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPoints([]);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMeasuring]);
+
   const snapPoints = useMemo(() => {
     const pts: THREE.Vector3[] = [];
     simulation.segments.forEach(seg => {
@@ -448,61 +458,59 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
     return pts;
   }, [simulation]);
 
-  const { pointer, camera, raycaster, gl } = useThree();
+  const { pointer, camera, raycaster } = useThree();
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
 
-  useFrame(() => {
+  useFrame(({ scene }) => {
     if (!isMeasuring || !groupRef.current) return;
     
-    let closestPoint = null;
-    let minDistanceSq = Infinity;
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObject(groupRef.current, true);
     
-    // Increased threshold to ~5% of screen
-    const screenThresholdSq = 0.1 * 0.1; 
-    
-    for (let i = 0; i < snapPoints.length; i++) {
-      const p = snapPoints[i];
-      const worldP = p.clone().applyMatrix4(groupRef.current.matrixWorld);
-      worldP.project(camera);
+    if (intersects.length > 0) {
+      const worldPoint = intersects[0].point;
+      let closest = null;
+      let closestDist = Infinity;
       
-      const dx = worldP.x - pointer.x;
-      const dy = worldP.y - pointer.y;
-      const distSq = dx * dx + dy * dy;
-      
-      if (worldP.z >= -1 && worldP.z <= 1 && distSq < minDistanceSq) {
-        minDistanceSq = distSq;
-        closestPoint = p;
-      }
-    }
-    
-    let activePoint: THREE.Vector3 | null = null;
-    if (closestPoint && minDistanceSq < screenThresholdSq) {
-      activePoint = closestPoint;
-    } else {
-      // Freeform intersection with Z=0 plane (usually the board surface)
-      raycaster.setFromCamera(pointer, camera);
-      const localRay = raycaster.ray.clone().applyMatrix4(groupRef.current.matrixWorld.clone().invert());
-      const target = new THREE.Vector3();
-      if (localRay.intersectPlane(plane, target)) {
-        activePoint = target;
-      }
-    }
+      snapPoints.forEach(p => {
+        const dist = p.distanceToSquared(worldPoint);
+        if (dist < closestDist && dist < 15 * 15) {
+          closestDist = dist;
+          closest = p;
+        }
+      });
 
-    if (activePoint) {
-      if (cursorMeshRef.current) {
-        cursorMeshRef.current.visible = points.length < 2;
-        cursorMeshRef.current.position.copy(activePoint);
-      }
-      hoverPointRef.current = activePoint.clone();
-
-      if (points.length === 1 && dynamicLineRef.current) {
-        dynamicLineRef.current.setPoints([points[0], activePoint]);
-        dynamicLineRef.current.visible = true;
+      if (closest) {
+        hoverPointRef.current = closest;
+        if (cursorMeshRef.current) {
+          cursorMeshRef.current.position.copy(closest);
+          cursorMeshRef.current.visible = true;
+        }
+        if (hoverPosTextRef.current) {
+          hoverPosTextRef.current.innerText = `X: ${closest.x.toFixed(3)} | Y: ${closest.y.toFixed(3)} | Z: ${closest.z.toFixed(3)}`;
+        }
+        if (dynamicLineRef.current && points.length === 1) {
+          dynamicLineRef.current.setPoints([points[0], closest]);
+          dynamicLineRef.current.visible = true;
+        }
+      } else {
+        hoverPointRef.current = worldPoint;
+        if (cursorMeshRef.current) {
+          cursorMeshRef.current.position.copy(worldPoint);
+          cursorMeshRef.current.visible = true;
+        }
+        if (hoverPosTextRef.current) {
+          hoverPosTextRef.current.innerText = `X: ${worldPoint.x.toFixed(3)} | Y: ${worldPoint.y.toFixed(3)} | Z: ${worldPoint.z.toFixed(3)}`;
+        }
+        if (dynamicLineRef.current && points.length === 1) {
+          dynamicLineRef.current.setPoints([points[0], worldPoint]);
+          dynamicLineRef.current.visible = true;
+        }
       }
     } else {
+      hoverPointRef.current = null;
       if (cursorMeshRef.current) cursorMeshRef.current.visible = false;
       if (dynamicLineRef.current) dynamicLineRef.current.visible = false;
-      hoverPointRef.current = null;
     }
   });
 
@@ -529,12 +537,29 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
         }}
       >
         <planeGeometry args={[10000, 10000]} />
-        <meshBasicMaterial visible={false} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
 
       <mesh ref={cursorMeshRef} visible={false}>
         <sphereGeometry args={[1.5, 16, 16]} />
         <meshBasicMaterial color="#00ff00" depthTest={false} transparent opacity={0.8} />
+        {points.length < 2 && (
+          <Html center zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
+            <div ref={hoverPosTextRef} style={{
+              background: "rgba(0,0,0,0.8)",
+              color: "#fff",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "11px",
+              fontFamily: "var(--mono)",
+              marginTop: "-30px",
+              whiteSpace: "nowrap",
+              pointerEvents: "none"
+            }}>
+              X: 0.000 | Y: 0.000 | Z: 0.000
+            </div>
+          </Html>
+        )}
       </mesh>
       
       {points.map((p, i) => (
@@ -558,18 +583,53 @@ function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean
       {points.length === 2 && (
         <>
           <Line points={[points[0], points[1]]} color="#00ff00" lineWidth={3} depthTest={false} transparent />
-          <Text
-            position={points[0].clone().add(points[1]).multiplyScalar(0.5).add(new THREE.Vector3(0,0,5))}
-            fontSize={8}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-            depthTest={false}
-            renderOrder={999}
-          >
-            {`${points[0].distanceTo(points[1]).toFixed(3)} mm`}
-          </Text>
+          <Html position={points[0].clone().add(points[1]).multiplyScalar(0.5)} center zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
+            <div style={{
+              background: "rgba(10, 15, 20, 0.9)",
+              border: "1px solid var(--cyan)",
+              borderRadius: "6px",
+              padding: "8px 12px",
+              color: "#fff",
+              fontFamily: "var(--sans)",
+              fontSize: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+              whiteSpace: "nowrap",
+              backdropFilter: "blur(4px)"
+            }}>
+              <div style={{ fontWeight: 600, color: "var(--cyan)", marginBottom: "4px", fontSize: "13px" }}>
+                Độ dài: {points[0].distanceTo(points[1]).toFixed(3)} mm
+              </div>
+              <div style={{ display: "flex", gap: "8px", fontSize: "11px", color: "#aaa", fontFamily: "var(--mono)" }}>
+                <span>ΔX: {Math.abs(points[1].x - points[0].x).toFixed(3)}</span>
+                <span>ΔY: {Math.abs(points[1].y - points[0].y).toFixed(3)}</span>
+                <span>ΔZ: {Math.abs(points[1].z - points[0].z).toFixed(3)}</span>
+              </div>
+            </div>
+          </Html>
         </>
+      )}
+
+      {/* Hover Tooltip has been moved to cursorMeshRef */}
+
+      {/* Hint Text overlay */}
+      {isMeasuring && (
+        <Html position={[0, 0, 0]} center zIndexRange={[100, 0]} style={{ pointerEvents: 'none', position: 'absolute', bottom: '20px', left: '0' }}>
+           <div style={{
+              position: "fixed",
+              bottom: "40px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "rgba(0, 0, 0, 0.7)",
+              color: "#ccc",
+              padding: "6px 16px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              pointerEvents: "none",
+              whiteSpace: "nowrap"
+           }}>
+             {points.length === 0 ? "Click vào một điểm để bắt đầu đo" : points.length === 1 ? "Click điểm thứ 2 để kết thúc (Esc để hủy)" : "Click điểm bất kỳ để đo mới (Esc để hủy)"}
+           </div>
+        </Html>
       )}
     </group>
   );
