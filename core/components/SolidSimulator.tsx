@@ -6,7 +6,11 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
   buildAutomaticMeasurements,
   buildMeasurementSnapCandidates,
+  calculateWorkOrigin,
   calculateMeasurement,
+  constrainMeasurementPoint,
+  resolveStockZBounds,
+  type MeasurementConstraint,
   type MeasurementPreset,
   type MeasurementResult,
   type SnapCandidate,
@@ -15,7 +19,27 @@ import type { Segment, Simulation, StockSettings } from "../simulation/types";
 import {
   MeasurementPanel,
   SmartMeasurementOverlay,
+  type MeasurementUnit,
 } from "./SmartMeasurementTool";
+
+const MAX_MEASUREMENT_HISTORY = 6;
+const MEASUREMENT_CONSTRAINT_LABELS: Record<MeasurementConstraint, string> = {
+  free: "3D",
+  x: "Dọc X",
+  y: "Dọc Y",
+  z: "Dọc Z",
+  xy: "Mặt XY",
+};
+
+function addToMeasurementHistory(
+  history: readonly MeasurementResult[],
+  result: MeasurementResult,
+): MeasurementResult[] {
+  return [
+    result,
+    ...history.filter((entry) => entry.id !== result.id),
+  ].slice(0, MAX_MEASUREMENT_HISTORY);
+}
 
 interface SolidSimulatorProps {
   simulation: Simulation;
@@ -260,9 +284,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     const scaleY = MAP_RES / Math.max(1, stock.height);
 
     let hasChanges = false;
-    const isBottomZero = simulation.bounds.minZ >= -0.1;
-    const topZ = isBottomZero ? stock.thickness : 0;
-    const bottomZ = isBottomZero ? 0 : -stock.thickness;
+    const { topZ, bottomZ } = resolveStockZBounds(simulation, stock);
 
     const drawLine = (from: {x:number,y:number,z:number}, to: {x:number,y:number,z:number}, tDia: number) => {
         const startX = (from.x - stock.originX) * scaleX;
@@ -450,25 +472,57 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
 
 export function SolidSimulator(props: SolidSimulatorProps) {
   const onMeasurementClose = props.onMeasurementClose;
-  const isBottomZero = props.simulation.bounds.minZ >= -0.1;
-  const topZ = isBottomZero ? props.stock.thickness : 0;
-  const bottomZ = isBottomZero ? 0 : -props.stock.thickness;
+  const { topZ, bottomZ } = resolveStockZBounds(
+    props.simulation,
+    props.stock,
+  );
   const centerZ = (topZ + bottomZ) / 2;
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const measurementSession = props.measurementSession;
+  const [measurementConstraintState, setMeasurementConstraintState] = useState<{
+    session: number;
+    value: MeasurementConstraint;
+  }>(() => ({ session: measurementSession, value: "free" }));
+  const measurementConstraint =
+    measurementConstraintState.session === measurementSession
+      ? measurementConstraintState.value
+      : "free";
+  const updateMeasurementConstraint = useCallback(
+    (
+      next:
+        | MeasurementConstraint
+        | ((current: MeasurementConstraint) => MeasurementConstraint),
+    ) => {
+      setMeasurementConstraintState((current) => {
+        const currentValue =
+          current.session === measurementSession ? current.value : "free";
+        return {
+          session: measurementSession,
+          value: typeof next === "function" ? next(currentValue) : next,
+        };
+      });
+    },
+    [measurementSession],
+  );
+  const [measurementUnit, setMeasurementUnit] =
+    useState<MeasurementUnit>("mm");
+  const [hoveredMeasurementSnap, setHoveredMeasurementSnap] =
+    useState<SnapCandidate | null>(null);
   const [measurementState, setMeasurementState] = useState<{
     session: number;
     simulation: Simulation;
     stock: StockSettings;
     start: SnapCandidate | null;
     result: MeasurementResult | null;
+    history: MeasurementResult[];
   }>(() => ({
     session: measurementSession,
     simulation: props.simulation,
     stock: props.stock,
     start: null,
     result: null,
+    history: [],
   }));
   const measurementStateIsCurrent =
     measurementState.session === measurementSession &&
@@ -480,6 +534,22 @@ export function SolidSimulator(props: SolidSimulatorProps) {
   const measurementResult = measurementStateIsCurrent
     ? measurementState.result
     : null;
+  const measurementGeometryIsCurrent =
+    measurementState.simulation === props.simulation &&
+    measurementState.stock === props.stock;
+  const measurementHistory = measurementGeometryIsCurrent
+    ? measurementState.history
+    : [];
+  const activeCoordinateSystem =
+    props.simulation.finalState.coordinateSystem || "G54";
+  const workOrigin = useMemo(
+    () =>
+      calculateWorkOrigin(
+        props.simulation.finalState.position,
+        props.simulation.finalState.workPosition,
+      ),
+    [props.simulation],
+  );
 
   const rawMeasurementCandidates = useMemo(
     () => buildMeasurementSnapCandidates(props.simulation, props.stock, topZ),
@@ -522,81 +592,195 @@ export function SolidSimulator(props: SolidSimulatorProps) {
   );
 
   const resetMeasurement = useCallback(() => {
-    setMeasurementState({
-      session: measurementSession,
-      simulation: props.simulation,
-      stock: props.stock,
-      start: null,
-      result: null,
-    });
-  }, [measurementSession, props.simulation, props.stock]);
-
-  const selectMeasurementPoint = useCallback(
-    (candidate: SnapCandidate) => {
-      if (!measurementStart) {
-        setMeasurementState({
-          session: measurementSession,
-          simulation: props.simulation,
-          stock: props.stock,
-          start: candidate,
-          result: null,
-        });
-        return;
-      }
-
-      const result = calculateMeasurement(measurementStart.point, candidate.point, {
-        label: `${measurementStart.label} → ${candidate.label}`,
-        source: "manual",
-      });
-      if (result.distance < 0.0005) return;
-      setMeasurementState({
+    setHoveredMeasurementSnap(null);
+    updateMeasurementConstraint("free");
+    setMeasurementState((current) => {
+      const sameGeometry =
+        current.simulation === props.simulation && current.stock === props.stock;
+      return {
         session: measurementSession,
         simulation: props.simulation,
         stock: props.stock,
         start: null,
-        result,
+        result: null,
+        history: sameGeometry ? current.history : [],
+      };
+    });
+  }, [
+    measurementSession,
+    props.simulation,
+    props.stock,
+    updateMeasurementConstraint,
+  ]);
+
+  const selectMeasurementPoint = useCallback(
+    (candidate: SnapCandidate) => {
+      setMeasurementState((current) => {
+        const sameGeometry =
+          current.simulation === props.simulation && current.stock === props.stock;
+        const sameSession =
+          sameGeometry && current.session === measurementSession;
+        const history = sameGeometry ? current.history : [];
+        const currentStart = sameSession ? current.start : null;
+
+        if (!currentStart) {
+          return {
+            session: measurementSession,
+            simulation: props.simulation,
+            stock: props.stock,
+            start: candidate,
+            result: null,
+            history,
+          };
+        }
+
+        const constrainedEnd = constrainMeasurementPoint(
+          currentStart.point,
+          candidate.point,
+          measurementConstraint,
+        );
+        const result = calculateMeasurement(currentStart.point, constrainedEnd, {
+          label: `${MEASUREMENT_CONSTRAINT_LABELS[measurementConstraint]} · ${currentStart.label} → ${candidate.label}`,
+          source: "manual",
+        });
+        if (result.distance < 0.0005) return current;
+        return {
+          session: measurementSession,
+          simulation: props.simulation,
+          stock: props.stock,
+          start: null,
+          result,
+          history: addToMeasurementHistory(history, result),
+        };
       });
     },
-    [measurementSession, measurementStart, props.simulation, props.stock],
+    [measurementConstraint, measurementSession, props.simulation, props.stock],
   );
 
   const selectAutomaticMeasurement = useCallback(
     (preset: MeasurementPreset) => {
-      setMeasurementState({
+      setHoveredMeasurementSnap(null);
+      updateMeasurementConstraint("free");
+      setMeasurementState((current) => {
+        const sameGeometry =
+          current.simulation === props.simulation && current.stock === props.stock;
+        const history = sameGeometry ? current.history : [];
+        return {
+          session: measurementSession,
+          simulation: props.simulation,
+          stock: props.stock,
+          start: null,
+          result: preset,
+          history: addToMeasurementHistory(history, preset),
+        };
+      });
+    },
+    [
+      measurementSession,
+      props.simulation,
+      props.stock,
+      updateMeasurementConstraint,
+    ],
+  );
+
+  const selectWorkOrigin = useCallback(() => {
+    setHoveredMeasurementSnap(null);
+    updateMeasurementConstraint("free");
+    setMeasurementState((current) => {
+      const sameGeometry =
+        current.simulation === props.simulation && current.stock === props.stock;
+      return {
         session: measurementSession,
         simulation: props.simulation,
         stock: props.stock,
-        start: null,
-        result: preset,
+        start: {
+          id: `datum:${activeCoordinateSystem}`,
+          point: { ...workOrigin },
+          kind: "corner",
+          label: `X0 Y0 Z0 lập trình · ${activeCoordinateSystem}`,
+          priority: Number.POSITIVE_INFINITY,
+        },
+        result: null,
+        history: sameGeometry ? current.history : [],
+      };
+    });
+  }, [
+    activeCoordinateSystem,
+    measurementSession,
+    props.simulation,
+    props.stock,
+    updateMeasurementConstraint,
+    workOrigin,
+  ]);
+
+  const selectMeasurementHistory = useCallback(
+    (result: MeasurementResult) => {
+      setHoveredMeasurementSnap(null);
+      setMeasurementState((current) => {
+        const sameGeometry =
+          current.simulation === props.simulation && current.stock === props.stock;
+        return {
+          session: measurementSession,
+          simulation: props.simulation,
+          stock: props.stock,
+          start: null,
+          result,
+          history: sameGeometry ? current.history : [],
+        };
       });
     },
     [measurementSession, props.simulation, props.stock],
   );
 
+  const clearMeasurementHistory = useCallback(() => {
+    setMeasurementState((current) => {
+      if (
+        current.simulation !== props.simulation ||
+        current.stock !== props.stock
+      ) {
+        return current;
+      }
+      return { ...current, history: [] };
+    });
+  }, [props.simulation, props.stock]);
+
   const undoMeasurement = useCallback(() => {
-    if (measurementResult) {
-      setMeasurementState({
+    setHoveredMeasurementSnap(null);
+    setMeasurementState((current) => {
+      const sameGeometry =
+        current.simulation === props.simulation && current.stock === props.stock;
+      const sameSession =
+        sameGeometry && current.session === measurementSession;
+      const currentResult = sameSession ? current.result : null;
+      if (currentResult) {
+        return {
+          session: measurementSession,
+          simulation: props.simulation,
+          stock: props.stock,
+          start: {
+            id: `restored:${currentResult.id}`,
+            point: { ...currentResult.start },
+            kind: "free",
+            label: "Điểm A đã chọn",
+            priority: 0,
+          },
+          result: null,
+          history: current.history,
+        };
+      }
+      return {
         session: measurementSession,
         simulation: props.simulation,
         stock: props.stock,
-        start: {
-          id: `restored:${measurementResult.id}`,
-          point: { ...measurementResult.start },
-          kind: "free",
-          label: "Điểm A đã chọn",
-          priority: 0,
-        },
+        start: null,
         result: null,
-      });
-      return;
-    }
-    resetMeasurement();
+        history: sameGeometry ? current.history : [],
+      };
+    });
   }, [
-    measurementResult,
     measurementSession,
     props.simulation,
     props.stock,
-    resetMeasurement,
   ]);
 
   useEffect(() => {
@@ -607,29 +791,83 @@ export function SolidSimulator(props: SolidSimulatorProps) {
 
   useEffect(() => {
     if (!props.isMeasuring) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+    const handleMeasurementShortcut = (event: KeyboardEvent) => {
+      const editableTarget =
+        event.target instanceof Element &&
+        Boolean(
+          event.target.closest(
+            "input, textarea, select, button, [contenteditable='true']",
+          ),
+        );
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (measurementStart || measurementResult) {
+          undoMeasurement();
+        } else {
+          onMeasurementClose();
+        }
+        return;
+      }
+
+      if (
+        editableTarget ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      ) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === "o" && !measurementResult) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        selectWorkOrigin();
+        return;
+      }
+
+      if (!measurementStart) return;
+      const shortcutConstraints: Partial<
+        Record<string, MeasurementConstraint>
+      > = {
+        f: "free",
+        p: "xy",
+        x: "x",
+        y: "y",
+        z: "z",
+      };
+      const nextConstraint = shortcutConstraints[key];
+      if (!nextConstraint) return;
+
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (measurementStart || measurementResult) {
-        undoMeasurement();
-      } else {
-        onMeasurementClose();
-      }
+      setHoveredMeasurementSnap(null);
+      updateMeasurementConstraint((current) =>
+        current === nextConstraint && nextConstraint !== "free"
+          ? "free"
+          : nextConstraint,
+      );
     };
-    window.addEventListener("keydown", handleEscape, true);
-    return () => window.removeEventListener("keydown", handleEscape, true);
+    window.addEventListener("keydown", handleMeasurementShortcut, true);
+    return () =>
+      window.removeEventListener("keydown", handleMeasurementShortcut, true);
   }, [
     measurementResult,
     measurementStart,
     props.isMeasuring,
     onMeasurementClose,
+    selectWorkOrigin,
     undoMeasurement,
+    updateMeasurementConstraint,
   ]);
 
   return (
     <div className={`solid-simulator${props.isMeasuring ? " is-measuring" : ""}`} style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}>
-      <Canvas aria-label="Mô phỏng phôi CNC 3D tương tác" role="application" shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
+      <div className="solid-simulator__viewport">
+        <Canvas aria-label="Mô phỏng phôi CNC 3D tương tác" role="application" shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
         <directionalLight 
@@ -690,9 +928,12 @@ export function SolidSimulator(props: SolidSimulatorProps) {
                 }}
                 markerSize={measurementMarkerSize}
                 snapEnabled={snapEnabled}
+                constraint={measurementConstraint}
+                unit={measurementUnit}
                 start={measurementStart}
                 result={measurementResult}
                 onSelect={selectMeasurementPoint}
+                onHoverChange={setHoveredMeasurementSnap}
               />
             ) : null}
             <ToolMeshOverlay 
@@ -717,20 +958,39 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           }}
         />
         <ContactShadows resolution={1024} scale={Math.max(props.stock.width, props.stock.height) * 1.5} position={[0, -0.1, 0]} blur={2.5} opacity={0.6} />
-      </Canvas>
+        </Canvas>
+      </div>
       {props.isMeasuring ? (
-        <MeasurementPanel
-          candidateCount={measurementCandidates.length}
-          start={measurementStart}
-          result={measurementResult}
-          presets={automaticMeasurements}
-          snapEnabled={snapEnabled}
-          onToggleSnap={() => setSnapEnabled((enabled) => !enabled)}
-          onNew={resetMeasurement}
-          onUndo={undoMeasurement}
-          onPreset={selectAutomaticMeasurement}
-          onClose={onMeasurementClose}
-        />
+        <div className="measurement-dock">
+          <MeasurementPanel
+            candidateCount={measurementCandidates.length}
+            coordinateOffset={workOrigin}
+            coordinateSystem={activeCoordinateSystem}
+            hovered={hoveredMeasurementSnap}
+            start={measurementStart}
+            result={measurementResult}
+            history={measurementHistory}
+            presets={automaticMeasurements}
+            snapEnabled={snapEnabled}
+            constraint={measurementConstraint}
+            unit={measurementUnit}
+            onToggleSnap={() => setSnapEnabled((enabled) => !enabled)}
+            onConstraintChange={(constraint) => {
+              setHoveredMeasurementSnap(null);
+              updateMeasurementConstraint(constraint);
+            }}
+            onToggleUnit={() =>
+              setMeasurementUnit((current) => (current === "mm" ? "in" : "mm"))
+            }
+            onSetDatum={selectWorkOrigin}
+            onNew={resetMeasurement}
+            onUndo={undoMeasurement}
+            onPreset={selectAutomaticMeasurement}
+            onHistorySelect={selectMeasurementHistory}
+            onHistoryClear={clearMeasurementHistory}
+            onClose={onMeasurementClose}
+          />
+        </div>
       ) : null}
     </div>
   );

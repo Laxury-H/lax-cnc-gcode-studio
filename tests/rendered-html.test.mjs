@@ -36,13 +36,14 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
-test("renders all simulator views and the fullscreen control", async () => {
+test("renders the primary simulator views and hides experimental 3D Machine", async () => {
   const response = await renderHome();
   const html = await response.text();
 
-  for (const label of ["Mặt phẳng phay", "3D Solid", "3D Machine"]) {
+  for (const label of ["Mặt phẳng phay", "3D Solid"]) {
     assert.match(html, new RegExp(label));
   }
+  assert.doesNotMatch(html, /3D Machine/);
   assert.match(html, /Toàn màn hình mô phỏng/);
 });
 

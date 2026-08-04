@@ -25,8 +25,8 @@ export function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
   if (viewMode === "machine") {
     return {
       short: "🤖 3D Machine",
-      title: "Machine Kinematics",
-      description: "Full machine simulation",
+      title: t.machine3DTitle,
+      description: t.machine3DMetaDesc,
     };
   }
   return {

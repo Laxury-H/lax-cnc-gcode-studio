@@ -26,6 +26,7 @@ export type StockSettings = {
   toolDiameter: number; // Default fallback tool diameter
   clearance: number;
   rapidFeed: number;
+  zZero?: "auto" | "top" | "bottom";
   tools?: ToolProfile[]; // Array of defined tools
 };
 

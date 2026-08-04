@@ -6,6 +6,8 @@ export type MeasurementPoint = {
   z: number;
 };
 
+export type MeasurementConstraint = "free" | "x" | "y" | "z" | "xy";
+
 export type SnapKind =
   | "endpoint"
   | "midpoint"
@@ -31,6 +33,8 @@ export interface MeasurementResult {
   distance: number;
   delta: MeasurementPoint;
   horizontal: number;
+  angleXYDegrees: number;
+  inclinationDegrees: number;
   source: MeasurementSource;
 }
 
@@ -44,6 +48,11 @@ export type CalculateMeasurementOptions = {
   source?: MeasurementSource;
 };
 
+export type StockZBounds = {
+  topZ: number;
+  bottomZ: number;
+};
+
 const COORDINATE_PRECISION = 6;
 const TOOLPATH_ENDPOINT_PRIORITY = 90;
 const TOOLPATH_CENTER_PRIORITY = 80;
@@ -52,6 +61,7 @@ const PART_CORNER_PRIORITY = 110;
 const STOCK_CORNER_PRIORITY = 100;
 const PART_CENTER_PRIORITY = 75;
 const STOCK_CENTER_PRIORITY = 70;
+const DIRECTION_EPSILON_MM = 0.0005;
 
 function clonePoint(point: MeasurementPoint): MeasurementPoint {
   return { x: point.x, y: point.y, z: point.z };
@@ -63,6 +73,63 @@ function isFinitePoint(point: MeasurementPoint): boolean {
     Number.isFinite(point.y) &&
     Number.isFinite(point.z)
   );
+}
+
+function assertFiniteMeasurementPoints(
+  start: MeasurementPoint,
+  target: MeasurementPoint,
+): void {
+  if (!isFinitePoint(start) || !isFinitePoint(target)) {
+    throw new TypeError("Measurement points must contain finite X, Y and Z coordinates.");
+  }
+}
+
+export function resolveStockZBounds(
+  simulation: Simulation,
+  stock: StockSettings,
+): StockZBounds {
+  const automaticBottomZero = simulation.bounds.minZ >= -0.1;
+  const isBottomZero =
+    stock.zZero === "bottom" ||
+    (stock.zZero !== "top" && automaticBottomZero);
+  return isBottomZero
+    ? { topZ: stock.thickness, bottomZ: 0 }
+    : { topZ: 0, bottomZ: -stock.thickness };
+}
+
+export function constrainMeasurementPoint(
+  start: MeasurementPoint,
+  target: MeasurementPoint,
+  constraint: MeasurementConstraint,
+): MeasurementPoint {
+  assertFiniteMeasurementPoints(start, target);
+
+  switch (constraint) {
+    case "free":
+      return clonePoint(target);
+    case "x":
+      return { x: target.x, y: start.y, z: start.z };
+    case "y":
+      return { x: start.x, y: target.y, z: start.z };
+    case "z":
+      return { x: start.x, y: start.y, z: target.z };
+    case "xy":
+      return { x: target.x, y: target.y, z: start.z };
+    default:
+      throw new TypeError(`Unsupported measurement constraint: ${String(constraint)}`);
+  }
+}
+
+export function calculateWorkOrigin(
+  machinePosition: MeasurementPoint,
+  workPosition: MeasurementPoint,
+): MeasurementPoint {
+  assertFiniteMeasurementPoints(machinePosition, workPosition);
+  return {
+    x: machinePosition.x - workPosition.x,
+    y: machinePosition.y - workPosition.y,
+    z: machinePosition.z - workPosition.z,
+  };
 }
 
 function coordinateToken(value: number): string {
@@ -259,9 +326,7 @@ export function calculateMeasurement(
   end: MeasurementPoint,
   options: CalculateMeasurementOptions = {},
 ): MeasurementResult {
-  if (!isFinitePoint(start) || !isFinitePoint(end)) {
-    throw new TypeError("Measurement points must contain finite X, Y and Z coordinates.");
-  }
+  assertFiniteMeasurementPoints(start, end);
 
   const safeStart = clonePoint(start);
   const safeEnd = clonePoint(end);
@@ -270,6 +335,12 @@ export function calculateMeasurement(
     y: safeEnd.y - safeStart.y,
     z: safeEnd.z - safeStart.z,
   };
+  const horizontal = Math.hypot(delta.x, delta.y);
+  const angleXYDegrees = horizontal < DIRECTION_EPSILON_MM
+    ? 0
+    : (Math.atan2(delta.y, delta.x) * 180) / Math.PI;
+  const inclinationDegrees =
+    (Math.atan2(delta.z, horizontal) * 180) / Math.PI;
 
   return {
     id: options.id ?? `measurement:${coordinateKey(safeStart)}:${coordinateKey(safeEnd)}`,
@@ -278,7 +349,11 @@ export function calculateMeasurement(
     end: safeEnd,
     distance: Math.hypot(delta.x, delta.y, delta.z),
     delta,
-    horizontal: Math.hypot(delta.x, delta.y),
+    horizontal,
+    angleXYDegrees: Object.is(angleXYDegrees, -0) ? 0 : angleXYDegrees,
+    inclinationDegrees: Object.is(inclinationDegrees, -0)
+      ? 0
+      : inclinationDegrees,
     source: options.source ?? "manual",
   };
 }

@@ -1,0 +1,636 @@
+.overlay {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  background: rgba(5, 8, 12, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: dialogFadeIn 180ms ease-out;
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  outline: none;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(56, 189, 248, 0.06), transparent 30%),
+    #111418;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.54);
+  color: #e2e8f0;
+  animation: dialogEnter 180ms ease-out;
+}
+
+.dialog:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.5),
+    0 24px 56px rgba(0, 0, 0, 0.54);
+}
+
+.sizeMedium {
+  max-width: 640px;
+}
+
+.sizeLarge {
+  max-width: 920px;
+}
+
+.sizeWide {
+  max-width: 1200px;
+}
+
+.heightAuto {
+  height: auto;
+}
+
+.heightMedium {
+  height: min(640px, calc(100dvh - 24px));
+  max-height: min(760px, calc(100dvh - 24px));
+}
+
+.heightTall {
+  height: min(800px, calc(100dvh - 24px));
+}
+
+.header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 12px 18px 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.heading {
+  min-width: 0;
+  margin: 0;
+  color: #f8fafc;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.headingWithIcon {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.closeButton {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+}
+
+.closeButton:focus-visible,
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.tabButton:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.75);
+  outline-offset: 2px;
+}
+
+.toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.toolbarGroup {
+  min-width: 0;
+}
+
+.toolbarGroup label {
+  display: block;
+  margin-bottom: 5px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.toolbarGroup input[type="file"] {
+  width: min(100%, 320px);
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.toolbarSpacer {
+  flex: 1 1 auto;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.primaryButton {
+  border: 1px solid #38bdf8;
+  background: #38bdf8;
+  color: #071016;
+}
+
+.primaryButton:disabled {
+  border-color: #475569;
+  background: #334155;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.secondaryButton {
+  border: 1px solid #334155;
+  background: transparent;
+  color: #e2e8f0;
+}
+
+.compareBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.comparePane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.comparePane:first-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.paneHeader {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 9px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.compareEditor,
+.diffViewer {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  padding: 16px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.compareEditor {
+  resize: none;
+}
+
+.diffPane {
+  background: #0a0d10;
+}
+
+.diffViewer {
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.addedLegend {
+  color: #4ade80;
+}
+
+.removedLegend {
+  color: #f87171;
+}
+
+.diffAdded {
+  background: rgba(74, 222, 128, 0.1);
+  color: #4ade80;
+}
+
+.diffRemoved {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+}
+
+.diffUnchanged {
+  color: #94a3b8;
+}
+
+.guideLayout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.guideSidebar {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 24px 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(11, 15, 20, 0.6);
+}
+
+.guideTitle {
+  margin: 0 24px 20px;
+  color: #38bdf8;
+  font-size: 18px;
+}
+
+.guideTabs {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tabButton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 21px 10px 24px;
+  border: 0;
+  border-right: 3px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.activeTab {
+  border-right-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+}
+
+.guideContent {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 32px 40px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.guideClose {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  float: right;
+  margin: -12px -20px 0 12px;
+}
+
+.guideSection h1 {
+  margin: 0 0 22px;
+  color: #f8fafc;
+  font-size: clamp(22px, 4vw, 28px);
+}
+
+.guideSection p,
+.guideSection li {
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.guideHero {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #00f2fe, #4facfe);
+}
+
+.guideCards,
+.guideToolsGrid {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guideToolsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.guideCard {
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.guideCard strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #38bdf8;
+}
+
+.miniBody {
+  display: grid;
+  grid-template-columns: 150px 1px minmax(0, 1fr);
+  gap: 24px;
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.miniTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.miniDivider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.miniForm {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sectionTitle {
+  margin: 0 0 2px;
+  color: #38bdf8;
+  font-size: 14px;
+}
+
+.sectionTitleSpaced {
+  margin-top: 12px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  outline: 0;
+  background: #1e293b;
+  color: #fff;
+}
+
+.field input:focus-visible {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.16);
+}
+
+.field input[aria-invalid="true"] {
+  border-color: rgba(248, 113, 113, 0.72);
+}
+
+.validationError {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  border-radius: 7px;
+  background: rgba(248, 113, 113, 0.09);
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.footer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@keyframes dialogFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialogEnter {
+  from {
+    transform: translateY(8px) scale(0.99);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 680px) {
+  .overlay {
+    place-items: stretch;
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+  }
+
+  .dialog,
+  .heightMedium,
+  .heightTall {
+    height: auto;
+    max-height: calc(100dvh - 16px);
+    align-self: center;
+    border-radius: 12px;
+  }
+
+  .header {
+    min-height: 58px;
+    padding: 8px 8px 8px 16px;
+  }
+
+  .heading {
+    font-size: 16px;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .toolbarSpacer {
+    display: none;
+  }
+
+  .toolbarGroup input[type="file"],
+  .primaryButton {
+    width: 100%;
+  }
+
+  .compareBody {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 1fr) minmax(180px, 1fr);
+  }
+
+  .comparePane:first-child {
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .guideLayout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .guideSidebar {
+    padding: 12px 0 0;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .guideTitle {
+    margin: 0 16px 10px;
+    font-size: 16px;
+  }
+
+  .guideTabs {
+    flex-direction: row;
+    padding: 0 8px 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .tabButton {
+    flex: 0 0 auto;
+    padding: 9px 12px;
+    border-right: 0;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+  }
+
+  .activeTab {
+    border-bottom-color: #38bdf8;
+  }
+
+  .guideContent {
+    padding: 22px 18px 28px;
+  }
+
+  .guideClose {
+    margin: -10px -8px 0 8px;
+  }
+
+  .guideToolsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .miniBody {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px 16px;
+  }
+
+  .miniTabs {
+    flex-direction: row;
+  }
+
+  .miniTabs > button {
+    flex: 1 1 0;
+  }
+
+  .miniDivider {
+    display: none;
+  }
+
+  .footer {
+    padding: 10px 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .formGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .footer > button {
+    flex: 1 1 0;
+  }
+
+  .guideCard {
+    padding: 15px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .dialog {
+    animation: none;
+  }
+}

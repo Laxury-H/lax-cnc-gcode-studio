@@ -39,6 +39,7 @@ export const DEFAULT_STOCK: StockSettings = {
   toolDiameter: 6,
   clearance: 12,
   rapidFeed: 8000,
+  zZero: "auto",
   tools: [
     { id: "1", diameter: 6, type: "flat" },
   ],

@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 import {
   DEFAULT_STOCK,
@@ -33,10 +34,19 @@ import { cncAudio } from "@/core/simulation/audio";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 import { FileCompareModal } from "@/core/components/FileCompareModal";
 import { MiniCamModal } from "@/core/components/MiniCamModal";
+import {
+  WORKSPACE_PREFERENCES_KEY,
+  cloneStockSettings,
+  parseWorkspacePreferences,
+  serializeWorkspacePreferences,
+  type SimulationQuality,
+  type WorkspacePreferences,
+} from "@/core/ui/workspace-preferences";
 
 import { Icon } from "@/core/components/ui/Icon";
 import { MetricCard } from "@/core/components/ui/MetricCard";
 import { ToolbarButton } from "@/core/components/ui/ToolbarButton";
+import { ResponsiveDialog } from "@/core/components/ui/ResponsiveDialog";
 import { 
   ViewMode, 
   OrbitCamera, 
@@ -64,6 +74,58 @@ const DEFAULT_ORBIT: OrbitCamera = {
 };
 
 const PLANE_GCODE = { XY: "G17", XZ: "G18", YZ: "G19" } as const;
+const MACHINE_VIEW_STORAGE_KEY = "lax_cnc_experimental_machine_view";
+const SURFACE_FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+type MobileWorkspacePanel = "simulation" | "code";
+
+function getSurfaceFocusableElements(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(SURFACE_FOCUSABLE_SELECTOR),
+  ).filter(
+    (element) =>
+      element.getAttribute("aria-hidden") !== "true" &&
+      !element.hasAttribute("hidden") &&
+      element.getClientRects().length > 0,
+  );
+}
+
+function createDefaultWorkspacePreferences(): WorkspacePreferences {
+  return {
+    version: 1,
+    profile: "router-custom",
+    stock: cloneStockSettings(DEFAULT_STOCK),
+    speed: 2,
+    quality: "medium",
+    showRapids: true,
+    machineSound: false,
+    finishSound: true,
+  };
+}
+
+function isInvalidStockField(
+  key: keyof StockSettings,
+  value: number,
+) {
+  if (!Number.isFinite(value)) return true;
+  if (
+    key === "width" ||
+    key === "height" ||
+    key === "thickness" ||
+    key === "toolDiameter" ||
+    key === "rapidFeed"
+  ) {
+    return value <= 0;
+  }
+  return key === "clearance" && value < 0;
+}
 
 
 function buildSampleProgram() {
@@ -184,7 +246,7 @@ function ToolpathCanvas({
   pan: { x: number; y: number };
   orbit: OrbitCamera;
   showRapids: boolean;
-  quality?: "low" | "medium" | "high";
+  quality?: SimulationQuality;
   t: TranslationDict;
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
@@ -206,6 +268,17 @@ function ToolpathCanvas({
     pitch: number;
     mode: "pan" | "orbit";
   } | null>(null);
+  const activePointersRef = useRef(
+    new Map<number, { x: number; y: number }>(),
+  );
+  const pinchRef = useRef<{
+    distance: number;
+    zoom: number;
+    centerX: number;
+    centerY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
   const [size, setSize] = useState({ width: 900, height: 600 });
   const [showToolpath, setShowToolpath] = useState(true);
   const [showBounds, setShowBounds] = useState(true);
@@ -224,8 +297,8 @@ function ToolpathCanvas({
       const rect = entries[0]?.contentRect;
       if (rect) {
         setSize({
-          width: Math.max(320, Math.round(rect.width)),
-          height: Math.max(320, Math.round(rect.height)),
+          width: Math.max(1, Math.round(rect.width)),
+          height: Math.max(1, Math.round(rect.height)),
         });
       }
     });
@@ -1005,6 +1078,23 @@ function ToolpathCanvas({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (activePointersRef.current.size >= 2) {
+      const [first, second] = Array.from(activePointersRef.current.values());
+      pinchRef.current = {
+        distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+        zoom,
+        centerX: (first.x + second.x) / 2,
+        centerY: (first.y + second.y) / 2,
+        panX: pan.x,
+        panY: pan.y,
+      };
+      dragRef.current = null;
+      return;
+    }
     dragRef.current = {
       x: event.clientX,
       y: event.clientY,
@@ -1022,6 +1112,32 @@ function ToolpathCanvas({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (activePointersRef.current.has(event.pointerId)) {
+      activePointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+    }
+    if (activePointersRef.current.size >= 2 && pinchRef.current) {
+      const [first, second] = Array.from(activePointersRef.current.values());
+      const distance = Math.max(
+        1,
+        Math.hypot(second.x - first.x, second.y - first.y),
+      );
+      const centerX = (first.x + second.x) / 2;
+      const centerY = (first.y + second.y) / 2;
+      onZoom(
+        Math.max(
+          0.15,
+          Math.min(25, pinchRef.current.zoom * (distance / pinchRef.current.distance)),
+        ),
+      );
+      onPan({
+        x: pinchRef.current.panX + centerX - pinchRef.current.centerX,
+        y: pinchRef.current.panY + centerY - pinchRef.current.centerY,
+      });
+      return;
+    }
     if (!dragRef.current) return;
     if (dragRef.current.mode === "orbit") {
       onOrbit({
@@ -1049,6 +1165,8 @@ function ToolpathCanvas({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    activePointersRef.current.delete(event.pointerId);
+    if (activePointersRef.current.size < 2) pinchRef.current = null;
     dragRef.current = null;
   };
 
@@ -1075,7 +1193,9 @@ function ToolpathCanvas({
 
   return (
     <div
-      className={`canvas-frame${view !== "xoy" ? " is-3d" : ""}`}
+      className={`canvas-frame${view !== "xoy" ? " is-3d" : ""}${
+        isMeasuring && view === "solid" ? " has-measurement-dock" : ""
+      }`}
       ref={frameRef}
     >
       <div className="active-command-hud" aria-hidden="true">
@@ -1243,6 +1363,7 @@ function ToolpathCanvas({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
+          onLostPointerCapture={handlePointerUp}
           onWheel={handleWheel}
           onDoubleClick={onResetView}
           onContextMenu={(event) => event.preventDefault()}
@@ -1264,7 +1385,12 @@ export default function Home() {
   const [lang, setLang] = useState<Lang>("VN");
 
   useEffect(() => {
-    const saved = localStorage.getItem("lax_cnc_lang");
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem("lax_cnc_lang");
+    } catch {
+      // Private browsing/storage policies must not prevent the app from mounting.
+    }
     if (saved !== "EN" && saved !== "VN") return;
 
     const frame = window.requestAnimationFrame(() => setLang(saved));
@@ -1273,16 +1399,24 @@ export default function Home() {
 
   const toggleLanguage = useCallback((newLang: Lang) => {
     setLang(newLang);
-    localStorage.setItem("lax_cnc_lang", newLang);
+    try {
+      localStorage.setItem("lax_cnc_lang", newLang);
+    } catch {
+      // Language still changes for this session when storage is unavailable.
+    }
   }, []);
 
   const t = translations[lang];
   const [view, setView] = useState<ViewMode>("xoy");
+  const [machineViewEnabled, setMachineViewEnabled] = useState(false);
+  const [mobilePanel, setMobilePanel] =
+    useState<MobileWorkspacePanel>("simulation");
   const [cursor, setCursor] = useState(0);
+  const [focusedCodeLine, setFocusedCodeLine] = useState(0);
   const [segmentProgress, setSegmentProgress] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
-  const [quality, setQuality] = useState<"low" | "medium" | "high">("medium");
+  const [quality, setQuality] = useState<SimulationQuality>("medium");
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [orbit, setOrbit] = useState<OrbitCamera>({ ...DEFAULT_ORBIT });
@@ -1298,19 +1432,156 @@ export default function Home() {
   const [resumeSafeZ, setResumeSafeZ] = useState(50);
   const [exportType, setExportType] = useState<PostProcessorType>("ncstudio");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsDraft, setSettingsDraft] = useState<WorkspacePreferences>(
+    createDefaultWorkspacePreferences,
+  );
   const [editorOpen, setEditorOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [minicamOpen, setMinicamOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [machineSound, setMachineSound] = useState(false);
   const [finishSound, setFinishSound] = useState(true);
   const [soundMenuOpen, setSoundMenuOpen] = useState(false);
+  const [soundMenuPosition, setSoundMenuPosition] = useState({ left: 8, top: 8 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<HTMLElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const soundButtonRef = useRef<HTMLButtonElement>(null);
+  const soundPopoverRef = useRef<HTMLDivElement>(null);
+  const preferencesHydratedRef = useRef(false);
+  const dragDepthRef = useRef(0);
+  const toastTimerRef = useRef<number | null>(null);
+  const drawerWasOpenRef = useRef(false);
+  const drawerReturnFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    let saved: WorkspacePreferences | null = null;
+    try {
+      saved = parseWorkspacePreferences(
+        localStorage.getItem(WORKSPACE_PREFERENCES_KEY),
+      );
+    } catch {
+      // Invalid or blocked storage falls back to safe workstation defaults.
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (saved) {
+        setStock(cloneStockSettings(saved.stock));
+        setProfile(saved.profile);
+        setSpeed(saved.speed);
+        setQuality(saved.quality);
+        setShowRapids(saved.showRapids);
+        setMachineSound(saved.machineSound);
+        setFinishSound(saved.finishSound);
+      }
+      preferencesHydratedRef.current = true;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesHydratedRef.current) return;
+    const preferences: WorkspacePreferences = {
+      version: 1,
+      profile,
+      stock: cloneStockSettings(stock),
+      speed,
+      quality,
+      showRapids,
+      machineSound,
+      finishSound,
+    };
+    try {
+      localStorage.setItem(
+        WORKSPACE_PREFERENCES_KEY,
+        serializeWorkspacePreferences(preferences),
+      );
+    } catch {
+      // The workstation remains usable when storage is unavailable or full.
+    }
+  }, [
+    finishSound,
+    machineSound,
+    profile,
+    quality,
+    showRapids,
+    speed,
+    stock,
+  ]);
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "EN" ? "en" : "vi";
+  }, [lang]);
+
+  useEffect(() => {
+    if (drawer && !drawerWasOpenRef.current) {
+      drawerReturnFocusRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      const frame = window.requestAnimationFrame(() =>
+        document.getElementById(`drawer-tab-${drawer}`)?.focus(),
+      );
+      drawerWasOpenRef.current = true;
+      return () => window.cancelAnimationFrame(frame);
+    }
+    if (!drawer && drawerWasOpenRef.current) {
+      drawerWasOpenRef.current = false;
+      if (
+        settingsOpen ||
+        editorOpen ||
+        compareOpen ||
+        minicamOpen ||
+        isGuideOpen
+      ) {
+        return;
+      }
+      const frame = window.requestAnimationFrame(() =>
+        drawerReturnFocusRef.current?.focus({ preventScroll: true }),
+      );
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [compareOpen, drawer, editorOpen, isGuideOpen, minicamOpen, settingsOpen]);
+
+  const drawerOpen = drawer !== null;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const trapDrawerFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !drawerRef.current) return;
+      const focusable = getSurfaceFocusableElements(drawerRef.current);
+      if (!focusable.length) {
+        event.preventDefault();
+        drawerRef.current.focus({ preventScroll: true });
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || document.activeElement === drawerRef.current)
+      ) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+      }
+    };
+
+    document.addEventListener("keydown", trapDrawerFocus, true);
+    return () => {
+      document.removeEventListener("keydown", trapDrawerFocus, true);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [drawerOpen]);
 
   const simulation = useMemo(
     () => parseProgram(code, stock, profile),
@@ -1343,8 +1614,84 @@ export default function Home() {
 
   const notify = useCallback((message: string) => {
     setToast(message);
-    window.setTimeout(() => setToast(null), 2600);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3200);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const copyText = useCallback(
+    async (value: string, successMessage: string) => {
+      try {
+        if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+        await navigator.clipboard.writeText(value);
+        notify(successMessage);
+      } catch {
+        notify(t.copyErrorMsg);
+      }
+    },
+    [notify, t.copyErrorMsg],
+  );
+
+  const positionSoundMenu = useCallback(() => {
+    const anchor = soundButtonRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const padding = 8;
+    const popoverWidth = 180;
+    const popoverHeight = 116;
+    const left = Math.max(
+      padding,
+      Math.min(
+        window.innerWidth - popoverWidth - padding,
+        rect.left + rect.width / 2 - popoverWidth / 2,
+      ),
+    );
+    const below = rect.bottom + padding;
+    const top =
+      below + popoverHeight <= window.innerHeight - padding
+        ? below
+        : Math.max(padding, rect.top - popoverHeight - padding);
+    setSoundMenuPosition({ left, top });
+  }, []);
+
+  useEffect(() => {
+    if (!soundMenuOpen) return;
+    positionSoundMenu();
+
+    const handleViewportChange = () => positionSoundMenu();
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        (target && soundButtonRef.current?.contains(target)) ||
+        (target && soundPopoverRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setSoundMenuOpen(false);
+    };
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [positionSoundMenu, soundMenuOpen]);
 
   const resetPlayback = useCallback(() => {
     setPlaying(false);
@@ -1352,6 +1699,59 @@ export default function Home() {
     setSegmentProgress(0);
     cncAudio.stopAll();
   }, []);
+
+  const openSettings = useCallback(() => {
+    setSettingsDraft({
+      version: 1,
+      profile,
+      stock: cloneStockSettings(stock),
+      speed,
+      quality,
+      showRapids,
+      machineSound,
+      finishSound,
+    });
+    setDrawer(null);
+    setSoundMenuOpen(false);
+    setSettingsOpen(true);
+  }, [
+    finishSound,
+    machineSound,
+    profile,
+    quality,
+    showRapids,
+    speed,
+    stock,
+  ]);
+
+  const updateDraftStock = useCallback(
+    (update: (current: StockSettings) => StockSettings) => {
+      setSettingsDraft((current) => ({
+        ...current,
+        stock: update(current.stock),
+      }));
+    },
+    [],
+  );
+
+  const applySettings = useCallback(() => {
+    try {
+      serializeWorkspacePreferences(settingsDraft);
+    } catch {
+      notify(t.invalidSettingsMsg);
+      return;
+    }
+    setStock(cloneStockSettings(settingsDraft.stock));
+    setProfile(settingsDraft.profile);
+    setSpeed(settingsDraft.speed);
+    setQuality(settingsDraft.quality);
+    setShowRapids(settingsDraft.showRapids);
+    setMachineSound(settingsDraft.machineSound);
+    setFinishSound(settingsDraft.finishSound);
+    setSettingsOpen(false);
+    resetPlayback();
+    notify(t.settingsAppliedMsg);
+  }, [notify, resetPlayback, settingsDraft, t.invalidSettingsMsg, t.settingsAppliedMsg]);
 
   const onResetView = useCallback(() => {
     setZoom(1);
@@ -1368,6 +1768,41 @@ export default function Home() {
     if (nextView === "iso") setOrbit({ ...DEFAULT_ORBIT });
   }, []);
 
+  useEffect(() => {
+    let enabled = false;
+    try {
+      enabled = localStorage.getItem(MACHINE_VIEW_STORAGE_KEY) === "true";
+    } catch {
+      // Experimental features remain disabled when storage is unavailable.
+    }
+    if (!enabled) return;
+
+    const frame = window.requestAnimationFrame(() => setMachineViewEnabled(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const availableViewModes = useMemo<ViewMode[]>(
+    () =>
+      machineViewEnabled
+        ? ["xoy", "solid", "machine"]
+        : ["xoy", "solid"],
+    [machineViewEnabled],
+  );
+
+  const toggleMachineView = useCallback(
+    (enabled: boolean) => {
+      setMachineViewEnabled(enabled);
+      try {
+        localStorage.setItem(MACHINE_VIEW_STORAGE_KEY, String(enabled));
+      } catch {
+        // The switch still applies for this session when storage is unavailable.
+      }
+      if (!enabled && view === "machine") changeView("solid");
+      notify(enabled ? t.machine3DEnableMsg : t.machine3DDisableMsg);
+    },
+    [changeView, notify, t.machine3DDisableMsg, t.machine3DEnableMsg, view],
+  );
+
   const toggleMeasurement = useCallback(() => {
     if (isMeasuring) {
       setIsMeasuring(false);
@@ -1377,7 +1812,7 @@ export default function Home() {
     changeView("solid");
     setMeasurementSession((session) => session + 1);
     setIsMeasuring(true);
-    notify("Đo thông minh đã bật · chọn 2 điểm hoặc dùng phép đo tự động.");
+    notify("Đo 3D đã bật · chọn A/B; dùng X/Y/Z để khóa hướng.");
   }, [changeView, isMeasuring, notify]);
 
   const applyCode = useCallback(
@@ -1402,23 +1837,44 @@ export default function Home() {
   const readFile = useCallback(
     async (file: File) => {
       if (file.size > 8 * 1024 * 1024) {
-        notify("File lớn hơn 8 MB. Hãy chia chương trình trước khi nhập.");
+        notify(t.fileTooLarge);
         return;
       }
       const extension = file.name.split(".").pop()?.toLowerCase();
       if (!extension || !["nc", "txt", "tap", "gcode", "cnc"].includes(extension)) {
-        notify("Định dạng chưa hỗ trợ. Dùng .NC, .TXT, .TAP, .GCODE hoặc .CNC.");
+        notify(t.unsupportedFormat);
         return;
       }
-      const text = await file.text();
-      const rotated = applyCode(text, file.name);
-      notify(
-        rotated
-          ? `Đã đọc ${file.name} và tự xoay phôi sang ${stock.height.toFixed(0)} × ${stock.width.toFixed(0)} mm.`
-          : `Đã đọc ${file.name} hoàn toàn trên trình duyệt.`,
-      );
+      setIsImporting(true);
+      try {
+        const text = await file.text();
+        if (!text.trim()) {
+          notify(t.emptyFileMsg);
+          return;
+        }
+        const rotated = applyCode(text, file.name);
+        setMobilePanel("simulation");
+        notify(
+          rotated
+            ? `Đã đọc ${file.name} và tự xoay phôi sang ${stock.height.toFixed(0)} × ${stock.width.toFixed(0)} mm.`
+            : `Đã đọc ${file.name} hoàn toàn trên trình duyệt.`,
+        );
+      } catch {
+        notify(t.fileReadErrorMsg);
+      } finally {
+        setIsImporting(false);
+      }
     },
-    [applyCode, notify, stock.height, stock.width],
+    [
+      applyCode,
+      notify,
+      stock.height,
+      stock.width,
+      t.emptyFileMsg,
+      t.fileReadErrorMsg,
+      t.fileTooLarge,
+      t.unsupportedFormat,
+    ],
   );
 
   const handleFileInput = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1428,7 +1884,7 @@ export default function Home() {
   };
 
   const seekToLine = useCallback(
-    (lineIndex: number) => {
+    (lineIndex: number, revealSimulation = true) => {
       const target = simulation.segments.findIndex(
         (segment) => segment.lineIndex >= lineIndex,
       );
@@ -1438,6 +1894,7 @@ export default function Home() {
         setSegmentProgress(0);
       }
       setDrawer(null);
+      if (revealSimulation) setMobilePanel("simulation");
     },
     [simulation.segments],
   );
@@ -1450,6 +1907,32 @@ export default function Home() {
       current >= simulation.segments.length - 1 ? 0 : current + 1,
     );
   }, [simulation.segments.length]);
+
+  const togglePlayback = useCallback(() => {
+    if (!simulation.segments.length) {
+      notify(t.noMotionPlaybackMsg);
+      return;
+    }
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    if (
+      cursor >= simulation.segments.length - 1 &&
+      segmentProgress >= 1
+    ) {
+      setCursor(0);
+      setSegmentProgress(0);
+    }
+    setPlaying(true);
+  }, [
+    cursor,
+    notify,
+    playing,
+    segmentProgress,
+    simulation.segments.length,
+    t.noMotionPlaybackMsg,
+  ]);
 
   useEffect(() => {
     if (!playing || !simulation.segments.length) return;
@@ -1528,17 +2011,87 @@ export default function Home() {
       `[data-code-line="${currentLine}"]`,
     );
     activeLine?.scrollIntoView({ block: "nearest" });
+    if (!codeScrollRef.current?.contains(document.activeElement)) {
+      setFocusedCodeLine(currentLine);
+    }
   }, [currentLine]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "Escape") {
+        if (soundMenuOpen) {
+          setSoundMenuOpen(false);
+          return;
+        }
+        if (isGuideOpen) {
+          setIsGuideOpen(false);
+          return;
+        }
+        if (compareOpen) {
+          setCompareOpen(false);
+          return;
+        }
+        if (minicamOpen) {
+          setMinicamOpen(false);
+          return;
+        }
+        if (editorOpen) {
+          setEditorOpen(false);
+          return;
+        }
+        if (settingsOpen) {
+          setSettingsOpen(false);
+          return;
+        }
+        if (drawer) {
+          setDrawer(null);
+          return;
+        }
+        if (isMeasuring) {
+          setIsMeasuring(false);
+          return;
+        }
+        if (simulatorExpanded && !document.fullscreenElement) {
+          setSimulatorExpanded(false);
+        }
+        return;
+      }
+
+      const hasBlockingSurface = Boolean(
+        drawer ||
+          settingsOpen ||
+          editorOpen ||
+          compareOpen ||
+          minicamOpen ||
+          isGuideOpen ||
+          soundMenuOpen,
+      );
+      if (hasBlockingSurface) return;
+
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, button, a, [contenteditable='true']")) {
         return;
       }
-      if (event.code === "Space" || event.code === "F5") {
+
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyO") {
         event.preventDefault();
-        setPlaying((value) => !value);
+        fileInputRef.current?.click();
+      } else if ((event.ctrlKey || event.metaKey) && event.code === "Comma") {
+        event.preventDefault();
+        openSettings();
+      } else if (event.code === "F1") {
+        event.preventDefault();
+        setIsGuideOpen(true);
+      } else if (event.code === "KeyM") {
+        event.preventDefault();
+        toggleMeasurement();
+      } else if (event.code === "KeyG") {
+        event.preventDefault();
+        setCodeCollapsed(false);
+        setMobilePanel("code");
+      } else if (event.code === "Space" || event.code === "F5") {
+        event.preventDefault();
+        togglePlayback();
       } else if (event.code === "F10") {
         event.preventDefault();
         stepForward();
@@ -1550,18 +2103,35 @@ export default function Home() {
       } else if (event.code === "Digit2") {
         changeView("solid");
       } else if (event.code === "Digit3") {
-        changeView("machine");
-      } else if (
-        event.code === "Escape" &&
-        simulatorExpanded &&
-        !document.fullscreenElement
-      ) {
-        setSimulatorExpanded(false);
+        if (machineViewEnabled) {
+          changeView("machine");
+        } else {
+          notify(t.machine3DShortcutMsg);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [changeView, resetPlayback, simulatorExpanded, stepForward]);
+  }, [
+    compareOpen,
+    changeView,
+    drawer,
+    editorOpen,
+    isGuideOpen,
+    isMeasuring,
+    machineViewEnabled,
+    minicamOpen,
+    notify,
+    openSettings,
+    resetPlayback,
+    settingsOpen,
+    simulatorExpanded,
+    soundMenuOpen,
+    stepForward,
+    t.machine3DShortcutMsg,
+    toggleMeasurement,
+    togglePlayback,
+  ]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -1593,14 +2163,19 @@ export default function Home() {
       ref={appRef}
       onDragEnter={(event) => {
         event.preventDefault();
+        if (!event.dataTransfer.types.includes("Files")) return;
+        dragDepthRef.current += 1;
         setDragActive(true);
       }}
       onDragOver={(event) => event.preventDefault()}
       onDragLeave={(event) => {
-        if (event.currentTarget === event.target) setDragActive(false);
+        event.preventDefault();
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setDragActive(false);
       }}
       onDrop={(event) => {
         event.preventDefault();
+        dragDepthRef.current = 0;
         setDragActive(false);
         const file = event.dataTransfer.files?.[0];
         if (file) void readFile(file);
@@ -1677,16 +2252,17 @@ export default function Home() {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           title={t.uploadFile}
+          disabled={isImporting}
+          aria-busy={isImporting}
         >
           <Icon name="upload" size={18} />
-          <span>{t.importBtn}</span>
+          <span>{isImporting ? t.loadingGcode : t.importBtn}</span>
         </button>
         <button
           className="guide-button"
           type="button"
           onClick={() => setIsGuideOpen(true)}
           title={t.guideBtn}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
         >
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -1731,57 +2307,46 @@ export default function Home() {
           <button
             className="primary-control"
             type="button"
-            onClick={() => {
-              if (
-                cursor >= simulation.segments.length - 1 &&
-                segmentProgress >= 1
-              ) {
-                setCursor(0);
-                setSegmentProgress(0);
-              }
-              setPlaying((value) => !value);
-            }}
+            onClick={togglePlayback}
+            disabled={!simulation.segments.length}
+            aria-label={playing ? t.pause : t.play}
+            title={`${playing ? t.pause : t.play} · Space / F5`}
           >
             <Icon name={playing ? "pause" : "play"} size={22} />
           </button>
-          <button className="secondary-control" type="button" onClick={stepForward}>
+          <button
+            className="secondary-control"
+            type="button"
+            onClick={stepForward}
+            disabled={!simulation.segments.length}
+            aria-label={t.stepForward}
+            title={`${t.stepForward} · F10`}
+          >
             <Icon name="step" size={20} />
           </button>
           <div style={{ position: "relative" }}>
             <button
+              ref={soundButtonRef}
               className={`secondary-control ${(machineSound || finishSound) ? "is-active" : ""}`}
               type="button"
               onClick={async () => {
-                setSoundMenuOpen(!soundMenuOpen);
+                if (!soundMenuOpen) positionSoundMenu();
+                setSoundMenuOpen((open) => !open);
                 await cncAudio.init();
               }}
+              aria-label={lang === "EN" ? "Sound settings" : "Thiết lập âm thanh"}
+              aria-expanded={soundMenuOpen}
+              aria-controls="sound-settings-popover"
             >
               <Icon name={(machineSound || finishSound) ? "volume" : "volume-x"} size={20} />
             </button>
-            {soundMenuOpen && (
-              <div className="sound-settings-popover">
-                <label>
-                  <input type="checkbox" checked={machineSound} onChange={async (e) => { 
-                    setMachineSound(e.target.checked);
-                    if (e.target.checked) await cncAudio.init();
-                    else cncAudio.stopAll();
-                  }} />
-                  Âm thanh máy
-                </label>
-                <label>
-                  <input type="checkbox" checked={finishSound} onChange={async (e) => { 
-                    setFinishSound(e.target.checked);
-                    if (e.target.checked) await cncAudio.init();
-                  }} />
-                  Âm kết thúc
-                </label>
-              </div>
-            )}
           </div>
           <button
             className="secondary-control"
             type="button"
             onClick={resetPlayback}
+            aria-label={t.reset}
+            title={`${t.reset} · F8`}
           >
             <Icon name="reset" size={20} />
           </button>
@@ -1796,7 +2361,7 @@ export default function Home() {
         </div>
         
         <div className="view-switch" aria-label="Góc nhìn mô phỏng">
-          {(["xoy", "solid", "machine"] as ViewMode[]).map((viewMode, index) => (
+          {availableViewModes.map((viewMode, index) => (
             <button
               type="button"
               className={view === viewMode ? "is-active" : ""}
@@ -1811,6 +2376,9 @@ export default function Home() {
                 <Icon name="panel" size={16} />
               )}
               <span>{getViewMeta(viewMode, t).short}</span>
+              {viewMode === "machine" && (
+                <em className="view-switch__beta">{t.experimentalBadge}</em>
+              )}
               <kbd>{index + 1}</kbd>
             </button>
           ))}
@@ -1829,18 +2397,18 @@ export default function Home() {
             <option value={20}>20×</option>
           </select>
         </label>
-        <label className="speed-control" style={{ marginLeft: 6 }}>
-          <span>Cấu hình</span>
+        <label className="speed-control quality-control">
+          <span>{t.configLabel}</span>
           <select
             value={quality}
             onChange={(event) =>
-              setQuality(event.target.value as "low" | "medium" | "high")
+              setQuality(event.target.value as SimulationQuality)
             }
             title="Chế độ hiệu năng mô phỏng cho máy Yếu / Trung bình / Cao"
           >
-            <option value="low">⚡ Máy Yếu</option>
-            <option value="medium">⚖️ Trung bình</option>
-            <option value="high">💎 Máy Cao</option>
+            <option value="low">{t.perfLow}</option>
+            <option value="medium">{t.perfMedium}</option>
+            <option value="high">{t.perfHigh}</option>
           </select>
         </label>
         
@@ -1879,7 +2447,7 @@ export default function Home() {
           <ToolbarButton
             icon="settings"
             label="Thiết lập phôi và máy"
-            onClick={() => setSettingsOpen(true)}
+            onClick={openSettings}
           />
         </div>
       </section>
@@ -1887,7 +2455,7 @@ export default function Home() {
 
 
       <section
-        className={`workspace${codeCollapsed ? " is-code-collapsed" : ""}`}
+        className={`workspace${codeCollapsed ? " is-code-collapsed" : ""} is-mobile-${mobilePanel}`}
       >
         <aside className="code-panel">
           <div className="panel-titlebar">
@@ -1901,7 +2469,10 @@ export default function Home() {
               </span>
               <button
                 type="button"
-                onClick={() => setCodeCollapsed(true)}
+                onClick={() => {
+                  setCodeCollapsed(true);
+                  setMobilePanel("simulation");
+                }}
                 aria-label="Thu gọn bảng G-code"
                 title="Thu gọn bảng G-code"
               >
@@ -1936,14 +2507,54 @@ export default function Home() {
               </button>
             </div>
           </div>
-          <div className="code-lines" ref={codeScrollRef}>
+          <div
+            className="code-lines"
+            ref={codeScrollRef}
+            role="listbox"
+            aria-label={lang === "EN" ? "G-code program lines" : "Các dòng chương trình G-code"}
+          >
             {simulation.lines.map((line, index) => (
               <button
                 type="button"
+                role="option"
+                aria-selected={index === currentLine}
+                aria-current={index === currentLine ? "true" : undefined}
+                tabIndex={index === focusedCodeLine ? 0 : -1}
                 className={`code-line${index === currentLine ? " is-active" : ""}`}
                 data-code-line={index}
                 key={`${index}-${line}`}
+                onFocus={() => setFocusedCodeLine(index)}
                 onClick={() => seekToLine(index)}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "ArrowUp" &&
+                    event.key !== "ArrowDown" &&
+                    event.key !== "Home" &&
+                    event.key !== "End"
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  const nextIndex =
+                    event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? simulation.lines.length - 1
+                        : Math.max(
+                            0,
+                            Math.min(
+                              simulation.lines.length - 1,
+                              index + (event.key === "ArrowDown" ? 1 : -1),
+                            ),
+                          );
+                  setFocusedCodeLine(nextIndex);
+                  seekToLine(nextIndex, false);
+                  window.requestAnimationFrame(() =>
+                    document
+                      .querySelector<HTMLElement>(`[data-code-line="${nextIndex}"]`)
+                      ?.focus(),
+                  );
+                }}
               >
                 <span className="line-marker">
                   {index === currentLine ? "▶" : ""}
@@ -1973,7 +2584,10 @@ export default function Home() {
               {codeCollapsed ? (
                 <button
                   type="button"
-                  onClick={() => setCodeCollapsed(false)}
+                  onClick={() => {
+                    setCodeCollapsed(false);
+                    setMobilePanel("code");
+                  }}
                   className="show-code-button"
                   aria-label="Hiện bảng G-code"
                   title="Hiện bảng G-code"
@@ -2081,7 +2695,7 @@ export default function Home() {
           icon="sheet"
           label="Phôi"
           detail={`Dày ${stock.thickness.toFixed(1)} mm · Gốc X${stock.originX} Y${stock.originY}`}
-          onClick={() => setSettingsOpen(true)}
+          onClick={openSettings}
         >
           {stock.width.toFixed(0)} × {stock.height.toFixed(0)}
           <small> mm</small>
@@ -2197,6 +2811,46 @@ export default function Home() {
         </span>
       </footer>
 
+      <nav
+        className="mobile-navigation"
+        aria-label={lang === "EN" ? "Mobile workspace" : "Điều hướng không gian làm việc"}
+      >
+        <button
+          type="button"
+          className={mobilePanel === "simulation" ? "is-active" : ""}
+          aria-current={mobilePanel === "simulation" ? "page" : undefined}
+          onClick={() => setMobilePanel("simulation")}
+        >
+          <Icon name="cube" size={19} />
+          <span>{t.mobileSimulation}</span>
+        </button>
+        <button
+          type="button"
+          className={mobilePanel === "code" ? "is-active" : ""}
+          aria-current={mobilePanel === "code" ? "page" : undefined}
+          onClick={() => {
+            setCodeCollapsed(false);
+            setMobilePanel("code");
+          }}
+        >
+          <Icon name="panel" size={19} />
+          <span>{t.mobileCode}</span>
+        </button>
+        <button
+          type="button"
+          className={drawer ? "is-active" : ""}
+          aria-expanded={Boolean(drawer)}
+          onClick={() => setDrawer(drawer ? null : "diagnostics")}
+        >
+          <Icon name="warning" size={19} />
+          <span>{t.mobileAnalysis}</span>
+        </button>
+        <button type="button" onClick={openSettings}>
+          <Icon name="settings" size={19} />
+          <span>{t.mobileSettings}</span>
+        </button>
+      </nav>
+
       {drawer && (
         <>
           <button
@@ -2205,11 +2859,18 @@ export default function Home() {
             aria-label={lang === "EN" ? "Close analysis drawer" : "Đóng bảng phân tích"}
             onClick={() => setDrawer(null)}
           />
-          <aside className="analysis-drawer" aria-label={lang === "EN" ? "Analysis results" : "Kết quả phân tích"}>
+          <aside
+            ref={drawerRef}
+            className="analysis-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="analysis-drawer-title"
+            tabIndex={-1}
+          >
             <div className="drawer-header">
               <div>
                 <small>{t.analysisTitle}</small>
-                <h2>
+                <h2 id="analysis-drawer-title">
                   {drawer === "diagnostics"
                     ? t.tabErrors
                     : drawer === "parts"
@@ -2225,9 +2886,50 @@ export default function Home() {
                 <Icon name="close" />
               </button>
             </div>
-            <div className="drawer-tabs">
+            <div
+              className="drawer-tabs"
+              role="tablist"
+              aria-label={t.analysisTitle}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== "ArrowLeft" &&
+                  event.key !== "ArrowRight" &&
+                  event.key !== "Home" &&
+                  event.key !== "End"
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                const tabs = [
+                  "diagnostics",
+                  "parts",
+                  "offcuts",
+                  "resume",
+                  "export",
+                ] as const;
+                const currentIndex = tabs.indexOf(drawer);
+                const nextIndex =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? tabs.length - 1
+                      : event.key === "ArrowRight"
+                        ? (currentIndex + 1) % tabs.length
+                        : (currentIndex - 1 + tabs.length) % tabs.length;
+                const nextTab = tabs[nextIndex];
+                setDrawer(nextTab);
+                window.requestAnimationFrame(() =>
+                  document.getElementById(`drawer-tab-${nextTab}`)?.focus(),
+                );
+              }}
+            >
               <button
                 type="button"
+                id="drawer-tab-diagnostics"
+                role="tab"
+                aria-controls="analysis-drawer-panel"
+                aria-selected={drawer === "diagnostics"}
+                tabIndex={drawer === "diagnostics" ? 0 : -1}
                 className={drawer === "diagnostics" ? "is-active" : ""}
                 onClick={() => setDrawer("diagnostics")}
               >
@@ -2235,6 +2937,11 @@ export default function Home() {
               </button>
               <button
                 type="button"
+                id="drawer-tab-parts"
+                role="tab"
+                aria-controls="analysis-drawer-panel"
+                aria-selected={drawer === "parts"}
+                tabIndex={drawer === "parts" ? 0 : -1}
                 className={drawer === "parts" ? "is-active" : ""}
                 onClick={() => setDrawer("parts")}
               >
@@ -2242,6 +2949,11 @@ export default function Home() {
               </button>
               <button
                 type="button"
+                id="drawer-tab-offcuts"
+                role="tab"
+                aria-controls="analysis-drawer-panel"
+                aria-selected={drawer === "offcuts"}
+                tabIndex={drawer === "offcuts" ? 0 : -1}
                 className={drawer === "offcuts" ? "is-active" : ""}
                 onClick={() => setDrawer("offcuts")}
               >
@@ -2249,6 +2961,11 @@ export default function Home() {
               </button>
               <button
                 type="button"
+                id="drawer-tab-resume"
+                role="tab"
+                aria-controls="analysis-drawer-panel"
+                aria-selected={drawer === "resume"}
+                tabIndex={drawer === "resume" ? 0 : -1}
                 className={drawer === "resume" ? "is-active" : ""}
                 onClick={() => setDrawer("resume")}
               >
@@ -2256,13 +2973,24 @@ export default function Home() {
               </button>
               <button
                 type="button"
+                id="drawer-tab-export"
+                role="tab"
+                aria-controls="analysis-drawer-panel"
+                aria-selected={drawer === "export"}
+                tabIndex={drawer === "export" ? 0 : -1}
                 className={drawer === "export" ? "is-active" : ""}
                 onClick={() => setDrawer("export")}
               >
                 {lang === "EN" ? "CAM Export" : "Xuất CAM"}
               </button>
             </div>
-            <div className="drawer-content">
+            <div
+              className="drawer-content"
+              id="analysis-drawer-panel"
+              role="tabpanel"
+              aria-labelledby={`drawer-tab-${drawer}`}
+              tabIndex={0}
+            >
               {drawer === "diagnostics" ? (
                 simulation.diagnostics.length ? (
                   <div className="diagnostic-list">
@@ -2391,10 +3119,17 @@ export default function Home() {
                     type="button"
                     className="accent-button"
                     style={{ alignSelf: "flex-start", padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-                    onClick={() => {
-                      navigator.clipboard.writeText(generateSmartResume(simulation, resumeSegment, resumeSafeZ, lang));
-                      alert(lang === "EN" ? "Recovery G-code copied to clipboard!" : "Đã sao chép đoạn G-code phục hồi vào Clipboard!");
-                    }}
+                    onClick={() =>
+                      void copyText(
+                        generateSmartResume(
+                          simulation,
+                          resumeSegment,
+                          resumeSafeZ,
+                          lang,
+                        ),
+                        t.copiedRecoveryAlert,
+                      )
+                    }
                   >
                     <Icon name="copy" size={16} /> {lang === "EN" ? "Copy Recovery G-code" : "Sao chép G-code phục hồi"}
                   </button>
@@ -2449,10 +3184,12 @@ export default function Home() {
                       type="button"
                       className="ghost-button"
                       style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}
-                      onClick={() => {
-                        navigator.clipboard.writeText(exportCAM(simulation, exportType, projectName, lang));
-                        alert(lang === "EN" ? "Exported G-code copied to clipboard!" : "Đã sao chép G-code đã xuất vào Clipboard!");
-                      }}
+                      onClick={() =>
+                        void copyText(
+                          exportCAM(simulation, exportType, projectName, lang),
+                          t.copiedAlert,
+                        )
+                      }
                     >
                       <Icon name="copy" size={16} /> {t.copyBtn}
                     </button>
@@ -2534,18 +3271,17 @@ export default function Home() {
       )}
 
       {settingsOpen && (
-        <div className="modal-layer" role="presentation">
-          <button
-            className="modal-backdrop"
-            type="button"
-            aria-label={lang === "EN" ? "Close settings" : "Đóng thiết lập"}
-            onClick={() => setSettingsOpen(false)}
-          />
-          <section className="settings-modal" role="dialog" aria-modal="true">
+        <ResponsiveDialog
+          className="settings-modal"
+          size="large"
+          height="tall"
+          titleId="settings-dialog-title"
+          onClose={() => setSettingsOpen(false)}
+        >
             <div className="modal-header">
               <div>
                 <small>{t.machineProfile}</small>
-                <h2>{t.stockToolTitle}</h2>
+                <h2 id="settings-dialog-title">{t.stockToolTitle}</h2>
               </div>
               <button
                 type="button"
@@ -2556,6 +3292,93 @@ export default function Home() {
               </button>
             </div>
             <div className="modal-body">
+              <section
+                className="simulation-preferences"
+                aria-labelledby="simulation-preferences-title"
+              >
+                <div className="simulation-preferences__heading">
+                  <Icon name="settings" size={18} />
+                  <div>
+                    <strong id="simulation-preferences-title">
+                      {t.preferenceTitle}
+                    </strong>
+                    <small>{t.preferenceDescription}</small>
+                  </div>
+                </div>
+                <div className="simulation-preferences__grid">
+                  <label>
+                    <span>{t.profileLabel}</span>
+                    <select
+                      value={settingsDraft.profile}
+                      onChange={(event) =>
+                        setSettingsDraft((current) => ({
+                          ...current,
+                          profile: event.target.value as MachineProfile,
+                        }))
+                      }
+                    >
+                      <option value="router-custom">{t.routerCustom}</option>
+                      <option value="iso">{t.isoBasic}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t.speedControl}</span>
+                    <select
+                      value={settingsDraft.speed}
+                      onChange={(event) =>
+                        setSettingsDraft((current) => ({
+                          ...current,
+                          speed: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      {[0.5, 1, 2, 5, 10, 20].map((option) => (
+                        <option value={option} key={option}>
+                          {option}×
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t.configLabel}</span>
+                    <select
+                      value={settingsDraft.quality}
+                      onChange={(event) =>
+                        setSettingsDraft((current) => ({
+                          ...current,
+                          quality: event.target.value as SimulationQuality,
+                        }))
+                      }
+                    >
+                      <option value="low">{t.perfLow}</option>
+                      <option value="medium">{t.perfMedium}</option>
+                      <option value="high">{t.perfHigh}</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="simulation-preferences__toggles">
+                  {([
+                    ["showRapids", t.showRapidPreference],
+                    ["machineSound", t.machineSoundLabel],
+                    ["finishSound", t.finishSoundLabel],
+                  ] as const).map(([key, label]) => (
+                    <label className="settings-option" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={settingsDraft[key]}
+                        onChange={(event) =>
+                          setSettingsDraft((current) => ({
+                            ...current,
+                            [key]: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </section>
+
               <div className="settings-grid">
                 {([
                   ["width", t.lblWidth, "mm"],
@@ -2574,9 +3397,25 @@ export default function Home() {
                     <input
                       type="number"
                       step="0.1"
-                      value={stock[key]}
+                      value={settingsDraft.stock[key]}
+                      min={
+                        key === "clearance"
+                          ? 0
+                          : key === "width" ||
+                              key === "height" ||
+                              key === "thickness" ||
+                              key === "toolDiameter" ||
+                              key === "rapidFeed"
+                            ? 0.001
+                            : undefined
+                      }
+                      max={key === "rapidFeed" ? 1000000 : 100000}
+                      aria-invalid={isInvalidStockField(
+                        key,
+                        settingsDraft.stock[key],
+                      )}
                       onChange={(event) =>
-                        setStock((current) => ({
+                        updateDraftStock((current) => ({
                           ...current,
                           [key]: Number(event.target.value) || 0,
                         }))
@@ -2586,46 +3425,105 @@ export default function Home() {
                     </div>
                   </label>
                 ))}
+                <label>
+                  <span>{lang === "EN" ? "Stock Z reference" : "Mốc Z của phôi"}</span>
+                  <div>
+                    <select
+                      value={settingsDraft.stock.zZero ?? "auto"}
+                      onChange={(event) =>
+                        updateDraftStock((current) => ({
+                          ...current,
+                          zZero: event.target.value as NonNullable<
+                            StockSettings["zZero"]
+                          >,
+                        }))
+                      }
+                    >
+                      <option value="auto">
+                        {lang === "EN" ? "Auto detect" : "Tự nhận diện"}
+                      </option>
+                      <option value="top">
+                        {lang === "EN" ? "Top face = Z0" : "Mặt trên = Z0"}
+                      </option>
+                      <option value="bottom">
+                        {lang === "EN" ? "Bottom face = Z0" : "Đáy phôi = Z0"}
+                      </option>
+                    </select>
+                    <small>Z0</small>
+                  </div>
+                </label>
               </div>
 
-              <div className="quick-origin-widget" style={{ padding: "0 20px 10px" }}>
-                <span style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "8px" }}>
+              <section
+                className="experimental-settings"
+                aria-labelledby="experimental-settings-title"
+              >
+                <div className="experimental-settings__header">
+                  <span className="experimental-settings__icon" aria-hidden="true">
+                    <Icon name="cube" size={18} />
+                  </span>
+                  <div>
+                    <strong id="experimental-settings-title">
+                      {t.experimentalTitle}
+                    </strong>
+                    <p id="machine3d-experimental-description">
+                      {t.machine3DDesc}
+                    </p>
+                  </div>
+                  <span className="experimental-settings__badge">
+                    {t.experimentalBadge}
+                  </span>
+                </div>
+                <label className="experimental-toggle">
+                  <span>
+                    <strong>{t.machine3DTitle}</strong>
+                    <small>
+                      {machineViewEnabled
+                        ? t.machine3DEnabled
+                        : t.machine3DDisabled}
+                    </small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={machineViewEnabled}
+                    onChange={(event) => toggleMachineView(event.target.checked)}
+                    aria-label={t.machine3DTitle}
+                    aria-describedby="machine3d-experimental-description"
+                  />
+                  <i className="experimental-toggle__switch" aria-hidden="true" />
+                </label>
+              </section>
+
+              <div className="quick-origin-widget">
+                <span className="quick-origin-title">
                   {t.quickOrigin}
                 </span>
-                <div style={{ display: "flex", gap: "10px" }}>
+                <div className="quick-origin-grid">
                   {[
-                    { id: "tl", x: 0, y: -stock.height, title: "Top-Left" },
-                    { id: "tc", x: -stock.width / 2, y: -stock.height, title: "Top-Center" },
-                    { id: "tr", x: -stock.width, y: -stock.height, title: "Top-Right" },
-                    { id: "c", x: -stock.width / 2, y: -stock.height / 2, title: "Center" },
+                    { id: "tl", x: 0, y: -settingsDraft.stock.height, title: "Top-Left" },
+                    { id: "tc", x: -settingsDraft.stock.width / 2, y: -settingsDraft.stock.height, title: "Top-Center" },
+                    { id: "tr", x: -settingsDraft.stock.width, y: -settingsDraft.stock.height, title: "Top-Right" },
+                    { id: "c", x: -settingsDraft.stock.width / 2, y: -settingsDraft.stock.height / 2, title: "Center" },
                     { id: "bl", x: 0, y: 0, title: "Bottom-Left" },
-                    { id: "bc", x: -stock.width / 2, y: 0, title: "Bottom-Center" },
-                    { id: "br", x: -stock.width, y: 0, title: "Bottom-Right" },
+                    { id: "bc", x: -settingsDraft.stock.width / 2, y: 0, title: "Bottom-Center" },
+                    { id: "br", x: -settingsDraft.stock.width, y: 0, title: "Bottom-Right" },
                   ].map((preset) => {
-                    const isActive = stock.originX === preset.x && stock.originY === preset.y;
+                    const isActive = settingsDraft.stock.originX === preset.x && settingsDraft.stock.originY === preset.y;
                     return (
                       <button
                         key={preset.id}
+                        className={isActive ? "is-active" : ""}
                         type="button"
                         title={preset.title}
-                        onClick={() => setStock({ ...stock, originX: preset.x, originY: preset.y })}
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          padding: 0,
-                          background: "transparent",
-                          border: "none",
-                          cursor: "pointer",
-                          color: isActive ? "var(--cyan)" : "var(--muted)",
-                          transition: "color 0.2s",
-                          flexShrink: 0
-                        }}
-                        onMouseOver={(e) => {
-                          if (!isActive) e.currentTarget.style.color = "#888";
-                        }}
-                        onMouseOut={(e) => {
-                          if (!isActive) e.currentTarget.style.color = "var(--muted)";
-                        }}
+                        aria-pressed={isActive}
+                        onClick={() =>
+                          updateDraftStock((current) => ({
+                            ...current,
+                            originX: preset.x,
+                            originY: preset.y,
+                          }))
+                        }
                       >
                         <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
                           <rect x="15" y="15" width="70" height="70" fill="none" stroke="currentColor" strokeWidth="6" />
@@ -2646,7 +3544,7 @@ export default function Home() {
               <div className="tool-library">
                 <h3>{t.toolLibrary}</h3>
                 <div className="tool-list">
-                  {(stock.tools || []).map((tool, index) => (
+                  {(settingsDraft.stock.tools || []).map((tool, index) => (
                     <div key={index} className="tool-item">
                       <label style={{ flex: 1 }}>
                         <span>{t.toolId}</span>
@@ -2655,9 +3553,9 @@ export default function Home() {
                             type="text"
                             value={tool.id}
                             onChange={(e) => {
-                              const newTools = [...(stock.tools || [])];
+                              const newTools = [...(settingsDraft.stock.tools || [])];
                               newTools[index] = { ...tool, id: e.target.value };
-                              setStock({ ...stock, tools: newTools });
+                              updateDraftStock((current) => ({ ...current, tools: newTools }));
                             }}
                           />
                         </div>
@@ -2668,9 +3566,9 @@ export default function Home() {
                           <select
                             value={tool.type}
                             onChange={(e) => {
-                              const newTools = [...(stock.tools || [])];
+                              const newTools = [...(settingsDraft.stock.tools || [])];
                               newTools[index] = { ...tool, type: e.target.value as "flat" | "ball" | "vbit" };
-                              setStock({ ...stock, tools: newTools });
+                              updateDraftStock((current) => ({ ...current, tools: newTools }));
                             }}
                           >
                             <option value="flat">{t.typeFlat}</option>
@@ -2687,9 +3585,9 @@ export default function Home() {
                             step="0.1"
                             value={tool.diameter}
                             onChange={(e) => {
-                              const newTools = [...(stock.tools || [])];
+                              const newTools = [...(settingsDraft.stock.tools || [])];
                               newTools[index] = { ...tool, diameter: Number(e.target.value) || 0 };
-                              setStock({ ...stock, tools: newTools });
+                              updateDraftStock((current) => ({ ...current, tools: newTools }));
                             }}
                           />
                           <small>mm</small>
@@ -2704,9 +3602,9 @@ export default function Home() {
                               step="1"
                               value={tool.angle || 90}
                               onChange={(e) => {
-                                const newTools = [...(stock.tools || [])];
+                                const newTools = [...(settingsDraft.stock.tools || [])];
                                 newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
-                                setStock({ ...stock, tools: newTools });
+                                updateDraftStock((current) => ({ ...current, tools: newTools }));
                               }}
                             />
                             <small>°</small>
@@ -2718,9 +3616,9 @@ export default function Home() {
                         className="btn-delete-tool"
                         title={t.deleteTool}
                         onClick={() => {
-                          const newTools = [...(stock.tools || [])];
+                          const newTools = [...(settingsDraft.stock.tools || [])];
                           newTools.splice(index, 1);
-                          setStock({ ...stock, tools: newTools });
+                          updateDraftStock((current) => ({ ...current, tools: newTools }));
                         }}
                       >
                         <Icon name="close" size={16} />
@@ -2728,15 +3626,22 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+                <div className="tool-library-actions">
                   <button
                     type="button"
                     className="ghost-button add-tool-button"
                     onClick={() => {
-                      setStock({
-                        ...stock,
-                        tools: [...(stock.tools || []), { id: `${(stock.tools?.length || 0) + 1}`, diameter: 6, type: "flat" }]
-                      });
+                      updateDraftStock((current) => ({
+                        ...current,
+                        tools: [
+                          ...(current.tools || []),
+                          {
+                            id: `${(current.tools?.length || 0) + 1}`,
+                            diameter: 6,
+                            type: "flat",
+                          },
+                        ],
+                      }));
                     }}
                     style={{ width: "100%", borderStyle: "dashed" }}
                   >
@@ -2753,7 +3658,7 @@ export default function Home() {
                         if (seg.tool) detected.add(String(seg.tool));
                       });
                       
-                      const newTools = [...(stock.tools || [])];
+                      const newTools = [...(settingsDraft.stock.tools || [])];
                       let addedCount = 0;
                       
                       detected.forEach(tId => {
@@ -2764,9 +3669,9 @@ export default function Home() {
                       });
                       
                       if (addedCount > 0) {
-                        setStock({ ...stock, tools: newTools });
+                        updateDraftStock((current) => ({ ...current, tools: newTools }));
                       } else if (detected.size === 0) {
-                        alert("Không tìm thấy thông tin dao (T) nào trong mã G-code hiện tại.");
+                        notify(t.noToolsDetectedMsg);
                       }
                     }}
                     style={{ width: "100%", borderStyle: "dashed", borderColor: "rgba(38, 217, 232, 0.4)", color: "var(--cyan)" }}
@@ -2787,39 +3692,33 @@ export default function Home() {
               <button
                 type="button"
                 className="ghost-button"
-                onClick={() => setStock(DEFAULT_STOCK)}
+                onClick={() => setSettingsDraft(createDefaultWorkspacePreferences())}
               >
                 {t.restoreDefault}
               </button>
               <button
                 type="button"
                 className="accent-button"
-                onClick={() => {
-                  setSettingsOpen(false);
-                  resetPlayback();
-                  notify(lang === "EN" ? "Recalculated program with new machine settings." : "Đã tính lại toàn bộ chương trình theo cấu hình mới.");
-                }}
+                onClick={applySettings}
               >
                 {t.applyRecalc}
               </button>
             </div>
-          </section>
-        </div>
+        </ResponsiveDialog>
       )}
 
       {editorOpen && (
-        <div className="modal-layer" role="presentation">
-          <button
-            className="modal-backdrop"
-            type="button"
-            aria-label={lang === "EN" ? "Close code editor" : "Đóng trình sửa code"}
-            onClick={() => setEditorOpen(false)}
-          />
-          <section className="code-editor-modal" role="dialog" aria-modal="true">
+        <ResponsiveDialog
+          className="code-editor-modal"
+          size="large"
+          height="tall"
+          titleId="code-editor-dialog-title"
+          onClose={() => setEditorOpen(false)}
+        >
             <div className="modal-header">
               <div>
                 <small>{t.editorTitle}</small>
-                <h2>{fileName}</h2>
+                <h2 id="code-editor-dialog-title">{fileName}</h2>
               </div>
               <button
                 type="button"
@@ -2863,8 +3762,7 @@ export default function Home() {
                 {t.parseSimulate}
               </button>
             </div>
-          </section>
-        </div>
+        </ResponsiveDialog>
       )}
 
       {isGuideOpen && <UserGuideModal t={t} onClose={() => setIsGuideOpen(false)} />}
@@ -2895,6 +3793,43 @@ export default function Home() {
         />
       )}
 
+      {soundMenuOpen &&
+        createPortal(
+          <div
+            ref={soundPopoverRef}
+            className="sound-settings-popover is-viewport"
+            id="sound-settings-popover"
+            role="group"
+            aria-label={lang === "EN" ? "Sound settings" : "Thiết lập âm thanh"}
+            style={{ left: soundMenuPosition.left, top: soundMenuPosition.top }}
+          >
+            <label>
+              <input
+                type="checkbox"
+                checked={machineSound}
+                onChange={async (event) => {
+                  setMachineSound(event.target.checked);
+                  if (event.target.checked) await cncAudio.init();
+                  else cncAudio.stopAll();
+                }}
+              />
+              {t.machineSoundLabel}
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={finishSound}
+                onChange={async (event) => {
+                  setFinishSound(event.target.checked);
+                  if (event.target.checked) await cncAudio.init();
+                }}
+              />
+              {t.finishSoundLabel}
+            </label>
+          </div>,
+          document.body,
+        )}
+
       {dragActive && (
         <div className="drop-overlay">
           <Icon name="upload" size={44} />
@@ -2903,8 +3838,11 @@ export default function Home() {
         </div>
       )}
 
-      {toast && <div className="toast">{toast}</div>}
-      {isGuideOpen && <UserGuideModal t={t} onClose={() => setIsGuideOpen(false)} />}
+      {toast && (
+        <div className="toast" role="status" aria-live="polite">
+          {toast}
+        </div>
+      )}
     </main>
   );
 }
