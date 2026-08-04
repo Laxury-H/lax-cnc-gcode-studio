@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, ContactShadows, Environment, Box, Cylinder, Cone, Sphere } from "@react-three/drei";
 import * as THREE from "three";
-import { Simulation, StockSettings, ToolProfile } from "../simulation/types";
+import { Simulation, StockSettings } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { StockMesh } from "./SolidSimulator";
 
@@ -250,7 +250,7 @@ export function MachineSimulator({
         <ContactShadows position={[stock.width / 2, stock.height / 2, -26]} opacity={0.6} scale={4000} blur={2} far={200} />
       )}
       
-      {quality === "high" && <Environment preset="city" opacity={0.2} />}
+      {quality === "high" && <Environment preset="city" environmentIntensity={0.2} />}
 
       <OrbitControls
         ref={controlsRef}

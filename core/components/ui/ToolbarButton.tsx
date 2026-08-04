@@ -16,6 +16,7 @@ export function ToolbarButton({
       className={`icon-button${active ? " is-active" : ""}`}
       onClick={onClick}
       aria-label={label}
+      aria-pressed={active === undefined ? undefined : active}
       title={label}
       type="button"
     >

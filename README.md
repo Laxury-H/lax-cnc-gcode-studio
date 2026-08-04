@@ -12,8 +12,9 @@ backplot lớn, theo dõi tọa độ dao và kiểm tra chương trình trướ
 - Import hoặc kéo thả `.nc`, `.txt`, `.tap`, `.gcode`, `.cnc`
 - Trình phân tích modal cho G-code ISO/Fanuc cơ bản và profile router tùy chỉnh
 - Mô phỏng chuyển động nhanh, cắt thẳng, cung tròn và chu trình khoan
-- Bốn góc nhìn: XOY, XOZ, YOZ và 3D Backplot
+- Ba góc nhìn: mặt phẳng phay 2D, mô phỏng bóc vật liệu 3D Solid và mô hình động học máy 3D
 - Camera 3D orbit, pan, zoom, orientation cube và đặt lại góc nhìn
+- Đo thông minh 3D với bắt góc/đầu mút/trung điểm/tâm và đo tự động kích thước phôi, chi tiết
 - Bật/tắt phôi, dao, khung bao, lưới và đường chạy nhanh
 - Playback theo block, step, scrub timeline và thay đổi tốc độ
 - Telemetry X/Y/Z, feed, spindle, thời gian, tiến độ và trạng thái chương trình
@@ -41,13 +42,15 @@ thay vì âm thầm bỏ qua.
 
 | Thao tác | Chức năng |
 | --- | --- |
-| `1` / `2` / `3` / `4` | Chuyển XOY / XOZ / YOZ / 3D |
+| `1` / `2` / `3` | Chuyển 2D / 3D Solid / 3D Machine |
 | Chuột trái + kéo | Pan ở 2D, orbit ở 3D |
 | `Shift` + kéo hoặc chuột phải + kéo | Pan camera 3D |
 | Con lăn | Zoom |
 | Nhấp đúp vùng vẽ | Vừa khung và đặt lại góc nhìn |
+| Nút thước | Mở Đo thông minh và tự chuyển sang 3D Solid |
+| Chọn hai điểm | Đo khoảng cách 3D, khoảng cách ngang và delta X/Y/Z có dấu |
 | `Space` | Play / Pause |
-| `Esc` | Thoát chế độ toàn màn hình |
+| `Esc` | Hoàn tác phép đo, đóng công cụ đo hoặc thoát toàn màn hình |
 
 ## Chạy cục bộ
 
@@ -62,9 +65,12 @@ Các lệnh kiểm tra:
 
 ```bash
 npm run lint
+npm run typecheck
 npm test
 npm run build
 ```
+
+Chạy toàn bộ cổng chất lượng bằng `npm run check`.
 
 ## Cấu trúc chính
 

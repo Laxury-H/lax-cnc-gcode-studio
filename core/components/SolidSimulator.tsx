@@ -1,8 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Text, Line, Html } from "@react-three/drei";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, ContactShadows, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
-import { Simulation, StockSettings, ToolProfile } from "../simulation/types";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import {
+  buildAutomaticMeasurements,
+  buildMeasurementSnapCandidates,
+  calculateMeasurement,
+  type MeasurementPreset,
+  type MeasurementResult,
+  type SnapCandidate,
+} from "../measurement/measurement-utils";
+import type { Segment, Simulation, StockSettings } from "../simulation/types";
+import {
+  MeasurementPanel,
+  SmartMeasurementOverlay,
+} from "./SmartMeasurementTool";
 
 interface SolidSimulatorProps {
   simulation: Simulation;
@@ -18,10 +31,15 @@ interface SolidSimulatorProps {
   resetTrigger?: number;
   onOrbitChange?: (orbit: { yaw: number; pitch: number }) => void;
   quality?: "low" | "medium" | "high";
-  isMeasuring?: boolean;
+  isMeasuring: boolean;
+  measurementSession: number;
+  onMeasurementClose: () => void;
 }
 
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+type StockMeshProps = Pick<
+  SolidSimulatorProps,
+  "simulation" | "stock" | "cursor" | "segmentProgress" | "quality"
+>;
 
 function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number}, t: number) {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
@@ -188,7 +206,7 @@ function getDepthColor(z: number, topZ: number, bottomZ: number) {
 const STOCK_COLOR = "#cd9a5b"; // Realistic plywood surface color
 const CUT_COLOR = "#e8c99b"; // Lighter exposed core color
 
-export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: SolidSimulatorProps) {
+export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: StockMeshProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
   
@@ -321,7 +339,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   }, [simulation, cursor, segmentProgress, stock, MAP_RES]);
 
   // Material Shader Injection
-  const onBeforeCompile = (shader: THREE.Shader) => {
+  const onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
     shader.uniforms.uStockColor = { value: new THREE.Color(STOCK_COLOR) };
     shader.uniforms.uCutColor = { value: new THREE.Color(CUT_COLOR) };
     
@@ -430,217 +448,156 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
   );
 }
 
-function MeasureToolOverlay({ isMeasuring, simulation }: { isMeasuring?: boolean, simulation: Simulation }) {
-  const [points, setPoints] = useState<THREE.Vector3[]>([]);
-  const hoverPointRef = useRef<THREE.Vector3 | null>(null);
-  const hoverPosTextRef = useRef<HTMLDivElement>(null);
-  const groupRef = useRef<THREE.Group>(null);
-  const cursorMeshRef = useRef<THREE.Mesh>(null);
-  const dynamicLineRef = useRef<any>(null); 
-  
-  useEffect(() => {
-    if (!isMeasuring) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPoints([]);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isMeasuring]);
-
-  const snapPoints = useMemo(() => {
-    const pts: THREE.Vector3[] = [];
-    simulation.segments.forEach(seg => {
-      if (seg.kind !== "rapid" && seg.kind !== "dwell") {
-        pts.push(new THREE.Vector3(seg.start.x, seg.start.y, seg.start.z));
-        pts.push(new THREE.Vector3(seg.end.x, seg.end.y, seg.end.z));
-      }
-    });
-    return pts;
-  }, [simulation]);
-
-  const { pointer, camera, raycaster } = useThree();
-  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), []);
-
-  useFrame(({ scene }) => {
-    if (!isMeasuring || !groupRef.current) return;
-    
-    raycaster.setFromCamera(pointer, camera);
-    const intersects = raycaster.intersectObject(groupRef.current, true);
-    
-    if (intersects.length > 0) {
-      const worldPoint = intersects[0].point;
-      let closest = null;
-      let closestDist = Infinity;
-      
-      snapPoints.forEach(p => {
-        const dist = p.distanceToSquared(worldPoint);
-        if (dist < closestDist && dist < 15 * 15) {
-          closestDist = dist;
-          closest = p;
-        }
-      });
-
-      if (closest) {
-        hoverPointRef.current = closest;
-        if (cursorMeshRef.current) {
-          cursorMeshRef.current.position.copy(closest);
-          cursorMeshRef.current.visible = true;
-        }
-        if (hoverPosTextRef.current) {
-          hoverPosTextRef.current.innerText = `X: ${closest.x.toFixed(3)} | Y: ${closest.y.toFixed(3)} | Z: ${closest.z.toFixed(3)}`;
-        }
-        if (dynamicLineRef.current && points.length === 1) {
-          dynamicLineRef.current.setPoints([points[0], closest]);
-          dynamicLineRef.current.visible = true;
-        }
-      } else {
-        hoverPointRef.current = worldPoint;
-        if (cursorMeshRef.current) {
-          cursorMeshRef.current.position.copy(worldPoint);
-          cursorMeshRef.current.visible = true;
-        }
-        if (hoverPosTextRef.current) {
-          hoverPosTextRef.current.innerText = `X: ${worldPoint.x.toFixed(3)} | Y: ${worldPoint.y.toFixed(3)} | Z: ${worldPoint.z.toFixed(3)}`;
-        }
-        if (dynamicLineRef.current && points.length === 1) {
-          dynamicLineRef.current.setPoints([points[0], worldPoint]);
-          dynamicLineRef.current.visible = true;
-        }
-      }
-    } else {
-      hoverPointRef.current = null;
-      if (cursorMeshRef.current) cursorMeshRef.current.visible = false;
-      if (dynamicLineRef.current) dynamicLineRef.current.visible = false;
-    }
-  });
-
-
-
-  if (!isMeasuring) return null;
-
-  return (
-    <group ref={groupRef}>
-      <mesh 
-        position={[0, 0, 0]}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          e.stopPropagation();
-          const currentHover = hoverPointRef.current;
-          if (currentHover) {
-            setPoints(prev => {
-              if (prev.length >= 2) return [currentHover];
-              return [...prev, currentHover];
-            });
-          } else {
-            setPoints([]); 
-          }
-        }}
-      >
-        <planeGeometry args={[10000, 10000]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
-      </mesh>
-
-      <mesh ref={cursorMeshRef} visible={false}>
-        <sphereGeometry args={[1.5, 16, 16]} />
-        <meshBasicMaterial color="#00ff00" depthTest={false} transparent opacity={0.8} />
-        {points.length < 2 && (
-          <Html center zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
-            <div ref={hoverPosTextRef} style={{
-              background: "rgba(0,0,0,0.8)",
-              color: "#fff",
-              padding: "4px 8px",
-              borderRadius: "4px",
-              fontSize: "11px",
-              fontFamily: "var(--mono)",
-              marginTop: "-30px",
-              whiteSpace: "nowrap",
-              pointerEvents: "none"
-            }}>
-              X: 0.000 | Y: 0.000 | Z: 0.000
-            </div>
-          </Html>
-        )}
-      </mesh>
-      
-      {points.map((p, i) => (
-        <mesh key={i} position={p}>
-          <sphereGeometry args={[1.5, 16, 16]} />
-          <meshBasicMaterial color="#ffff00" depthTest={false} transparent opacity={0.8} />
-        </mesh>
-      ))}
-
-      {/* Dynamic line when drawing */}
-      <Line 
-        ref={dynamicLineRef} 
-        points={[new THREE.Vector3(), new THREE.Vector3()]} 
-        color="#ffff00" 
-        lineWidth={2} 
-        depthTest={false} 
-        transparent 
-        visible={false} 
-      />
-
-      {points.length === 2 && (
-        <>
-          <Line points={[points[0], points[1]]} color="#00ff00" lineWidth={3} depthTest={false} transparent />
-          <Html position={points[0].clone().add(points[1]).multiplyScalar(0.5)} center zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
-            <div style={{
-              background: "rgba(10, 15, 20, 0.9)",
-              border: "1px solid var(--cyan)",
-              borderRadius: "6px",
-              padding: "8px 12px",
-              color: "#fff",
-              fontFamily: "var(--sans)",
-              fontSize: "12px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-              whiteSpace: "nowrap",
-              backdropFilter: "blur(4px)"
-            }}>
-              <div style={{ fontWeight: 600, color: "var(--cyan)", marginBottom: "4px", fontSize: "13px" }}>
-                Độ dài: {points[0].distanceTo(points[1]).toFixed(3)} mm
-              </div>
-              <div style={{ display: "flex", gap: "8px", fontSize: "11px", color: "#aaa", fontFamily: "var(--mono)" }}>
-                <span>ΔX: {Math.abs(points[1].x - points[0].x).toFixed(3)}</span>
-                <span>ΔY: {Math.abs(points[1].y - points[0].y).toFixed(3)}</span>
-                <span>ΔZ: {Math.abs(points[1].z - points[0].z).toFixed(3)}</span>
-              </div>
-            </div>
-          </Html>
-        </>
-      )}
-
-      {/* Hover Tooltip has been moved to cursorMeshRef */}
-
-      {/* Hint Text overlay */}
-      {isMeasuring && (
-        <Html position={[0, 0, 0]} center zIndexRange={[100, 0]} style={{ pointerEvents: 'none', position: 'absolute', bottom: '20px', left: '0' }}>
-           <div style={{
-              position: "fixed",
-              bottom: "40px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              background: "rgba(0, 0, 0, 0.7)",
-              color: "#ccc",
-              padding: "6px 16px",
-              borderRadius: "20px",
-              fontSize: "12px",
-              pointerEvents: "none",
-              whiteSpace: "nowrap"
-           }}>
-             {points.length === 0 ? "Click vào một điểm để bắt đầu đo" : points.length === 1 ? "Click điểm thứ 2 để kết thúc (Esc để hủy)" : "Click điểm bất kỳ để đo mới (Esc để hủy)"}
-           </div>
-        </Html>
-      )}
-    </group>
-  );
-}
-
 export function SolidSimulator(props: SolidSimulatorProps) {
+  const onMeasurementClose = props.onMeasurementClose;
   const isBottomZero = props.simulation.bounds.minZ >= -0.1;
   const topZ = isBottomZero ? props.stock.thickness : 0;
   const bottomZ = isBottomZero ? 0 : -props.stock.thickness;
   const centerZ = (topZ + bottomZ) / 2;
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const measurementSession = props.measurementSession;
+  const [measurementState, setMeasurementState] = useState<{
+    session: number;
+    simulation: Simulation;
+    stock: StockSettings;
+    start: SnapCandidate | null;
+    result: MeasurementResult | null;
+  }>(() => ({
+    session: measurementSession,
+    simulation: props.simulation,
+    stock: props.stock,
+    start: null,
+    result: null,
+  }));
+  const measurementStateIsCurrent =
+    measurementState.session === measurementSession &&
+    measurementState.simulation === props.simulation &&
+    measurementState.stock === props.stock;
+  const measurementStart = measurementStateIsCurrent
+    ? measurementState.start
+    : null;
+  const measurementResult = measurementStateIsCurrent
+    ? measurementState.result
+    : null;
+
+  const rawMeasurementCandidates = useMemo(
+    () => buildMeasurementSnapCandidates(props.simulation, props.stock, topZ),
+    [props.simulation, props.stock, topZ],
+  );
+  const measurementCandidates = useMemo(() => {
+    const visible = rawMeasurementCandidates.filter((candidate) => {
+      if (props.showToolpath === false && candidate.id.startsWith("segment:")) {
+        return false;
+      }
+      if (props.showStock === false && candidate.id.startsWith("stock:")) {
+        return false;
+      }
+      return true;
+    });
+    const maximumCandidates = 5_000;
+    if (visible.length <= maximumCandidates) return visible;
+
+    const structural = visible.filter(
+      (candidate) => candidate.kind === "corner" || candidate.kind === "center",
+    );
+    const pathCandidates = visible.filter(
+      (candidate) => candidate.kind !== "corner" && candidate.kind !== "center",
+    );
+    const remainingSlots = Math.max(0, maximumCandidates - structural.length);
+    if (remainingSlots === 0) return structural.slice(0, maximumCandidates);
+
+    const sampledPath = Array.from({ length: remainingSlots }, (_, index) =>
+      pathCandidates[Math.floor((index * pathCandidates.length) / remainingSlots)],
+    ).filter((candidate): candidate is SnapCandidate => Boolean(candidate));
+    return [...structural, ...sampledPath];
+  }, [props.showStock, props.showToolpath, rawMeasurementCandidates]);
+  const automaticMeasurements = useMemo(
+    () => buildAutomaticMeasurements(props.simulation, props.stock, topZ),
+    [props.simulation, props.stock, topZ],
+  );
+  const measurementMarkerSize = Math.max(
+    1.5,
+    Math.min(10, Math.max(props.stock.width, props.stock.height) / 280),
+  );
+
+  const resetMeasurement = useCallback(() => {
+    setMeasurementState({
+      session: measurementSession,
+      simulation: props.simulation,
+      stock: props.stock,
+      start: null,
+      result: null,
+    });
+  }, [measurementSession, props.simulation, props.stock]);
+
+  const selectMeasurementPoint = useCallback(
+    (candidate: SnapCandidate) => {
+      if (!measurementStart) {
+        setMeasurementState({
+          session: measurementSession,
+          simulation: props.simulation,
+          stock: props.stock,
+          start: candidate,
+          result: null,
+        });
+        return;
+      }
+
+      const result = calculateMeasurement(measurementStart.point, candidate.point, {
+        label: `${measurementStart.label} → ${candidate.label}`,
+        source: "manual",
+      });
+      if (result.distance < 0.0005) return;
+      setMeasurementState({
+        session: measurementSession,
+        simulation: props.simulation,
+        stock: props.stock,
+        start: null,
+        result,
+      });
+    },
+    [measurementSession, measurementStart, props.simulation, props.stock],
+  );
+
+  const selectAutomaticMeasurement = useCallback(
+    (preset: MeasurementPreset) => {
+      setMeasurementState({
+        session: measurementSession,
+        simulation: props.simulation,
+        stock: props.stock,
+        start: null,
+        result: preset,
+      });
+    },
+    [measurementSession, props.simulation, props.stock],
+  );
+
+  const undoMeasurement = useCallback(() => {
+    if (measurementResult) {
+      setMeasurementState({
+        session: measurementSession,
+        simulation: props.simulation,
+        stock: props.stock,
+        start: {
+          id: `restored:${measurementResult.id}`,
+          point: { ...measurementResult.start },
+          kind: "free",
+          label: "Điểm A đã chọn",
+          priority: 0,
+        },
+        result: null,
+      });
+      return;
+    }
+    resetMeasurement();
+  }, [
+    measurementResult,
+    measurementSession,
+    props.simulation,
+    props.stock,
+    resetMeasurement,
+  ]);
 
   useEffect(() => {
     if (controlsRef.current && props.resetTrigger) {
@@ -648,9 +605,31 @@ export function SolidSimulator(props: SolidSimulatorProps) {
     }
   }, [props.resetTrigger]);
 
+  useEffect(() => {
+    if (!props.isMeasuring) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (measurementStart || measurementResult) {
+        undoMeasurement();
+      } else {
+        onMeasurementClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape, true);
+    return () => window.removeEventListener("keydown", handleEscape, true);
+  }, [
+    measurementResult,
+    measurementStart,
+    props.isMeasuring,
+    onMeasurementClose,
+    undoMeasurement,
+  ]);
+
   return (
-    <div className="solid-simulator" style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}>
-      <Canvas shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
+    <div className={`solid-simulator${props.isMeasuring ? " is-measuring" : ""}`} style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}>
+      <Canvas aria-label="Mô phỏng phôi CNC 3D tương tác" role="application" shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
         <directionalLight 
@@ -699,10 +678,23 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               showToolpath={props.showToolpath ?? true}
               showBounds={props.showBounds ?? true} 
             />
-            <MeasureToolOverlay 
-              simulation={props.simulation} 
-              isMeasuring={props.isMeasuring}
-            />
+            {props.isMeasuring ? (
+              <SmartMeasurementOverlay
+                candidates={measurementCandidates}
+                planeZ={topZ}
+                planeBounds={{
+                  minX: props.stock.originX,
+                  minY: props.stock.originY,
+                  maxX: props.stock.originX + props.stock.width,
+                  maxY: props.stock.originY + props.stock.height,
+                }}
+                markerSize={measurementMarkerSize}
+                snapEnabled={snapEnabled}
+                start={measurementStart}
+                result={measurementResult}
+                onSelect={selectMeasurementPoint}
+              />
+            ) : null}
             <ToolMeshOverlay 
               simulation={props.simulation} 
               cursor={props.cursor} 
@@ -716,7 +708,6 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         <OrbitControls 
           ref={controlsRef} 
           makeDefault 
-          enableRotate={!props.isMeasuring}
           onChange={(e) => {
             if (props.onOrbitChange && e?.target) {
               const az = e.target.getAzimuthalAngle();
@@ -727,6 +718,20 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         />
         <ContactShadows resolution={1024} scale={Math.max(props.stock.width, props.stock.height) * 1.5} position={[0, -0.1, 0]} blur={2.5} opacity={0.6} />
       </Canvas>
+      {props.isMeasuring ? (
+        <MeasurementPanel
+          candidateCount={measurementCandidates.length}
+          start={measurementStart}
+          result={measurementResult}
+          presets={automaticMeasurements}
+          snapEnabled={snapEnabled}
+          onToggleSnap={() => setSnapEnabled((enabled) => !enabled)}
+          onNew={resetMeasurement}
+          onUndo={undoMeasurement}
+          onPreset={selectAutomaticMeasurement}
+          onClose={onMeasurementClose}
+        />
+      ) : null}
     </div>
   );
 }

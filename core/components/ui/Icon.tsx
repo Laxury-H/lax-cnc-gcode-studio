@@ -3,9 +3,11 @@ import { ReactNode } from "react";
 export function Icon({
   name,
   size = 20,
+  fallback,
 }: {
   name: string;
   size?: number;
+  fallback?: string;
 }) {
   const common = {
     width: size,
@@ -195,5 +197,5 @@ export function Icon({
     ),
   };
 
-  return <svg {...common}>{paths[name] ?? paths.info}</svg>;
+  return <svg {...common}>{paths[name] ?? (fallback ? <path d={fallback} /> : paths.info)}</svg>;
 }

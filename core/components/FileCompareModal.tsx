@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as Diff from "diff";
 import type { TranslationDict } from "../../app/i18n";
 import { Icon } from "./ui/Icon";
@@ -10,7 +10,7 @@ interface FileCompareModalProps {
   onApply: (code: string) => void;
 }
 
-export function FileCompareModal({ t, currentCode, onClose, onApply }: FileCompareModalProps) {
+export function FileCompareModal({ currentCode, onClose, onApply }: FileCompareModalProps) {
   const [originalCode, setOriginalCode] = useState("");
   const [modifiedCode, setModifiedCode] = useState(currentCode);
   

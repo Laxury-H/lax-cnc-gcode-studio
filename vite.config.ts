@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import vinext from "vinext";
 import { defineConfig } from "vite";
-import { sites } from "./build/sites-vite-plugin";
+import { sites } from "./build/sites-vite-plugin.ts";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
@@ -62,6 +62,11 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    build: {
+      // Three.js is isolated behind the lazy 3D views; its core module is a
+      // single on-demand chunk and cannot be split further by the bundler.
+      chunkSizeWarningLimit: 1100,
+    },
     server: {
       host: "0.0.0.0",
       allowedHosts: ["terminal.local"],

@@ -6,10 +6,12 @@ interface UserGuideModalProps {
   onClose: () => void;
 }
 
-export function UserGuideModal({ t, onClose }: UserGuideModalProps) {
-  const [activeTab, setActiveTab] = useState<"intro" | "setup" | "view" | "play" | "tools">("intro");
+type GuideTabId = "intro" | "setup" | "view" | "play" | "tools";
 
-  const tabs = [
+export function UserGuideModal({ t, onClose }: UserGuideModalProps) {
+  const [activeTab, setActiveTab] = useState<GuideTabId>("intro");
+
+  const tabs: Array<{ id: GuideTabId; label: string; icon: string }> = [
     { id: "intro", label: t.guideIntroMenu, icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
     { id: "setup", label: t.guideSetupMenu, icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
     { id: "view", label: t.guideViewMenu, icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" },
@@ -51,7 +53,7 @@ export function UserGuideModal({ t, onClose }: UserGuideModalProps) {
             {tabs.map(tab => (
               <button 
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px',
                   padding: '12px 24px',

@@ -14,7 +14,12 @@ export class CncAudio {
 
   public async init() {
     if (this.ctx) return;
-    this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextConstructor = window.AudioContext
+      ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      throw new Error("Web Audio API is not supported in this browser.");
+    }
+    this.ctx = new AudioContextConstructor();
     await this.ctx.resume();
     
     // Spindle graph

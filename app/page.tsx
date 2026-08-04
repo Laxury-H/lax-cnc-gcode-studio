@@ -2,8 +2,9 @@
 
 import {
   ChangeEvent,
+  lazy,
   PointerEvent as ReactPointerEvent,
-  ReactNode,
+  Suspense,
   WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
@@ -12,12 +13,6 @@ import {
   useState,
 } from "react";
 
-import {
-  cloneVec3 as cloneVec,
-  distance2D as distance2,
-  distance3D as distance3,
-  lerpVec3 as lerpVec,
-} from "@/core/geometry/line";
 import {
   DEFAULT_STOCK,
   exportCAM,
@@ -30,14 +25,11 @@ import type {
   Segment,
   Simulation,
   StockSettings,
-  ToolProfile,
   StudioMachineProfile as MachineProfile,
   Vec3,
 } from "@/core/simulation/types";
-import { Lang, translations, translateDiagnostic, type TranslationDict } from "./i18n";
+import { Lang, translations, type TranslationDict } from "./i18n";
 import { cncAudio } from "@/core/simulation/audio";
-import { SolidSimulator } from "@/core/components/SolidSimulator";
-import { MachineSimulator } from "@/core/components/MachineSimulator";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 import { FileCompareModal } from "@/core/components/FileCompareModal";
 import { MiniCamModal } from "@/core/components/MiniCamModal";
@@ -56,7 +48,16 @@ import {
   motionLabel 
 } from "@/core/utils/gcode-utils";
 
-const EPSILON = 0.001;
+const SolidSimulator = lazy(async () => {
+  const simulatorModule = await import("@/core/components/SolidSimulator");
+  return { default: simulatorModule.SolidSimulator };
+});
+
+const MachineSimulator = lazy(async () => {
+  const simulatorModule = await import("@/core/components/MachineSimulator");
+  return { default: simulatorModule.MachineSimulator };
+});
+
 const DEFAULT_ORBIT: OrbitCamera = {
   yaw: Math.PI / 4,
   pitch: Math.PI / 5.2,
@@ -170,6 +171,8 @@ function ToolpathCanvas({
   onResetView,
   resetTrigger,
   isMeasuring,
+  measurementSession,
+  onMeasurementClose,
 }: {
   simulation: Simulation;
   stock: StockSettings;
@@ -188,7 +191,9 @@ function ToolpathCanvas({
   onOrbit: (orbit: OrbitCamera) => void;
   onResetView: () => void;
   resetTrigger?: number;
-  isMeasuring?: boolean;
+  isMeasuring: boolean;
+  measurementSession: number;
+  onMeasurementClose: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -207,6 +212,10 @@ function ToolpathCanvas({
   const [showTool, setShowTool] = useState(true);
   const [showStock, setShowStock] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
+  const simulatorStock = useMemo(
+    () => ({ ...stock, toolDiameter: stock.toolDiameter || 6 }),
+    [stock],
+  );
 
   useEffect(() => {
     const element = frameRef.current;
@@ -268,12 +277,6 @@ function ToolpathCanvas({
     }> = [];
 
     if (view === "xoy") {
-      const zMin = Math.min(stockBottomZ, simulation.bounds.minZ);
-      const zMax = Math.max(
-        originZ,
-        stock.safeZ,
-        simulation.bounds.maxZ,
-      );
       const uMin = Math.min(originX, simulation.bounds.minX);
       const uMax = Math.max(originX + stock.width, simulation.bounds.maxX);
       const vMin = Math.min(originY, simulation.bounds.minY);
@@ -1072,7 +1075,7 @@ function ToolpathCanvas({
 
   return (
     <div
-      className={`canvas-frame${view === "iso" ? " is-3d" : ""}`}
+      className={`canvas-frame${view !== "xoy" ? " is-3d" : ""}`}
       ref={frameRef}
     >
       <div className="active-command-hud" aria-hidden="true">
@@ -1199,9 +1202,10 @@ function ToolpathCanvas({
         </>
       )}
       {view === "machine" ? (
+        <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng máy 3D…</div>}>
           <MachineSimulator 
             simulation={simulation} 
-            stock={{ ...stock, toolDiameter: stock.toolDiameter || 6 }} 
+            stock={simulatorStock}
             cursor={cursor} 
             segmentProgress={segmentProgress}
             showTool={showTool}
@@ -1210,22 +1214,27 @@ function ToolpathCanvas({
             onOrbitChange={onOrbit}
             quality={quality}
           />
+        </Suspense>
         ) : view === "solid" ? (
-        <SolidSimulator 
-          simulation={simulation} 
-          stock={{ ...stock, toolDiameter: stock.toolDiameter || 6 }} 
-          cursor={cursor} 
-          segmentProgress={segmentProgress}
-          showRapids={showRapids}
-          showBounds={showBounds}
-          showTool={showTool}
-          showStock={showStock}
-          showToolpath={showToolpath}
-          showGrid={showGrid}
-          resetTrigger={resetTrigger}
-          onOrbitChange={onOrbit}
-          isMeasuring={isMeasuring}
-        />
+        <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng phôi 3D…</div>}>
+          <SolidSimulator
+            simulation={simulation}
+            stock={simulatorStock}
+            cursor={cursor}
+            segmentProgress={segmentProgress}
+            showRapids={showRapids}
+            showBounds={showBounds}
+            showTool={showTool}
+            showStock={showStock}
+            showToolpath={showToolpath}
+            showGrid={showGrid}
+            resetTrigger={resetTrigger}
+            onOrbitChange={onOrbit}
+            isMeasuring={isMeasuring}
+            measurementSession={measurementSession}
+            onMeasurementClose={onMeasurementClose}
+          />
+        </Suspense>
       ) : (
         <canvas
           ref={canvasRef}
@@ -1256,9 +1265,10 @@ export default function Home() {
 
   useEffect(() => {
     const saved = localStorage.getItem("lax_cnc_lang");
-    if (saved === "EN" || saved === "VN") {
-      setLang(saved);
-    }
+    if (saved !== "EN" && saved !== "VN") return;
+
+    const frame = window.requestAnimationFrame(() => setLang(saved));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const toggleLanguage = useCallback((newLang: Lang) => {
@@ -1279,6 +1289,7 @@ export default function Home() {
   const [showRapids, setShowRapids] = useState(true);
   const [codeCollapsed, setCodeCollapsed] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
+  const [measurementSession, setMeasurementSession] = useState(0);
   const [simulatorExpanded, setSimulatorExpanded] = useState(false);
   const [drawer, setDrawer] = useState<
     "diagnostics" | "parts" | "offcuts" | "resume" | "export" | null
@@ -1353,8 +1364,21 @@ export default function Home() {
     setView(nextView);
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    if (nextView !== "solid") setIsMeasuring(false);
     if (nextView === "iso") setOrbit({ ...DEFAULT_ORBIT });
   }, []);
+
+  const toggleMeasurement = useCallback(() => {
+    if (isMeasuring) {
+      setIsMeasuring(false);
+      return;
+    }
+
+    changeView("solid");
+    setMeasurementSession((session) => session + 1);
+    setIsMeasuring(true);
+    notify("Đo thông minh đã bật · chọn 2 điểm hoặc dùng phép đo tự động.");
+  }, [changeView, isMeasuring, notify]);
 
   const applyCode = useCallback(
     (nextCode: string, nextFileName?: string) => {
@@ -1509,11 +1533,7 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.tagName === "SELECT"
-      ) {
+      if (target?.closest("input, textarea, select, button, a, [contenteditable='true']")) {
         return;
       }
       if (event.code === "Space" || event.code === "F5") {
@@ -1528,7 +1548,9 @@ export default function Home() {
       } else if (event.code === "Digit1") {
         changeView("xoy");
       } else if (event.code === "Digit2") {
-        changeView("iso");
+        changeView("solid");
+      } else if (event.code === "Digit3") {
+        changeView("machine");
       } else if (
         event.code === "Escape" &&
         simulatorExpanded &&
@@ -1624,7 +1646,7 @@ export default function Home() {
           </div>
           <div className="brand-copy">
             <span className="brand-title">
-              <span className="brand-accent">Lax's</span> CNC
+              <span className="brand-accent">{"Lax's"}</span> CNC
             </span>
           </div>
         </div>
@@ -1825,8 +1847,12 @@ export default function Home() {
         <div className="canvas-tools">
           <ToolbarButton
             icon="ruler"
-            label="Đo khoảng cách 3D (Bật/Tắt)"
-            onClick={() => setIsMeasuring(!isMeasuring)}
+            label={
+              isMeasuring
+                ? "Đóng công cụ đo thông minh"
+                : "Đo thông minh 3D · tự chuyển sang Solid"
+            }
+            onClick={toggleMeasurement}
             active={isMeasuring}
           />
           <ToolbarButton
@@ -2003,6 +2029,9 @@ export default function Home() {
             onOrbit={setOrbit}
             onResetView={onResetView}
             resetTrigger={resetTrigger}
+            isMeasuring={isMeasuring}
+            measurementSession={measurementSession}
+            onMeasurementClose={() => setIsMeasuring(false)}
           />
           <div className="scrubber">
             <span className="scrubber-clock">
@@ -2528,24 +2557,24 @@ export default function Home() {
             </div>
             <div className="modal-body">
               <div className="settings-grid">
-                {[
-                ["width", t.lblWidth, "mm"],
-                ["height", t.lblHeight, "mm"],
-                ["thickness", t.lblThickness, "mm"],
-                ["toolDiameter", t.lblToolDia, "mm"],
-                ["originX", t.lblOriginX, "mm"],
-                ["originY", t.lblOriginY, "mm"],
-                ["safeZ", t.lblSafeZ, "mm"],
-                ["clearance", t.lblClearance, "mm"],
-                ["rapidFeed", t.lblRapidFeed, "mm/min"],
-              ].map(([key, label, unit]) => (
+                {([
+                  ["width", t.lblWidth, "mm"],
+                  ["height", t.lblHeight, "mm"],
+                  ["thickness", t.lblThickness, "mm"],
+                  ["toolDiameter", t.lblToolDia, "mm"],
+                  ["originX", t.lblOriginX, "mm"],
+                  ["originY", t.lblOriginY, "mm"],
+                  ["safeZ", t.lblSafeZ, "mm"],
+                  ["clearance", t.lblClearance, "mm"],
+                  ["rapidFeed", t.lblRapidFeed, "mm/min"],
+                ] as const).map(([key, label, unit]) => (
                 <label key={key}>
                   <span>{label}</span>
                   <div>
                     <input
                       type="number"
                       step="0.1"
-                      value={stock[key as keyof StockSettings]}
+                      value={stock[key]}
                       onChange={(event) =>
                         setStock((current) => ({
                           ...current,

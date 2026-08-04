@@ -8,7 +8,7 @@ interface MiniCamModalProps {
   onGenerate: (gcode: string) => void;
 }
 
-export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
+export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
   const [activeTab, setActiveTab] = useState<"facing" | "pocket">("facing");
   const [toolDia, setToolDia] = useState(6);
   const [spindleSpeed, setSpindleSpeed] = useState(18000);
@@ -118,6 +118,10 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
               <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#94a3b8' }}>
                 Bước tiến (Feed - mm/min)
                 <input type="number" value={feedRate} onChange={e => setFeedRate(Number(e.target.value))} style={{ padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '4px' }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: '#94a3b8' }}>
+                Bước tiến xuống dao (Plunge - mm/min)
+                <input type="number" value={plungeRate} onChange={e => setPlungeRate(Number(e.target.value))} style={{ padding: '8px', background: '#1e293b', border: '1px solid #334155', color: '#fff', borderRadius: '4px' }} />
               </label>
             </div>
 

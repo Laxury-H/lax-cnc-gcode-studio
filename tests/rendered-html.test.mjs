@@ -40,10 +40,18 @@ test("renders all simulator views and the fullscreen control", async () => {
   const response = await renderHome();
   const html = await response.text();
 
-  for (const label of ["Mặt phẳng phay", "Mô phỏng 3D"]) {
+  for (const label of ["Mặt phẳng phay", "3D Solid", "3D Machine"]) {
     assert.match(html, new RegExp(label));
   }
   assert.match(html, /Toàn màn hình mô phỏng/);
+});
+
+test("renders the smart 3D measurement entry point", async () => {
+  const response = await renderHome();
+  const html = await response.text();
+
+  assert.match(html, /Đo thông minh 3D/);
+  assert.match(html, /aria-pressed="false"/);
 });
 
 test("renders the detailed CNC workstation telemetry", async () => {
@@ -51,7 +59,6 @@ test("renders the detailed CNC workstation telemetry", async () => {
   const html = await response.text();
 
   for (const label of [
-    "G-CODE WORKSTATION",
     "PROGRAM",
     "BLOCK",
     "Vị trí hiện tại",

@@ -26,7 +26,6 @@ import {
   setG92FromWorkPosition,
   suspendG92Offset,
   withCoordinateSystem,
-  withG92Offset,
   withMachinePosition,
   withToolLengthCompensation,
 } from "./modal-state";
@@ -62,7 +61,6 @@ const WORD_AXES = {
   Y: "y",
   Z: "z",
 } as const satisfies Record<AxisWord, Axis>;
-const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
 const MOTION_CODES = new Set([
   0, 1, 2, 3, 73, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
 ]);
@@ -359,6 +357,9 @@ function applyScalarWords(
       context.state.feedMode === "inverse-time"
         ? feedWord.value
         : feedWord.value * scale;
+  }
+  if (spindleWord) {
+    context.state.spindle = spindleWord.value;
   }
   if (toolWord) {
     context.state.selectedTool = Math.trunc(toolWord.value);

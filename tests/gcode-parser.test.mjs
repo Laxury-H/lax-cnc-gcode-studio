@@ -113,6 +113,30 @@ test("generates smart resume recovery gcode block", async () => {
   assert.match(recovery, /M3 S18000/);
 });
 
+test("keeps S in RPM through final state, segments, and recovery", async () => {
+  const { DEFAULT_STOCK, parseProgram, generateSmartResume } = await loadParser();
+  const programmedSpindle = 12345;
+  const simulation = parseProgram(
+    `G20 G90
+M3 S${programmedSpindle}
+G0 X0 Y0 Z1
+G1 X1 F10
+M5
+M30`,
+    DEFAULT_STOCK,
+    "iso",
+  );
+
+  assert.equal(simulation.finalState.units, "inch");
+  assert.equal(simulation.finalState.spindle, programmedSpindle);
+  assert.equal(simulation.finalState.spindleOn, false);
+  assert.equal(simulation.segments[0].spindle, programmedSpindle);
+
+  const recovery = generateSmartResume(simulation, 0, 50);
+  assert.match(recovery, /M3 S12345\b/);
+  assert.doesNotMatch(recovery, /M3 S18000\b/);
+});
+
 test("exports CAM post-processor dialects for NcStudio and Syntec", async () => {
   const { DEFAULT_STOCK, parseProgram, exportCAM } = await loadParser();
   const simulation = parseProgram(topPanelFixture, DEFAULT_STOCK, "iso");
