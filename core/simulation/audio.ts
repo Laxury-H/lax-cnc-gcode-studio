@@ -13,7 +13,23 @@ export class CncAudio {
   constructor() {}
 
   public async init() {
-    if (this.ctx) return;
+    if (this.ctx) {
+      if (this.ctx.state === "suspended") {
+        await this.ctx.resume();
+      }
+      if (this.ctx.state === "running") {
+        this.isEnabled = true;
+        return;
+      }
+
+      this.ctx = null;
+      this.spindleOsc = null;
+      this.spindleGain = null;
+      this.moveOsc = null;
+      this.moveGain = null;
+      this.moveFilter = null;
+      this.isEnabled = false;
+    }
     const AudioContextConstructor = window.AudioContext
       ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextConstructor) {
@@ -21,6 +37,9 @@ export class CncAudio {
     }
     this.ctx = new AudioContextConstructor();
     await this.ctx.resume();
+    if (this.ctx.state !== "running") {
+      throw new Error("Audio context could not be started.");
+    }
     
     // Spindle graph
     this.spindleGain = this.ctx.createGain();

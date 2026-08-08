@@ -19,6 +19,11 @@ import type {
   SnapKind,
 } from "../measurement/measurement-utils";
 import { constrainMeasurementPoint } from "../measurement/measurement-utils";
+import {
+  getMeasurementCopy,
+  localizeMeasurementLabel,
+  type MeasurementLanguage,
+} from "../measurement/measurement-i18n";
 import { Icon } from "./ui/Icon";
 
 const SNAP_COLORS: Record<SnapKind, string> = {
@@ -29,15 +34,8 @@ const SNAP_COLORS: Record<SnapKind, string> = {
   free: "#e8f0f2",
 };
 
-const SNAP_KIND_LABELS: Record<SnapKind, string> = {
-  corner: "Góc",
-  endpoint: "Đầu mút",
-  midpoint: "Trung điểm",
-  center: "Tâm",
-  free: "Điểm tự do",
-};
-
 type SmartMeasurementOverlayProps = {
+  lang: MeasurementLanguage;
   candidates: readonly SnapCandidate[];
   planeZ: number;
   planeBounds: { minX: number; minY: number; maxX: number; maxY: number };
@@ -95,6 +93,7 @@ function snapSelectionKey(candidate: SnapCandidate) {
  * measurement point by accident.
  */
 export function SmartMeasurementOverlay({
+  lang,
   candidates,
   planeZ,
   planeBounds,
@@ -107,6 +106,7 @@ export function SmartMeasurementOverlay({
   onSelect,
   onHoverChange,
 }: SmartMeasurementOverlayProps) {
+  const copy = getMeasurementCopy(lang);
   const groupRef = useRef<THREE.Group>(null);
   const markerRef = useRef<THREE.Group>(null);
   const markerMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -234,12 +234,13 @@ export function SmartMeasurementOverlay({
       id: `free:${point.x.toFixed(4)}:${point.y.toFixed(4)}:${point.z.toFixed(4)}`,
       point,
       kind: "free" as const,
-      label: `Điểm tự do · Mặt Z ${planeZ.toFixed(3)}`,
+      label: copy.freePoint(planeZ),
       priority: 0,
     };
   }, [
     camera,
     candidates,
+    copy,
     gl.domElement,
     measurementMath,
     planeBounds.maxX,
@@ -523,7 +524,9 @@ export function SmartMeasurementOverlay({
 }
 
 type MeasurementPanelProps = {
+  lang: MeasurementLanguage;
   candidateCount: number;
+  candidates: readonly SnapCandidate[];
   coordinateOffset: MeasurementPoint;
   coordinateSystem: string;
   hovered: SnapCandidate | null;
@@ -541,6 +544,7 @@ type MeasurementPanelProps = {
   onNew: () => void;
   onUndo: () => void;
   onPreset: (preset: MeasurementPreset) => void;
+  onCandidateSelect: (candidate: SnapCandidate) => void;
   onHistorySelect: (result: MeasurementResult) => void;
   onHistoryClear: () => void;
   onClose: () => void;
@@ -548,39 +552,27 @@ type MeasurementPanelProps = {
 
 const CONSTRAINT_OPTIONS: readonly {
   value: MeasurementConstraint;
-  label: string;
   shortcut: string;
-  title: string;
 }[] = [
   {
     value: "free",
-    label: "Tự do",
     shortcut: "F",
-    title: "Đo khoảng cách 3D tự do (F)",
   },
   {
     value: "x",
-    label: "Dọc X",
     shortcut: "X",
-    title: "Đo dọc trục X; giữ Y và Z theo điểm A (X)",
   },
   {
     value: "y",
-    label: "Dọc Y",
     shortcut: "Y",
-    title: "Đo dọc trục Y; giữ X và Z theo điểm A (Y)",
   },
   {
     value: "z",
-    label: "Dọc Z",
     shortcut: "Z",
-    title: "Đo dọc trục Z; giữ X và Y theo điểm A (Z)",
   },
   {
     value: "xy",
-    label: "Mặt XY",
     shortcut: "P",
-    title: "Đo trên mặt phẳng XY; giữ Z theo điểm A (P)",
   },
 ];
 
@@ -589,7 +581,9 @@ function formatAngle(value: number) {
 }
 
 export function MeasurementPanel({
+  lang,
   candidateCount,
+  candidates,
   coordinateOffset,
   coordinateSystem,
   hovered,
@@ -607,14 +601,31 @@ export function MeasurementPanel({
   onNew,
   onUndo,
   onPreset,
+  onCandidateSelect,
   onHistorySelect,
   onHistoryClear,
   onClose,
 }: MeasurementPanelProps) {
+  const copy = getMeasurementCopy(lang);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [openDisclosure, setOpenDisclosure] = useState<
-    "history" | "quick" | null
+    "points" | "history" | "quick" | null
   >(null);
+  const [candidateQuery, setCandidateQuery] = useState("");
+
+  const visibleCandidates = useMemo(() => {
+    const normalizedQuery = candidateQuery
+      .trim()
+      .toLocaleLowerCase(copy.locale);
+    return candidates
+      .filter((candidate) => {
+        if (!normalizedQuery) return true;
+        const searchable = `${localizeMeasurementLabel(candidate.label, lang)} ${copy.snapKinds[candidate.kind]} ${candidate.point.x.toFixed(3)} ${candidate.point.y.toFixed(3)} ${candidate.point.z.toFixed(3)}`
+          .toLocaleLowerCase(copy.locale);
+        return searchable.includes(normalizedQuery);
+      })
+      .slice(0, 60);
+  }, [candidateQuery, candidates, copy.locale, copy.snapKinds, lang]);
 
   const resultCopyKey = result ? `${result.id}:${unit}` : null;
   const copied = Boolean(resultCopyKey && copiedKey === resultCopyKey);
@@ -628,11 +639,14 @@ export function MeasurementPanel({
   const copyResult = async () => {
     if (!result || !navigator.clipboard) return;
     const summary = [
-      `${result.label}: ${formatMeasurementValue(result.distance, unit)} ${unitSuffix(unit)}`,
+      `${localizeMeasurementLabel(result.label, lang)}: ${formatMeasurementValue(result.distance, unit)} ${unitSuffix(unit)}`,
       `A: ${coordinateLabel(result.start, unit, coordinateOffset)}`,
       `B: ${coordinateLabel(result.end, unit, coordinateOffset)}`,
       `ΔX ${formatMeasurementValue(result.delta.x, unit)} · ΔY ${formatMeasurementValue(result.delta.y, unit)} · ΔZ ${formatMeasurementValue(result.delta.z, unit)} ${unitSuffix(unit)}`,
-      `Góc XY ${formatAngle(result.angleXYDegrees)} · Độ dốc ${formatAngle(result.inclinationDegrees)}`,
+      copy.clipboardAngle(
+        formatAngle(result.angleXYDegrees),
+        formatAngle(result.inclinationDegrees),
+      ),
     ].join("\n");
     try {
       await navigator.clipboard.writeText(summary);
@@ -644,7 +658,11 @@ export function MeasurementPanel({
 
   const firstStepState = result || start ? " is-done" : " is-current";
   const secondStepState = result ? " is-done" : start ? " is-current" : "";
-  const stage = result ? "XONG" : start ? "CHỌN B" : "CHỌN A";
+  const stage = result
+    ? copy.stageDone
+    : start
+      ? copy.stageSelectB
+      : copy.stageSelectA;
   const panelState = result
     ? "is-complete"
     : start
@@ -652,18 +670,20 @@ export function MeasurementPanel({
       : "is-waiting-a";
   const livePoint = result?.end ?? hovered?.point ?? null;
   const liveKind = result
-    ? "Điểm B"
+    ? copy.pointB
     : hovered
-      ? SNAP_KIND_LABELS[hovered.kind]
-      : "Chưa bắt điểm";
+      ? copy.snapKinds[hovered.kind]
+      : copy.noSnap;
   const liveLabel = result
-    ? result.label
-    : hovered?.label ?? "Di chuột lên hình học để bắt điểm";
+    ? localizeMeasurementLabel(result.label, lang)
+    : hovered
+      ? localizeMeasurementLabel(hovered.label, lang)
+      : copy.hoverPrompt;
 
   return (
     <aside
       className={`measurement-panel ${panelState}`}
-      aria-label="Công cụ đo thông minh 3D"
+      aria-label={copy.panelLabel}
       onPointerDown={(event) => event.stopPropagation()}
     >
         <header className="measurement-panel__header">
@@ -671,16 +691,16 @@ export function MeasurementPanel({
             <Icon name="ruler" size={17} />
           </span>
           <span className="measurement-panel__title">
-            <strong>ĐO 3D CNC</strong>
-            <small>Bắt hình học · khóa hướng · tọa độ {coordinateSystem}</small>
+            <strong>{copy.panelTitle}</strong>
+            <small>{copy.panelSubtitle(coordinateSystem)}</small>
           </span>
           <span className="measurement-stage-badge">{stage}</span>
           <button
             type="button"
             className="measurement-unit-toggle"
             onClick={onToggleUnit}
-            aria-label={`Đổi sang ${unit === "mm" ? "inch" : "milimét"}`}
-            title="Đổi đơn vị hiển thị; dữ liệu CNC luôn giữ nguyên theo mm"
+            aria-label={copy.switchUnit(unit)}
+            title={copy.unitTitle}
           >
             {unit.toUpperCase()}
           </button>
@@ -688,22 +708,22 @@ export function MeasurementPanel({
             type="button"
             className="measurement-close"
             onClick={onClose}
-            aria-label="Đóng công cụ đo"
-            title="Đóng công cụ đo"
+            aria-label={copy.close}
+            title={copy.close}
           >
             <Icon name="close" size={16} />
           </button>
         </header>
 
         <div className="measurement-panel__body">
-          <section className="measurement-live-snap" aria-label="Điểm bắt hiện tại">
+          <section className="measurement-live-snap" aria-label={copy.currentSnap}>
             <div className="measurement-live-snap__meta">
               <span data-kind={result ? "result" : hovered?.kind ?? "none"}>
                 <i />
                 <strong>{liveKind}</strong>
                 <small>{liveLabel}</small>
               </span>
-              <b title="Hệ tọa độ lập trình đang hoạt động ở cuối chương trình">
+              <b title={copy.coordinateSystemTitle}>
                 {coordinateSystem}
               </b>
             </div>
@@ -725,15 +745,15 @@ export function MeasurementPanel({
             </div>
           </section>
 
-          <div className="measurement-steps" aria-label="Tiến trình đo">
+          <div className="measurement-steps" aria-label={copy.progress}>
             <span className={`measurement-step${firstStepState}`}>
               <i>{result || start ? "✓" : "A"}</i>
-              <b>Chọn điểm A</b>
+              <b>{copy.selectPointA}</b>
             </span>
             <i className="measurement-step-connector" />
             <span className={`measurement-step${secondStepState}`}>
               <i>{result ? "✓" : "B"}</i>
-              <b>Chọn điểm B</b>
+              <b>{copy.selectPointB}</b>
             </span>
           </div>
 
@@ -745,7 +765,7 @@ export function MeasurementPanel({
               onClick={onToggleSnap}
             >
               <Icon name="crosshair" size={14} />
-              <span>Bắt điểm</span>
+              <span>{copy.snap}</span>
               <b>{snapEnabled ? "ON" : "OFF"}</b>
             </button>
             <button
@@ -754,7 +774,7 @@ export function MeasurementPanel({
               onClick={start || result ? onUndo : onNew}
             >
               <Icon name="reset" size={13} />
-              {start || result ? "Hoàn tác" : "Đo mới"}
+              {start || result ? copy.undo : copy.newMeasurement}
             </button>
           </div>
 
@@ -764,24 +784,24 @@ export function MeasurementPanel({
                 type="button"
                 className="measurement-datum-button"
                 onClick={onSetDatum}
-                title={`Dùng X0 Y0 Z0 đang lập trình trong ${coordinateSystem} làm điểm A; bao gồm các bù tọa độ đang hoạt động`}
+                title={copy.datumTitle(coordinateSystem)}
               >
                 <Icon name="crosshair" size={13} />
                 <span>A = X0 Y0 Z0</span>
                 <code>{coordinateSystem}</code>
               </button>
               {start ? (
-                <div className="measurement-axis-lock" aria-label="Khóa hướng đo">
+                <div className="measurement-axis-lock" aria-label={copy.directionLock}>
                   {CONSTRAINT_OPTIONS.map((option) => (
                     <button
                       type="button"
                       className={constraint === option.value ? "is-active" : ""}
                       aria-pressed={constraint === option.value}
                       onClick={() => onConstraintChange(option.value)}
-                      title={option.title}
+                      title={copy.constraintTitles[option.value]}
                       key={option.value}
                     >
-                      <span>{option.label}</span>
+                      <span>{copy.constraintLabels[option.value]}</span>
                       <kbd>{option.shortcut}</kbd>
                     </button>
                   ))}
@@ -799,7 +819,7 @@ export function MeasurementPanel({
               <div className="measurement-result">
                 <div className="measurement-result__main">
                   <span>
-                    <small>{result.label}</small>
+                    <small>{localizeMeasurementLabel(result.label, lang)}</small>
                     <strong>
                       {formatMeasurementValue(result.distance, unit)}
                       <em>{unitSuffix(unit)}</em>
@@ -812,7 +832,7 @@ export function MeasurementPanel({
                       onClick={() => void copyResult()}
                     >
                       <Icon name={copied ? "check" : "copy"} size={12} />
-                      {copied ? "Đã chép" : "Chép"}
+                      {copied ? copy.copied : copy.copy}
                     </button>
                     <button
                       type="button"
@@ -820,7 +840,7 @@ export function MeasurementPanel({
                       onClick={onUndo}
                     >
                       <Icon name="reset" size={12} />
-                      Hoàn tác
+                      {copy.undo}
                     </button>
                     <button
                       type="button"
@@ -828,14 +848,14 @@ export function MeasurementPanel({
                       onClick={onNew}
                     >
                       <Icon name="ruler" size={12} />
-                      Đo mới
+                      {copy.newMeasurement}
                     </button>
                   </div>
                 </div>
                 <div className="measurement-axis-grid">
                   {(
                     [
-                      ["NGANG", result.horizontal],
+                      [copy.horizontal, result.horizontal],
                       ["ΔX", result.delta.x],
                       ["ΔY", result.delta.y],
                       ["ΔZ", result.delta.z],
@@ -849,11 +869,11 @@ export function MeasurementPanel({
                 </div>
                 <div className="measurement-angle-grid">
                   <span>
-                    <small>GÓC XY</small>
+                    <small>{copy.angleXY}</small>
                     <b>{formatAngle(result.angleXYDegrees)}</b>
                   </span>
                   <span>
-                    <small>ĐỘ DỐC</small>
+                    <small>{copy.inclination}</small>
                     <b>{formatAngle(result.inclinationDegrees)}</b>
                   </span>
                 </div>
@@ -862,19 +882,78 @@ export function MeasurementPanel({
               <div className="measurement-selected-point">
                 <span>
                   <b>A</b>
-                  <strong>{start.label}</strong>
+                  <strong>{localizeMeasurementLabel(start.label, lang)}</strong>
                 </span>
                 <code>{coordinateLabel(start.point, unit, coordinateOffset)}</code>
-                <small>Chọn điểm B hoặc khóa hướng đo theo trục máy.</small>
+                <small>{copy.selectedPointHint}</small>
               </div>
             ) : (
               <p className="measurement-flow-hint">
-                Chọn điểm A trên phôi, chi tiết hoặc đường dao; hoặc dùng gốc {coordinateSystem}.
+                {copy.startHint(coordinateSystem)}
               </p>
             )}
           </div>
 
           <div className="measurement-disclosures">
+            <details
+              className="measurement-disclosure"
+              open={openDisclosure === "points"}
+            >
+              <summary
+                onClick={(event) => {
+                  event.preventDefault();
+                  setOpenDisclosure((open) =>
+                    open === "points" ? null : "points",
+                  );
+                }}
+              >
+                <span>
+                  <strong>{copy.keyboardPoints}</strong>
+                  <small>{copy.keyboardPointsHint}</small>
+                </span>
+                <b>{candidateCount}</b>
+              </summary>
+              <div className="measurement-disclosure__body measurement-candidates">
+                <label className="measurement-candidate-search">
+                  <span>{copy.search}</span>
+                  <input
+                    type="search"
+                    value={candidateQuery}
+                    onChange={(event) => setCandidateQuery(event.target.value)}
+                    placeholder={copy.searchPlaceholder}
+                  />
+                </label>
+                <div
+                  className="measurement-candidate-list"
+                  role="group"
+                  aria-label={copy.candidateList}
+                >
+                  {visibleCandidates.map((candidate) => (
+                    <button
+                      type="button"
+                      className="measurement-candidate-item"
+                      onClick={() => {
+                        onCandidateSelect(candidate);
+                        setOpenDisclosure(null);
+                      }}
+                      key={snapSelectionKey(candidate)}
+                    >
+                      <span data-kind={candidate.kind}>
+                        {copy.snapKinds[candidate.kind]}
+                      </span>
+                      <strong>{localizeMeasurementLabel(candidate.label, lang)}</strong>
+                      <code>
+                        {coordinateLabel(candidate.point, unit, coordinateOffset)}
+                      </code>
+                    </button>
+                  ))}
+                  {!visibleCandidates.length ? (
+                    <p>{copy.noCandidate}</p>
+                  ) : null}
+                </div>
+              </div>
+            </details>
+
             <details
               className="measurement-disclosure"
               open={openDisclosure === "history"}
@@ -888,8 +967,8 @@ export function MeasurementPanel({
                 }}
               >
                 <span>
-                  <strong>LỊCH SỬ</strong>
-                  <small>Các phép đo gần nhất</small>
+                  <strong>{copy.history}</strong>
+                  <small>{copy.historyHint}</small>
                 </span>
                 <b>{history.length}</b>
               </summary>
@@ -908,7 +987,7 @@ export function MeasurementPanel({
                           key={`${entry.id}:${index}`}
                         >
                           <span>#{String(history.length - index).padStart(2, "0")}</span>
-                          <strong>{entry.label}</strong>
+                          <strong>{localizeMeasurementLabel(entry.label, lang)}</strong>
                           <b>
                             {formatMeasurementValue(entry.distance, unit)} {unitSuffix(unit)}
                           </b>
@@ -920,11 +999,11 @@ export function MeasurementPanel({
                       className="measurement-history-clear"
                       onClick={onHistoryClear}
                     >
-                      Xóa lịch sử
+                      {copy.clearHistory}
                     </button>
                   </>
                 ) : (
-                  <p>Chưa có phép đo nào.</p>
+                  <p>{copy.noHistory}</p>
                 )}
               </div>
             </details>
@@ -942,8 +1021,8 @@ export function MeasurementPanel({
                 }}
               >
                 <span>
-                  <strong>KÍCH THƯỚC NHANH</strong>
-                  <small>Tùy chọn · phôi & chi tiết</small>
+                  <strong>{copy.quickDimensions}</strong>
+                  <small>{copy.quickDimensionsHint}</small>
                 </span>
                 <b>{presets.length}</b>
               </summary>
@@ -959,7 +1038,7 @@ export function MeasurementPanel({
                       }}
                       key={preset.id}
                     >
-                      <span>{preset.label}</span>
+                      <span>{localizeMeasurementLabel(preset.label, lang)}</span>
                       <b>
                         {formatMeasurementValue(preset.distance, unit)} {unitSuffix(unit)}
                       </b>
@@ -972,8 +1051,10 @@ export function MeasurementPanel({
         </div>
 
         <footer className="measurement-panel__footer">
-          <span>{candidateCount.toLocaleString("vi-VN")} điểm bắt</span>
-          <span><kbd>X/Y/Z/P</kbd>: khóa · <kbd>Esc</kbd>: hoàn tác</span>
+          <span>
+            {copy.snapCount(candidateCount.toLocaleString(copy.locale))}
+          </span>
+          <span><kbd>X/Y/Z/P</kbd>: {copy.shortcutHint}</span>
         </footer>
     </aside>
   );

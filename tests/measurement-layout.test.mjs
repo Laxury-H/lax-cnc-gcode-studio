@@ -126,3 +126,25 @@ test("measurement dock compacts each stage and keeps bottom-dock targets touchab
     /@container simulator \(max-width: 820px\)[\s\S]*?\.measurement-panel button,[\s\S]*?min-height:\s*44px/,
   );
 });
+
+test("measurement snap points are selectable without pointer-only canvas interaction", async () => {
+  const [tool, simulator, css] = await Promise.all([
+    read("core/components/SmartMeasurementTool.tsx"),
+    read("core/components/SolidSimulator.tsx"),
+    read("app/globals.css"),
+  ]);
+
+  assert.match(tool, /CHỌN ĐIỂM BẰNG BÀN PHÍM/);
+  assert.match(tool, /type="search"/);
+  assert.match(tool, /visibleCandidates\.map\(\(candidate\)/);
+  assert.match(tool, /onCandidateSelect\(candidate\)/);
+  assert.match(simulator, /candidates=\{measurementCandidates\}/);
+  assert.match(simulator, /onCandidateSelect=\{selectMeasurementPoint\}/);
+  assert.match(simulator, /role="region"/);
+  assert.match(simulator, /role="img"/);
+  assert.doesNotMatch(simulator, /role="application"/);
+  assert.match(
+    css,
+    /\.measurement-candidate-list\s*\{[\s\S]*?max-height:\s*220px;[\s\S]*?overflow-y:\s*auto;/,
+  );
+});

@@ -55,16 +55,20 @@ test("dialog CSS adapts split layouts and forms down to narrow screens", async (
 });
 
 test("Mini CAM rejects unsafe input and caps generated work", async () => {
-  const source = await read("core/components/MiniCamModal.tsx");
+  const [source, validationSource] = await Promise.all([
+    read("core/components/MiniCamModal.tsx"),
+    read("core/components/mini-cam-validation.ts"),
+  ]);
 
-  assert.match(source, /Number\.isFinite\(value\) \|\| value <= 0/);
-  assert.match(source, /values\.stepover < 1/);
-  assert.match(source, /values\.stepover > 100/);
-  assert.match(source, /passes > MAX_CAM_PASSES/);
+  assert.match(validationSource, /Number\.isFinite\(values\[field\]\)/);
+  assert.match(validationSource, /values\.stepover < 1/);
+  assert.match(validationSource, /values\.stepover > 100/);
+  assert.match(validationSource, /passes > MAX_CAM_PASSES/);
   assert.match(source, /Math\.min\(MAX_CAM_PASSES, Math\.ceil\(height \/ step\)\)/);
   assert.match(source, /lines\.slice\(0, MAX_CAM_OUTPUT_LINES\)/);
   assert.match(source, /const inputAccessibility = \(field: keyof MiniCamValues\)/);
-  assert.match(source, /validation\?\.field === field/);
+  assert.match(source, /validation\.code !== "pass-limit"/);
+  assert.match(source, /validation\.field === field/);
   assert.match(source, /inputAccessibility\("toolDia"\)/);
   assert.match(source, /inputAccessibility\("stepover"\)/);
   assert.match(source, /disabled=\{invalid \|\| activeTab !== "facing"\}/);

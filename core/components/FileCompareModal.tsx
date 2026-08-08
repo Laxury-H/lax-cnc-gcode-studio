@@ -13,6 +13,7 @@ interface FileCompareModalProps {
 }
 
 export function FileCompareModal({
+  t,
   currentCode,
   onClose,
   onApply,
@@ -53,14 +54,14 @@ export function FileCompareModal({
             size={20}
             fallback="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
           />
-          File Compare
+          {t.compareTitle}
         </h2>
         <button
           className={styles.closeButton}
           type="button"
           onClick={onClose}
           data-dialog-autofocus
-          aria-label="Đóng so sánh tệp / Close file comparison"
+          aria-label={t.compareClose}
         >
           <Icon name="x" size={24} fallback="M6 18L18 6M6 6l12 12" />
         </button>
@@ -68,7 +69,7 @@ export function FileCompareModal({
 
       <div className={styles.toolbar}>
         <div className={styles.toolbarGroup}>
-          <label htmlFor={fileInputId}>Tệp gốc (Original File)</label>
+          <label htmlFor={fileInputId}>{t.compareOriginalFile}</label>
           <input
             id={fileInputId}
             type="file"
@@ -82,20 +83,20 @@ export function FileCompareModal({
           onClick={() => onApply(modifiedCode)}
           className={styles.primaryButton}
         >
-          Lưu thay đổi (Apply)
+          {t.compareApply}
         </button>
       </div>
 
       <div className={styles.compareBody}>
         <section className={styles.comparePane} aria-labelledby={`${titleId}-modified`}>
           <div className={styles.paneHeader} id={`${titleId}-modified`}>
-            Tệp hiện tại (Modified)
+            {t.compareModifiedFile}
           </div>
           <textarea
             className={styles.compareEditor}
             value={modifiedCode}
             onChange={(event) => setModifiedCode(event.target.value)}
-            aria-label="Nội dung tệp hiện tại / Modified file content"
+            aria-label={t.compareModifiedContent}
             spellCheck={false}
           />
         </section>
@@ -105,14 +106,14 @@ export function FileCompareModal({
           aria-labelledby={`${titleId}-result`}
         >
           <div className={styles.paneHeader} id={`${titleId}-result`}>
-            <span>Kết quả so sánh</span>
-            <span className={styles.addedLegend}>+ Thêm</span>
-            <span className={styles.removedLegend}>- Xóa</span>
+            <span>{t.compareResult}</span>
+            <span className={styles.addedLegend}>+ {t.compareAdded}</span>
+            <span className={styles.removedLegend}>- {t.compareRemoved}</span>
           </div>
           <div
             className={styles.diffViewer}
             role="region"
-            aria-label="Kết quả diff / Difference result"
+            aria-label={t.compareResultRegion}
             tabIndex={0}
           >
             {diffResult.map((part, index) => {

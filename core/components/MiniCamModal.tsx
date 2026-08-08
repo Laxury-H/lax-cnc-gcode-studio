@@ -2,6 +2,13 @@ import { useId, useMemo, useState } from "react";
 import type { TranslationDict } from "../../app/i18n";
 import { Icon } from "./ui/Icon";
 import { ResponsiveDialog } from "./ui/ResponsiveDialog";
+import {
+  MAX_CAM_OUTPUT_LINES,
+  MAX_CAM_PASSES,
+  type MiniCamValues,
+  formatMiniCamValidation,
+  validateMiniCamValues,
+} from "./mini-cam-validation";
 import styles from "./ui/ResponsiveDialog.module.css";
 
 interface MiniCamModalProps {
@@ -10,64 +17,7 @@ interface MiniCamModalProps {
   onGenerate: (gcode: string) => void;
 }
 
-interface MiniCamValues {
-  toolDia: number;
-  spindleSpeed: number;
-  feedRate: number;
-  plungeRate: number;
-  width: number;
-  height: number;
-  depth: number;
-  stepover: number;
-}
-
-const MAX_CAM_PASSES = 5_000;
-const MAX_CAM_OUTPUT_LINES = MAX_CAM_PASSES * 2 + 16;
-
-function validateMiniCamValues(values: MiniCamValues) {
-  const positiveFields: Array<[number, keyof MiniCamValues, string]> = [
-    [values.toolDia, "toolDia", "Đường kính dao / Tool diameter"],
-    [values.spindleSpeed, "spindleSpeed", "Tốc độ trục chính / Spindle speed"],
-    [values.feedRate, "feedRate", "Bước tiến / Feed rate"],
-    [values.plungeRate, "plungeRate", "Bước tiến xuống dao / Plunge rate"],
-    [values.width, "width", "Chiều rộng / Width"],
-    [values.height, "height", "Chiều dài / Height"],
-    [values.depth, "depth", "Chiều sâu / Depth"],
-  ];
-
-  const invalidField = positiveFields.find(
-    ([value]) => !Number.isFinite(value) || value <= 0,
-  );
-  if (invalidField) {
-    return {
-      field: invalidField[1],
-      message: `${invalidField[2]} phải là số hữu hạn lớn hơn 0.`,
-    };
-  }
-
-  if (
-    !Number.isFinite(values.stepover) ||
-    values.stepover < 1 ||
-    values.stepover > 100
-  ) {
-    return {
-      field: "stepover" as const,
-      message: "Stepover phải nằm trong khoảng 1–100%.",
-    };
-  }
-
-  const step = values.toolDia * (values.stepover / 100);
-  const passes = Math.ceil(values.height / step);
-  if (!Number.isFinite(passes) || passes < 1 || passes > MAX_CAM_PASSES) {
-    return {
-      message: `Số lượt chạy vượt giới hạn an toàn ${MAX_CAM_PASSES.toLocaleString()} passes. Tăng đường kính dao hoặc stepover.`,
-    };
-  }
-
-  return null;
-}
-
-export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
+export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
   const [activeTab, setActiveTab] = useState<"facing" | "pocket">("facing");
   const [toolDia, setToolDia] = useState(6);
   const [spindleSpeed, setSpindleSpeed] = useState(18000);
@@ -94,7 +44,21 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
     [depth, feedRate, height, plungeRate, spindleSpeed, stepover, toolDia, width],
   );
   const validation = useMemo(() => validateMiniCamValues(values), [values]);
-  const validationError = validation?.message ?? null;
+  const validationError = formatMiniCamValidation(validation, {
+    positive: t.miniCamValidationPositive,
+    stepoverRange: t.miniCamValidationStepover,
+    passLimit: t.miniCamValidationPassLimit,
+    fields: {
+      toolDia: t.miniCamToolDiameter,
+      spindleSpeed: t.miniCamSpindleSpeed,
+      feedRate: t.miniCamFeedRate,
+      plungeRate: t.miniCamPlungeRate,
+      width: t.miniCamWidth,
+      height: t.miniCamHeight,
+      depth: t.miniCamDepth,
+      stepover: t.miniCamStepover,
+    },
+  });
 
   const handleGenerate = () => {
     if (validationError || activeTab !== "facing") return;
@@ -132,7 +96,11 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
 
   const invalid = Boolean(validation);
   const inputAccessibility = (field: keyof MiniCamValues) => {
-    const fieldInvalid = validation?.field === field;
+    const fieldInvalid = Boolean(
+      validation &&
+        validation.code !== "pass-limit" &&
+        validation.field === field,
+    );
     return {
       "aria-invalid": fieldInvalid,
       "aria-describedby": fieldInvalid ? errorId : undefined,
@@ -157,14 +125,14 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
             size={20}
             fallback="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
           />
-          CNC-Calc (Mini CAM)
+          {t.miniCamTitle}
         </h2>
         <button
           className={styles.closeButton}
           type="button"
           onClick={onClose}
           data-dialog-autofocus
-          aria-label="Đóng Mini CAM / Close Mini CAM"
+          aria-label={t.miniCamClose}
         >
           <Icon name="x" size={24} fallback="M6 18L18 6M6 6l12 12" />
         </button>
@@ -179,7 +147,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
             aria-selected={activeTab === "facing"}
             onClick={() => setActiveTab("facing")}
           >
-            Phay mặt (Facing)
+            {t.miniCamTabFacing}
           </button>
           <button
             className={styles.tabButton}
@@ -188,17 +156,17 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
             aria-selected="false"
             disabled
           >
-            Phay hốc (TBD)
+            {t.miniCamTabPocket}
           </button>
         </div>
 
         <div className={styles.miniDivider} aria-hidden="true" />
 
         <div className={styles.miniForm} role="tabpanel">
-          <h3 className={styles.sectionTitle}>Thông số Dao (Tool)</h3>
+          <h3 className={styles.sectionTitle}>{t.miniCamToolSection}</h3>
           <div className={styles.formGrid}>
             <label className={styles.field}>
-              Đường kính dao (mm)
+              {t.miniCamToolDiameter}
               <input
                 type="number"
                 min="0.001"
@@ -209,7 +177,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
               />
             </label>
             <label className={styles.field}>
-              Tốc độ trục chính (RPM)
+              {t.miniCamSpindleSpeed}
               <input
                 type="number"
                 min="1"
@@ -219,7 +187,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
               />
             </label>
             <label className={styles.field}>
-              Bước tiến (Feed - mm/min)
+              {t.miniCamFeedRate}
               <input
                 type="number"
                 min="0.001"
@@ -229,7 +197,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
               />
             </label>
             <label className={styles.field}>
-              Bước tiến xuống dao (Plunge - mm/min)
+              {t.miniCamPlungeRate}
               <input
                 type="number"
                 min="0.001"
@@ -241,11 +209,11 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
           </div>
 
           <h3 className={`${styles.sectionTitle} ${styles.sectionTitleSpaced}`}>
-            Kích thước gia công (Facing)
+            {t.miniCamWorkSection}
           </h3>
           <div className={styles.formGrid}>
             <label className={styles.field}>
-              Chiều rộng (X - mm)
+              {t.miniCamWidth}
               <input
                 type="number"
                 min="0.001"
@@ -255,7 +223,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
               />
             </label>
             <label className={styles.field}>
-              Chiều dài (Y - mm)
+              {t.miniCamHeight}
               <input
                 type="number"
                 min="0.001"
@@ -265,7 +233,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
               />
             </label>
             <label className={styles.field}>
-              Chiều sâu cắt (Z - mm)
+              {t.miniCamDepth}
               <input
                 type="number"
                 min="0.001"
@@ -276,7 +244,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
               />
             </label>
             <label className={styles.field}>
-              Độ dịch dao (Stepover %)
+              {t.miniCamStepover}
               <input
                 type="number"
                 min="1"
@@ -298,7 +266,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
 
       <footer className={styles.footer}>
         <button className={styles.secondaryButton} type="button" onClick={onClose}>
-          Hủy
+          {t.miniCamCancel}
         </button>
         <button
           className={styles.primaryButton}
@@ -306,7 +274,7 @@ export function MiniCamModal({ onClose, onGenerate }: MiniCamModalProps) {
           onClick={handleGenerate}
           disabled={invalid || activeTab !== "facing"}
         >
-          Sinh G-Code
+          {t.miniCamGenerate}
         </button>
       </footer>
     </ResponsiveDialog>

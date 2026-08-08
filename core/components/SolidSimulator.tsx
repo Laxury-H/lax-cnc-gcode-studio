@@ -17,20 +17,17 @@ import {
 } from "../measurement/measurement-utils";
 import type { Segment, Simulation, StockSettings } from "../simulation/types";
 import {
+  getMeasurementCopy,
+  localizeMeasurementLabel,
+  type MeasurementLanguage,
+} from "../measurement/measurement-i18n";
+import {
   MeasurementPanel,
   SmartMeasurementOverlay,
   type MeasurementUnit,
 } from "./SmartMeasurementTool";
 
 const MAX_MEASUREMENT_HISTORY = 6;
-const MEASUREMENT_CONSTRAINT_LABELS: Record<MeasurementConstraint, string> = {
-  free: "3D",
-  x: "Dọc X",
-  y: "Dọc Y",
-  z: "Dọc Z",
-  xy: "Mặt XY",
-};
-
 function addToMeasurementHistory(
   history: readonly MeasurementResult[],
   result: MeasurementResult,
@@ -42,6 +39,7 @@ function addToMeasurementHistory(
 }
 
 interface SolidSimulatorProps {
+  lang: MeasurementLanguage;
   simulation: Simulation;
   stock: StockSettings;
   cursor: number;
@@ -471,6 +469,7 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
 }
 
 export function SolidSimulator(props: SolidSimulatorProps) {
+  const measurementCopy = getMeasurementCopy(props.lang);
   const onMeasurementClose = props.onMeasurementClose;
   const { topZ, bottomZ } = resolveStockZBounds(
     props.simulation,
@@ -640,7 +639,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           measurementConstraint,
         );
         const result = calculateMeasurement(currentStart.point, constrainedEnd, {
-          label: `${MEASUREMENT_CONSTRAINT_LABELS[measurementConstraint]} · ${currentStart.label} → ${candidate.label}`,
+          label: `${measurementCopy.resultConstraintLabels[measurementConstraint]} · ${localizeMeasurementLabel(currentStart.label, props.lang)} → ${localizeMeasurementLabel(candidate.label, props.lang)}`,
           source: "manual",
         });
         if (result.distance < 0.0005) return current;
@@ -654,7 +653,14 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         };
       });
     },
-    [measurementConstraint, measurementSession, props.simulation, props.stock],
+    [
+      measurementConstraint,
+      measurementCopy,
+      measurementSession,
+      props.lang,
+      props.simulation,
+      props.stock,
+    ],
   );
 
   const selectAutomaticMeasurement = useCallback(
@@ -697,7 +703,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           id: `datum:${activeCoordinateSystem}`,
           point: { ...workOrigin },
           kind: "corner",
-          label: `X0 Y0 Z0 lập trình · ${activeCoordinateSystem}`,
+          label: measurementCopy.programmedDatum(activeCoordinateSystem),
           priority: Number.POSITIVE_INFINITY,
         },
         result: null,
@@ -706,6 +712,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
     });
   }, [
     activeCoordinateSystem,
+    measurementCopy,
     measurementSession,
     props.simulation,
     props.stock,
@@ -761,7 +768,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             id: `restored:${currentResult.id}`,
             point: { ...currentResult.start },
             kind: "free",
-            label: "Điểm A đã chọn",
+            label: measurementCopy.restoredPointA,
             priority: 0,
           },
           result: null,
@@ -778,6 +785,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
       };
     });
   }, [
+    measurementCopy,
     measurementSession,
     props.simulation,
     props.stock,
@@ -865,9 +873,14 @@ export function SolidSimulator(props: SolidSimulatorProps) {
   ]);
 
   return (
-    <div className={`solid-simulator${props.isMeasuring ? " is-measuring" : ""}`} style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}>
+    <div
+      className={`solid-simulator${props.isMeasuring ? " is-measuring" : ""}`}
+      role="region"
+      aria-label={measurementCopy.simulatorRegion}
+      style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}
+    >
       <div className="solid-simulator__viewport">
-        <Canvas aria-label="Mô phỏng phôi CNC 3D tương tác" role="application" shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
+        <Canvas aria-label={measurementCopy.simulatorCanvas} role="img" shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
         <directionalLight 
@@ -918,6 +931,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             />
             {props.isMeasuring ? (
               <SmartMeasurementOverlay
+                lang={props.lang}
                 candidates={measurementCandidates}
                 planeZ={topZ}
                 planeBounds={{
@@ -963,7 +977,9 @@ export function SolidSimulator(props: SolidSimulatorProps) {
       {props.isMeasuring ? (
         <div className="measurement-dock">
           <MeasurementPanel
+            lang={props.lang}
             candidateCount={measurementCandidates.length}
+            candidates={measurementCandidates}
             coordinateOffset={workOrigin}
             coordinateSystem={activeCoordinateSystem}
             hovered={hoveredMeasurementSnap}
@@ -986,6 +1002,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             onNew={resetMeasurement}
             onUndo={undoMeasurement}
             onPreset={selectAutomaticMeasurement}
+            onCandidateSelect={selectMeasurementPoint}
             onHistorySelect={selectMeasurementHistory}
             onHistoryClear={clearMeasurementHistory}
             onClose={onMeasurementClose}

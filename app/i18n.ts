@@ -177,6 +177,7 @@ export const translations = {
     fileReadErrorMsg: "Không thể đọc tệp. Chương trình hiện tại được giữ nguyên.",
     noMotionPlaybackMsg: "Chương trình chưa có chuyển động để mô phỏng.",
     copyErrorMsg: "Không thể truy cập khay nhớ tạm. Hãy cấp quyền rồi thử lại.",
+    audioUnavailableMsg: "Không thể khởi động âm thanh. Mô phỏng vẫn tiếp tục ở chế độ im lặng.",
     experimentalTitle: "TÍNH NĂNG THỬ NGHIỆM",
     experimentalBadge: "BETA",
     machine3DTitle: "Mô hình máy 3D",
@@ -216,6 +217,37 @@ export const translations = {
     editorHelp2: "Phím Space/F5: Phát · F10: Chạy từng bước · F8: Đặt lại",
     reloadSample: "Tải lại mã lệnh mẫu",
     parseSimulate: "Phân tích & Mô phỏng",
+
+    // File Compare & Mini CAM
+    compareTitle: "SO SÁNH TỆP G-CODE",
+    compareClose: "Đóng so sánh tệp",
+    compareOriginalFile: "Tệp gốc",
+    compareApply: "Áp dụng thay đổi",
+    compareModifiedFile: "Tệp hiện tại",
+    compareModifiedContent: "Nội dung tệp hiện tại",
+    compareResult: "Kết quả so sánh",
+    compareAdded: "Thêm",
+    compareRemoved: "Xóa",
+    compareResultRegion: "Các thay đổi giữa hai tệp",
+    miniCamTitle: "CNC-CALC · MINI CAM",
+    miniCamClose: "Đóng Mini CAM",
+    miniCamTabFacing: "Phay mặt",
+    miniCamTabPocket: "Phay hốc · Sắp ra mắt",
+    miniCamToolSection: "THÔNG SỐ DAO",
+    miniCamToolDiameter: "Đường kính dao (mm)",
+    miniCamSpindleSpeed: "Tốc độ trục chính (RPM)",
+    miniCamFeedRate: "Bước tiến (mm/phút)",
+    miniCamPlungeRate: "Bước tiến xuống dao (mm/phút)",
+    miniCamWorkSection: "KÍCH THƯỚC PHAY MẶT",
+    miniCamWidth: "Chiều rộng X (mm)",
+    miniCamHeight: "Chiều dài Y (mm)",
+    miniCamDepth: "Chiều sâu cắt Z (mm)",
+    miniCamStepover: "Độ dịch dao (%)",
+    miniCamCancel: "Hủy",
+    miniCamGenerate: "Sinh G-code",
+    miniCamValidationPositive: "{field} phải là số hữu hạn lớn hơn 0.",
+    miniCamValidationStepover: "Độ dịch dao phải nằm trong khoảng 1–100%.",
+    miniCamValidationPassLimit: "Số lượt chạy vượt giới hạn an toàn {max}. Hãy tăng đường kính dao hoặc độ dịch dao.",
 
     // Drop overlay
     dropTitle: "Kéo thả tệp G-code vào đây",
@@ -441,6 +473,7 @@ export const translations = {
     fileReadErrorMsg: "The file could not be read. The current program was kept.",
     noMotionPlaybackMsg: "The program has no motion to simulate.",
     copyErrorMsg: "Clipboard access failed. Grant permission and try again.",
+    audioUnavailableMsg: "Audio could not be started. Simulation will continue silently.",
     experimentalTitle: "EXPERIMENTAL FEATURES",
     experimentalBadge: "BETA",
     machine3DTitle: "3D machine model",
@@ -480,6 +513,37 @@ export const translations = {
     editorHelp2: "Space/F5: Play · F10: Step · F8: Reset",
     reloadSample: "Reload Sample Code",
     parseSimulate: "Parse & Simulate",
+
+    // File Compare & Mini CAM
+    compareTitle: "COMPARE G-CODE FILES",
+    compareClose: "Close file comparison",
+    compareOriginalFile: "Original file",
+    compareApply: "Apply changes",
+    compareModifiedFile: "Current file",
+    compareModifiedContent: "Current file content",
+    compareResult: "Comparison result",
+    compareAdded: "Added",
+    compareRemoved: "Removed",
+    compareResultRegion: "Changes between the two files",
+    miniCamTitle: "CNC-CALC · MINI CAM",
+    miniCamClose: "Close Mini CAM",
+    miniCamTabFacing: "Facing",
+    miniCamTabPocket: "Pocketing · Coming soon",
+    miniCamToolSection: "TOOL PARAMETERS",
+    miniCamToolDiameter: "Tool diameter (mm)",
+    miniCamSpindleSpeed: "Spindle speed (RPM)",
+    miniCamFeedRate: "Feed rate (mm/min)",
+    miniCamPlungeRate: "Plunge rate (mm/min)",
+    miniCamWorkSection: "FACING DIMENSIONS",
+    miniCamWidth: "Width X (mm)",
+    miniCamHeight: "Length Y (mm)",
+    miniCamDepth: "Cut depth Z (mm)",
+    miniCamStepover: "Stepover (%)",
+    miniCamCancel: "Cancel",
+    miniCamGenerate: "Generate G-code",
+    miniCamValidationPositive: "{field} must be a finite number greater than 0.",
+    miniCamValidationStepover: "Stepover must be between 1% and 100%.",
+    miniCamValidationPassLimit: "The toolpath exceeds the safe limit of {max} passes. Increase the tool diameter or stepover.",
 
     // Drop overlay
     dropTitle: "Drop G-code file here",
@@ -548,7 +612,32 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
   if (msg.includes("G92 cần ít nhất một giá trị trục")) return "G92 requires at least one axis value (X, Y, or Z).";
   if (msg.includes("G53 chỉ được dùng với chuyển động G0 hoặc G1")) return "G53 can only be used with G0 or G1 linear motions.";
   if (msg.includes("Tọa độ đích không hữu hạn")) return "Target coordinates are not finite; the block will not be rendered.";
+  if (msg.includes("Chưa biết vị trí đầu của trục")) {
+    return msg
+      .replace("Chưa biết vị trí đầu của trục", "The start position is unknown for axis")
+      .replace("; không dựng đường giả từ gốc.", "; no artificial motion from the origin was created.");
+  }
+  if (msg.includes("G90.1 trên mặt phẳng")) {
+    return msg
+      .replace("G90.1 trên mặt phẳng", "G90.1 on plane")
+      .replace("cần đủ", "requires both");
+  }
   if (msg.includes("Chu trình khoan cần mặt phẳng rút dao R")) return "Drilling cycle requires a retract plane R.";
+  if (msg.includes("Chu trình trên mặt phẳng") && msg.includes("xác định độ sâu")) {
+    return msg
+      .replace("Chu trình trên mặt phẳng", "The cycle on plane")
+      .replace("cần trục", "requires axis")
+      .replace("xác định độ sâu.", "to define its depth.");
+  }
+  if (msg.includes("cần bước khoan Q lớn hơn 0")) {
+    return msg.replace("cần bước khoan Q lớn hơn 0.", "requires a peck increment Q greater than 0.");
+  }
+  if (msg.includes("đang được mở rộng gần đúng thành tiến dao xuống và rút dao")) {
+    return msg.replace(
+      "đang được mở rộng gần đúng thành tiến dao xuống và rút dao; thao tác spindle đặc thù chưa được mô phỏng.",
+      "is approximated as a feed down and retract; its controller-specific spindle behavior is not simulated.",
+    );
+  }
   if (msg.includes("Số lần lặp L của chu trình phải là số nguyên dương")) return "Cycle repeat count L must be a positive integer.";
   if (msg.includes("Chu trình tạo quá nhiều bước khoan")) return "Cycle generated too many peck steps; please increase the Q value.";
   if (msg.includes("Chuyển động tạo ra NaN hoặc vô cực")) return "Motion produced NaN or infinity and has been discarded.";
@@ -556,6 +645,59 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
   if (msg.includes("Tọa độ X/Y nằm ngoài vùng phôi")) return "X/Y coordinates exceed the declared stock boundaries.";
   if (msg.includes("G0 chạy ngang dưới Z an toàn")) return msg.replace("G0 chạy ngang dưới Z an toàn", "G0 rapid move below the safe Z clearance");
   if (msg.includes("Có chuyển động cắt khi trạng thái spindle chưa bật")) return "Cutting motion detected while the spindle is stopped.";
+  if (msg.includes("Dòng có nhiều word")) {
+    return msg
+      .replace("Dòng có nhiều word", "The block contains multiple")
+      .replace("; interpreter dùng giá trị xuất hiện cuối cùng.", " words; the interpreter uses the final value.");
+  }
+  if (msg.startsWith("Word ") && msg.includes("chưa được dùng trong kiến trúc router 3 trục")) {
+    return msg.replace("chưa được dùng trong kiến trúc router 3 trục.", "is not used by the 3-axis router model.");
+  }
+  if (msg.includes("chưa được profile") && msg.includes("hỗ trợ")) {
+    return msg.replace("chưa được profile", "is not supported by profile").replace("hỗ trợ.", "");
+  }
+  if (msg.includes("chưa được profile") && msg.includes("ánh xạ trạng thái máy")) {
+    return msg.replace("chưa được profile", "is not mapped by profile").replace("ánh xạ trạng thái máy.", "to a machine state.");
+  }
+
+  // Tokenizer and parser diagnostics.
+  if (msg.includes('Dấu "*" tại cột') && msg.includes("checksum số nguyên")) {
+    return msg
+      .replace('Dấu "*" tại cột', 'The "*" marker at column')
+      .replace("phải theo sau bởi một checksum số nguyên.", "must be followed by an integer checksum.");
+  }
+  if (msg.includes("có nhiều hơn một trường checksum")) {
+    return msg.replace("Dòng", "Line").replace("có nhiều hơn một trường checksum", "contains more than one checksum field");
+  }
+  if (msg.startsWith("Checksum tại cột")) {
+    return msg
+      .replace("Checksum tại cột", "The checksum at column")
+      .replace("phải là số nguyên.", "must be an integer.")
+      .replace("phải nằm trong khoảng 0 đến 255.", "must be between 0 and 255.");
+  }
+  if (msg.startsWith("Checksum không khớp")) {
+    return msg
+      .replace("Checksum không khớp: nhận", "Checksum mismatch: received")
+      .replace("giá trị XOR tính được là", "the calculated XOR value is");
+  }
+  if (msg.startsWith("Giá trị của") && msg.includes("vượt phạm vi số hữu hạn")) {
+    return msg
+      .replace("Giá trị của", "The value of")
+      .replace("tại cột", "at column")
+      .replace("vượt phạm vi số hữu hạn.", "exceeds the finite numeric range.");
+  }
+  if (msg.includes("có nhiều hơn một số block N")) {
+    return msg.replace("Dòng", "Line").replace("có nhiều hơn một số block N.", "contains more than one N block number.");
+  }
+  if (msg.startsWith("Số block") && msg.includes("phải là số nguyên không âm")) {
+    return msg.replace("Số block", "Block number").replace("phải là số nguyên không âm.", "must be a non-negative integer.");
+  }
+  if (msg.includes("có nhiều hơn một ký tự phân cách chương trình")) {
+    return msg.replace("Dòng", "Line").replace("có nhiều hơn một ký tự phân cách chương trình", "contains more than one program delimiter");
+  }
+  if (msg.includes("Checksum phải là trường thực thi cuối cùng")) {
+    return "Checksum must be the final executable field on a line; only comments or whitespace may follow it.";
+  }
   
   // Arc & Geometry Errors
   if (msg.includes("Chế độ tâm cung phải là tuyệt đối hoặc tương đối")) return "Arc center mode must be either absolute or relative.";

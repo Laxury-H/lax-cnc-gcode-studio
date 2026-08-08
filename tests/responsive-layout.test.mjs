@@ -131,7 +131,7 @@ test("responsive CSS covers short landscape and coarse-pointer devices", async (
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("extra-small screens stack command groups without hiding controls", async () => {
+test("extra-small screens keep command groups reachable without covering the workspace", async () => {
   const css = await read("app/globals.css");
   const extraSmall = mediaBlock(
     css,
@@ -141,13 +141,71 @@ test("extra-small screens stack command groups without hiding controls", async (
 
   assert.match(
     extraSmall,
-    /\.command-bar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/,
+    /\.command-bar\s*\{[\s\S]*?display:\s*flex;[\s\S]*?overflow-x:\s*auto;[\s\S]*?flex-wrap:\s*nowrap;/,
   );
   assert.match(
     extraSmall,
-    /\.view-switch\s*\{[\s\S]*?width:\s*100%;[\s\S]*?overflow-x:\s*auto;/,
+    /\.view-switch\s*\{[\s\S]*?width:\s*auto;[\s\S]*?overflow-x:\s*auto;/,
   );
   assert.match(extraSmall, /\.view-switch button\s*\{[\s\S]*?min-width:\s*44px;/);
+  assert.match(
+    extraSmall,
+    /\.workspace\s*\{[\s\S]*?height:\s*clamp\(300px, calc\(100dvh - 198px\), 520px\);[\s\S]*?min-height:\s*300px;/,
+  );
+});
+
+test("analysis drawer allocates a growing row for touch-sized tabs", async () => {
+  const css = await read("app/globals.css");
+
+  assert.match(
+    css,
+    /\.analysis-drawer\s*\{[\s\S]*?grid-template-rows:\s*74px minmax\(45px, auto\) minmax\(0, 1fr\);/,
+  );
+  assert.match(
+    css,
+    /@media \(pointer: coarse\)[\s\S]*?\.drawer-tabs button,[\s\S]*?min-height:\s*44px;/,
+  );
+});
+
+test("short landscape reserves a side rail instead of overlaying the simulator", async () => {
+  const css = await read("app/globals.css");
+  const landscape = mediaBlock(
+    css,
+    "@media (max-width: 900px) and (max-height: 600px) and (orientation: landscape)",
+    "@media (pointer: coarse)",
+  );
+
+  assert.match(
+    landscape,
+    /\.top-navigation-island\s*\{[\s\S]*?margin-right:\s*max\(84px, calc\(76px \+ env\(safe-area-inset-right\)\)\);/,
+  );
+  assert.match(
+    landscape,
+    /\.workspace\s*\{[\s\S]*?padding-right:\s*max\(84px, calc\(76px \+ env\(safe-area-inset-right\)\)\);/,
+  );
+  assert.match(
+    landscape,
+    /\.mobile-navigation\s*\{[\s\S]*?width:\s*72px;[\s\S]*?flex-direction:\s*column;[\s\S]*?overflow-y:\s*auto;/,
+  );
+});
+
+test("measurement dock shrinks into short and extra-narrow simulator containers", async () => {
+  const css = await read("app/globals.css");
+  const compact = mediaBlock(
+    css,
+    "@container simulator (max-width: 820px)",
+    "@container simulator (max-width: 520px)",
+  );
+  const narrow = css.slice(css.indexOf("@container simulator (max-width: 520px)"));
+
+  assert.match(
+    compact,
+    /@media \(max-height: 600px\) and \(orientation: landscape\)[\s\S]*?grid-template-rows:\s*minmax\(96px, 1fr\) minmax\(120px, 1fr\);/,
+  );
+  assert.match(
+    narrow,
+    /\.solid-simulator\.is-measuring\s*\{[\s\S]*?grid-template-rows:\s*minmax\(100px, 1fr\) minmax\(120px, 1fr\);/,
+  );
 });
 
 test("transient controls stay above modal layers and outside scroll clipping", async () => {

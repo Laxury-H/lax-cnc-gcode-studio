@@ -29,7 +29,12 @@ import type {
   StudioMachineProfile as MachineProfile,
   Vec3,
 } from "@/core/simulation/types";
-import { Lang, translations, type TranslationDict } from "./i18n";
+import {
+  Lang,
+  translateDiagnostic,
+  translations,
+  type TranslationDict,
+} from "./i18n";
 import { cncAudio } from "@/core/simulation/audio";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 import { FileCompareModal } from "@/core/components/FileCompareModal";
@@ -226,6 +231,7 @@ function ToolpathCanvas({
   orbit,
   showRapids,
   quality = "medium",
+  lang,
   t,
   onZoom,
   onPan,
@@ -247,6 +253,7 @@ function ToolpathCanvas({
   orbit: OrbitCamera;
   showRapids: boolean;
   quality?: SimulationQuality;
+  lang: Lang;
   t: TranslationDict;
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
@@ -1338,6 +1345,7 @@ function ToolpathCanvas({
         ) : view === "solid" ? (
         <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng phôi 3D…</div>}>
           <SolidSimulator
+            lang={lang}
             simulation={simulation}
             stock={simulatorStock}
             cursor={cursor}
@@ -1645,6 +1653,15 @@ export default function Home() {
     [notify, t.copyErrorMsg],
   );
 
+  const ensureAudio = useCallback(async () => {
+    try {
+      await cncAudio.init();
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const positionSoundMenu = useCallback(() => {
     const anchor = soundButtonRef.current;
     if (!anchor) return;
@@ -1734,24 +1751,47 @@ export default function Home() {
     [],
   );
 
-  const applySettings = useCallback(() => {
+  const applySettings = useCallback(async () => {
     try {
       serializeWorkspacePreferences(settingsDraft);
     } catch {
       notify(t.invalidSettingsMsg);
       return;
     }
+    let nextMachineSound = settingsDraft.machineSound;
+    let nextFinishSound = settingsDraft.finishSound;
+    let audioReady = true;
+    if (nextMachineSound || nextFinishSound) {
+      audioReady = await ensureAudio();
+      if (!audioReady) {
+        nextMachineSound = false;
+        nextFinishSound = false;
+      }
+    }
+
     setStock(cloneStockSettings(settingsDraft.stock));
     setProfile(settingsDraft.profile);
     setSpeed(settingsDraft.speed);
     setQuality(settingsDraft.quality);
     setShowRapids(settingsDraft.showRapids);
-    setMachineSound(settingsDraft.machineSound);
-    setFinishSound(settingsDraft.finishSound);
+    setMachineSound(nextMachineSound);
+    setFinishSound(nextFinishSound);
     setSettingsOpen(false);
     resetPlayback();
-    notify(t.settingsAppliedMsg);
-  }, [notify, resetPlayback, settingsDraft, t.invalidSettingsMsg, t.settingsAppliedMsg]);
+    notify(
+      audioReady
+        ? t.settingsAppliedMsg
+        : `${t.settingsAppliedMsg} ${t.audioUnavailableMsg}`,
+    );
+  }, [
+    ensureAudio,
+    notify,
+    resetPlayback,
+    settingsDraft,
+    t.audioUnavailableMsg,
+    t.invalidSettingsMsg,
+    t.settingsAppliedMsg,
+  ]);
 
   const onResetView = useCallback(() => {
     setZoom(1);
@@ -1812,8 +1852,12 @@ export default function Home() {
     changeView("solid");
     setMeasurementSession((session) => session + 1);
     setIsMeasuring(true);
-    notify("Đo 3D đã bật · chọn A/B; dùng X/Y/Z để khóa hướng.");
-  }, [changeView, isMeasuring, notify]);
+    notify(
+      lang === "EN"
+        ? "3D measurement enabled · select A/B; use X/Y/Z to lock direction."
+        : "Đo 3D đã bật · chọn A/B; dùng X/Y/Z để khóa hướng.",
+    );
+  }, [changeView, isMeasuring, lang, notify]);
 
   const applyCode = useCallback(
     (nextCode: string, nextFileName?: string) => {
@@ -1908,7 +1952,7 @@ export default function Home() {
     );
   }, [simulation.segments.length]);
 
-  const togglePlayback = useCallback(() => {
+  const togglePlayback = useCallback(async () => {
     if (!simulation.segments.length) {
       notify(t.noMotionPlaybackMsg);
       return;
@@ -1924,13 +1968,25 @@ export default function Home() {
       setCursor(0);
       setSegmentProgress(0);
     }
+    if (machineSound || finishSound) {
+      const audioReady = await ensureAudio();
+      if (!audioReady) {
+        setMachineSound(false);
+        setFinishSound(false);
+        notify(t.audioUnavailableMsg);
+      }
+    }
     setPlaying(true);
   }, [
     cursor,
+    ensureAudio,
+    finishSound,
+    machineSound,
     notify,
     playing,
     segmentProgress,
     simulation.segments.length,
+    t.audioUnavailableMsg,
     t.noMotionPlaybackMsg,
   ]);
 
@@ -1975,7 +2031,8 @@ export default function Home() {
         if (next >= 1) {
           const stepsToAdvance = Math.floor(next);
           const remainder = next - stepsToAdvance;
-          if (cursor + stepsToAdvance >= simulation.segments.length - 1) {
+          if (cursor + stepsToAdvance >= simulation.segments.length) {
+            setCursor(simulation.segments.length - 1);
             setPlaying(false);
             if (finishSound) cncAudio.playComplete();
             return 1;
@@ -2066,38 +2123,62 @@ export default function Home() {
           isGuideOpen ||
           soundMenuOpen,
       );
+      const usesAppBrowserShortcut =
+        ((event.ctrlKey || event.metaKey) &&
+          (event.code === "KeyO" || event.code === "Comma")) ||
+        event.code === "F1" ||
+        event.code === "F5" ||
+        event.code === "F8" ||
+        event.code === "F10";
+      if (usesAppBrowserShortcut) event.preventDefault();
       if (hasBlockingSurface) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyO") {
+        event.preventDefault();
+        fileInputRef.current?.click();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.code === "Comma") {
+        event.preventDefault();
+        openSettings();
+        return;
+      }
+      if (event.code === "F1") {
+        event.preventDefault();
+        setIsGuideOpen(true);
+        return;
+      }
+      if (event.code === "F5") {
+        event.preventDefault();
+        void togglePlayback();
+        return;
+      }
+      if (event.code === "F10") {
+        event.preventDefault();
+        stepForward();
+        return;
+      }
+      if (event.code === "F8") {
+        event.preventDefault();
+        resetPlayback();
+        return;
+      }
 
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, button, a, [contenteditable='true']")) {
         return;
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.code === "KeyO") {
-        event.preventDefault();
-        fileInputRef.current?.click();
-      } else if ((event.ctrlKey || event.metaKey) && event.code === "Comma") {
-        event.preventDefault();
-        openSettings();
-      } else if (event.code === "F1") {
-        event.preventDefault();
-        setIsGuideOpen(true);
-      } else if (event.code === "KeyM") {
+      if (event.code === "KeyM") {
         event.preventDefault();
         toggleMeasurement();
       } else if (event.code === "KeyG") {
         event.preventDefault();
         setCodeCollapsed(false);
         setMobilePanel("code");
-      } else if (event.code === "Space" || event.code === "F5") {
+      } else if (event.code === "Space") {
         event.preventDefault();
-        togglePlayback();
-      } else if (event.code === "F10") {
-        event.preventDefault();
-        stepForward();
-      } else if (event.code === "F8") {
-        event.preventDefault();
-        resetPlayback();
+        void togglePlayback();
       } else if (event.code === "Digit1") {
         changeView("xoy");
       } else if (event.code === "Digit2") {
@@ -2332,7 +2413,11 @@ export default function Home() {
               onClick={async () => {
                 if (!soundMenuOpen) positionSoundMenu();
                 setSoundMenuOpen((open) => !open);
-                await cncAudio.init();
+                if (!(await ensureAudio())) {
+                  setMachineSound(false);
+                  setFinishSound(false);
+                  notify(t.audioUnavailableMsg);
+                }
               }}
               aria-label={lang === "EN" ? "Sound settings" : "Thiết lập âm thanh"}
               aria-expanded={soundMenuOpen}
@@ -2417,8 +2502,12 @@ export default function Home() {
             icon="ruler"
             label={
               isMeasuring
-                ? "Đóng công cụ đo thông minh"
-                : "Đo thông minh 3D · tự chuyển sang Solid"
+                ? lang === "EN"
+                  ? "Close smart measurement"
+                  : "Đóng công cụ đo thông minh"
+                : lang === "EN"
+                  ? "Smart 3D measurement · switches to Solid automatically"
+                  : "Đo thông minh 3D · tự chuyển sang Solid"
             }
             onClick={toggleMeasurement}
             active={isMeasuring}
@@ -2626,6 +2715,7 @@ export default function Home() {
             </div>
           </div>
           <ToolpathCanvas
+            lang={lang}
             simulation={simulation}
             stock={stock}
             cursor={cursor}
@@ -3014,7 +3104,7 @@ export default function Home() {
                             <span className="line-badge">{lang === "EN" ? "Line" : "Dòng"} {diagnostic.lineIndex + 1}</span>
                             <span className="error-code">{diagnostic.code}</span>
                           </div>
-                          <small>{diagnostic.message}</small>
+                            <small>{translateDiagnostic(diagnostic.message, lang)}</small>
                         </span>
                       </button>
                     ))}
@@ -3808,9 +3898,14 @@ export default function Home() {
                 type="checkbox"
                 checked={machineSound}
                 onChange={async (event) => {
-                  setMachineSound(event.target.checked);
-                  if (event.target.checked) await cncAudio.init();
-                  else cncAudio.stopAll();
+                  const enabled = event.target.checked;
+                  if (enabled && !(await ensureAudio())) {
+                    setMachineSound(false);
+                    notify(t.audioUnavailableMsg);
+                    return;
+                  }
+                  setMachineSound(enabled);
+                  if (!enabled) cncAudio.stopAll();
                 }}
               />
               {t.machineSoundLabel}
@@ -3820,8 +3915,13 @@ export default function Home() {
                 type="checkbox"
                 checked={finishSound}
                 onChange={async (event) => {
-                  setFinishSound(event.target.checked);
-                  if (event.target.checked) await cncAudio.init();
+                  const enabled = event.target.checked;
+                  if (enabled && !(await ensureAudio())) {
+                    setFinishSound(false);
+                    notify(t.audioUnavailableMsg);
+                    return;
+                  }
+                  setFinishSound(enabled);
                 }}
               />
               {t.finishSoundLabel}
