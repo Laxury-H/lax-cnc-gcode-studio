@@ -47,6 +47,14 @@ const validPreferences = {
   showRapids: true,
   machineSound: false,
   finishSound: true,
+  workOffsets: {
+    G54: { x: 0, y: 0, z: 0 },
+    G55: { x: 100, y: 200, z: 3 },
+    G56: { x: -150, y: 250, z: -4 },
+    G57: { x: 300, y: -400, z: 5 },
+    G58: { x: -500, y: -600, z: -6 },
+    G59: { x: 700, y: 800, z: 7 },
+  },
 };
 
 test("workspace preferences round-trip through the versioned schema", async () => {
@@ -62,7 +70,11 @@ test("workspace preferences round-trip through the versioned schema", async () =
 });
 
 test("stock settings and nested tools are cloned deeply", async () => {
-  const { cloneStockSettings, parseWorkspacePreferences } =
+  const {
+    cloneStockSettings,
+    cloneWorkspaceWorkOffsets,
+    parseWorkspacePreferences,
+  } =
     await loadPreferencesModule();
 
   const clone = cloneStockSettings(validPreferences.stock);
@@ -76,6 +88,27 @@ test("stock settings and nested tools are cloned deeply", async () => {
   const parsed = parseWorkspacePreferences(JSON.stringify(validPreferences));
   assert.notEqual(parsed.stock.tools, validPreferences.stock.tools);
   assert.notEqual(parsed.stock.tools[0], validPreferences.stock.tools[0]);
+
+  const workOffsets = cloneWorkspaceWorkOffsets(validPreferences.workOffsets);
+  assert.notEqual(workOffsets, validPreferences.workOffsets);
+  assert.notEqual(workOffsets.G55, validPreferences.workOffsets.G55);
+  workOffsets.G55.x = 999;
+  assert.equal(validPreferences.workOffsets.G55.x, 100);
+  assert.notEqual(parsed.workOffsets.G55, validPreferences.workOffsets.G55);
+});
+
+test("version 1 preferences without work offsets migrate to zero offsets", async () => {
+  const {
+    createZeroWorkspaceWorkOffsets,
+    parseWorkspacePreferences,
+  } = await loadPreferencesModule();
+  const legacyPreferences = { ...validPreferences };
+  delete legacyPreferences.workOffsets;
+
+  const parsed = parseWorkspacePreferences(JSON.stringify(legacyPreferences));
+  assert.ok(parsed);
+  assert.deepEqual(parsed.workOffsets, createZeroWorkspaceWorkOffsets());
+  assert.notEqual(parsed.workOffsets.G54, parsed.workOffsets.G55);
 });
 
 test("parser rejects malformed, incomplete, or unsupported preferences", async () => {
@@ -194,6 +227,53 @@ test("parser validates zZero and every nested tool", async () => {
   );
 });
 
+test("parser requires complete, finite, bounded G54-G59 work offsets", async () => {
+  const { parseWorkspacePreferences, serializeWorkspacePreferences } =
+    await loadPreferencesModule();
+
+  const withOffsets = (workOffsets) =>
+    JSON.stringify({ ...validPreferences, workOffsets });
+
+  assert.equal(parseWorkspacePreferences(withOffsets(null)), null);
+  assert.equal(
+    parseWorkspacePreferences(
+      withOffsets({ ...validPreferences.workOffsets, G59: undefined }),
+    ),
+    null,
+  );
+
+  for (const [axis, value] of [
+    ["x", "12"],
+    ["y", 1_000_001],
+    ["z", -1_000_001],
+  ]) {
+    const workOffsets = {
+      ...validPreferences.workOffsets,
+      G56: { ...validPreferences.workOffsets.G56, [axis]: value },
+    };
+    assert.equal(
+      parseWorkspacePreferences(withOffsets(workOffsets)),
+      null,
+      `${axis} should reject ${value}`,
+    );
+  }
+
+  assert.throws(
+    () =>
+      serializeWorkspacePreferences({
+        ...validPreferences,
+        workOffsets: {
+          ...validPreferences.workOffsets,
+          G55: {
+            ...validPreferences.workOffsets.G55,
+            x: Number.POSITIVE_INFINITY,
+          },
+        },
+      }),
+    /Invalid workspace preferences/,
+  );
+});
+
 test("optional zZero and tools remain optional and unknown fields are discarded", async () => {
   const { parseWorkspacePreferences } = await loadPreferencesModule();
   const stock = { ...validPreferences.stock };
@@ -203,6 +283,11 @@ test("optional zZero and tools remain optional and unknown fields are discarded"
     ...validPreferences,
     ignored: "future-field",
     stock: { ...stock, ignored: true },
+    workOffsets: {
+      ...validPreferences.workOffsets,
+      G55: { ...validPreferences.workOffsets.G55, ignored: true },
+      G60: { x: 1, y: 2, z: 3 },
+    },
   };
 
   const parsed = parseWorkspacePreferences(JSON.stringify(candidate));
@@ -211,4 +296,6 @@ test("optional zZero and tools remain optional and unknown fields are discarded"
   assert.equal("ignored" in parsed.stock, false);
   assert.equal("zZero" in parsed.stock, false);
   assert.equal("tools" in parsed.stock, false);
+  assert.equal("G60" in parsed.workOffsets, false);
+  assert.equal("ignored" in parsed.workOffsets.G55, false);
 });

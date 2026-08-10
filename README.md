@@ -21,7 +21,9 @@ backplot lớn, theo dõi tọa độ dao và kiểm tra chương trình trướ
 - Đo 3D CNC với bắt góc/đầu mút/trung điểm/tâm, khóa hướng X/Y/Z/XY,
   gốc hệ tọa độ làm việc, góc phương vị/độ dốc, mm/inch và lịch sử gần nhất
 - Có thể đặt rõ `Mặt trên = Z0` hoặc `Đáy phôi = Z0` trong cấu hình phôi;
-  chế độ tự nhận diện vẫn được giữ cho chương trình cũ
+  chế độ tự nhận diện xét chuyển động cắt và bỏ qua rapid hệ máy `G53`
+- Bảng bù hệ tọa độ `G54`–`G59` được lưu theo workstation; khung xem dùng
+  `G54` làm mốc và đặt các hệ còn lại theo đúng chênh lệch tọa độ máy
 - Kích thước nhanh của phôi/chi tiết là tiện ích tùy chọn, đóng mặc định để
   không làm rối luồng đo hai điểm
 - Bật/tắt phôi, dao, khung bao, lưới và đường chạy nhanh
@@ -65,7 +67,7 @@ không làm thay đổi nhóm này; `Áp dụng` chỉ ghi nhận sau khi toàn 
 phôi, dao và tùy chọn hợp lệ. Các giá trị sau được kiểm tra schema rồi lưu cục
 bộ trong trình duyệt:
 
-- Profile máy, kích thước/gốc/Z0 phôi và thư viện dao
+- Profile máy, kích thước/gốc/Z0 phôi, bảng bù G54–G59 và thư viện dao
 - Tốc độ playback, chất lượng mô phỏng và hiển thị đường chạy nhanh
 - Âm thanh máy và âm báo hoàn tất
 
@@ -78,7 +80,7 @@ nghiệm `3D Machine` có hiệu lực ngay, được lưu riêng và mặc đ�
 | --- | --- |
 | Chuyển động | `G0`, `G1`, `G2`, `G3` |
 | Đơn vị | `G20`, `G21` |
-| Tọa độ | `G90`, `G91`, `G90.1`, `G91.1` |
+| Tọa độ | `G53`, `G54`–`G59`, `G90`, `G91`, `G90.1`, `G91.1`, `G92`–`G92.3` |
 | Mặt phẳng | `G17`, nhận diện `G18`, `G19` |
 | Chu trình khoan | `G73`, `G80`–`G89` |
 | Máy/spindle | `M3`, `M4`, `M5`, `M30` và một số mã router tùy chỉnh |
@@ -153,6 +155,9 @@ thật trước khi phát hành.
 - `core/ui/workspace-preferences.ts`: schema, kiểm tra và serialize thiết lập
 - `tests/gcode-parser.test.mjs`: kiểm thử parser, cung tròn, phôi và profile
 - `tests/measurement-utils.test.mjs`: kiểm thử bắt điểm và phép đo CNC
+- `tests/coordinate-system.test.mjs`: semantic G53–G59, G90/G91 và G92
+- `tests/coordinate-system-matrix.test.mjs`: ma trận số từ hệ máy đến khung G54
+- `tests/stock-removal-coordinates.test.mjs`: ánh xạ Z0, dao và heightmap bóc phôi
 - `tests/responsive-layout.test.mjs`: kiểm tra breakpoint và điều hướng di động
 - `tests/responsive-dialog.test.mjs`: kiểm tra dialog dùng chung và trợ năng
 - `tests/workspace-preferences.test.mjs`: kiểm tra lưu/đọc thiết lập an toàn

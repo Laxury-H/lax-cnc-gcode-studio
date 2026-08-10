@@ -64,37 +64,54 @@ test("measurement mode gives every HUD a safe area and stacks the dock on narrow
 });
 
 test("snap telemetry stays in the dock and optional dimensions stay collapsed", async () => {
-  const [tool, simulator, css] = await Promise.all([
+  const [tool, simulator, css, i18n] = await Promise.all([
     read("core/components/SmartMeasurementTool.tsx"),
     read("core/components/SolidSimulator.tsx"),
     read("app/globals.css"),
+    read("core/measurement/measurement-i18n.ts"),
   ]);
 
   assert.doesNotMatch(tool, /measurement-snap-label/);
   assert.doesNotMatch(css, /\.measurement-snap-label/);
   assert.match(tool, /className="measurement-live-snap"/);
-  assert.match(tool, /<details[\s\S]*?KÍCH THƯỚC NHANH/);
+  assert.match(tool, /<details[\s\S]*?<strong>\{copy\.quickDimensions\}<\/strong>/);
+  assert.match(i18n, /quickDimensions: "KÍCH THƯỚC NHANH"/);
   assert.match(tool, /open=\{openDisclosure === "quick"\}/);
   assert.doesNotMatch(tool, /ĐO TỰ ĐỘNG/);
   assert.match(simulator, /onHoverChange=\{setHoveredMeasurementSnap\}/);
 });
 
 test("CNC measurement controls expose direction locks, work datum, units and history", async () => {
-  const [tool, simulator] = await Promise.all([
+  const [tool, simulator, i18n] = await Promise.all([
     read("core/components/SmartMeasurementTool.tsx"),
     read("core/components/SolidSimulator.tsx"),
+    read("core/measurement/measurement-i18n.ts"),
   ]);
 
   for (const constraint of ["free", "x", "y", "z", "xy"]) {
     assert.match(tool, new RegExp(`value: "${constraint}"`));
   }
-  assert.match(tool, /GÓC XY/);
-  assert.match(tool, /ĐỘ DỐC/);
-  assert.match(tool, /LỊCH SỬ/);
+  assert.match(tool, /\{copy\.angleXY\}/);
+  assert.match(tool, /\{copy\.inclination\}/);
+  assert.match(tool, /\{copy\.history\}/);
+  assert.match(i18n, /angleXY: "GÓC XY"/);
+  assert.match(i18n, /inclination: "ĐỘ DỐC"/);
+  assert.match(i18n, /history: "LỊCH SỬ"/);
   assert.match(tool, /MeasurementUnit = "mm" \| "in"/);
   assert.match(simulator, /current === "mm" \? "in" : "mm"/);
   assert.match(simulator, /constrainMeasurementPoint\(/);
-  assert.match(simulator, /calculateWorkOrigin\([\s\S]*?finalState\.position[\s\S]*?finalState\.workPosition/);
+  assert.match(
+    simulator,
+    /activeMeasurementSegment\?\.coordinateSystem[\s\S]*?finalState\.coordinateSystem/,
+  );
+  assert.match(
+    simulator,
+    /calculateWorkOrigin\([\s\S]*?activeMeasurementSegment\.end[\s\S]*?activeMeasurementSegment\.workEnd/,
+  );
+  assert.match(
+    simulator,
+    /calculateWorkOrigin\([\s\S]*?finalState\.position[\s\S]*?finalState\.workPosition/,
+  );
   assert.match(simulator, /MAX_MEASUREMENT_HISTORY = 6/);
   assert.match(
     simulator,
@@ -128,13 +145,15 @@ test("measurement dock compacts each stage and keeps bottom-dock targets touchab
 });
 
 test("measurement snap points are selectable without pointer-only canvas interaction", async () => {
-  const [tool, simulator, css] = await Promise.all([
+  const [tool, simulator, css, i18n] = await Promise.all([
     read("core/components/SmartMeasurementTool.tsx"),
     read("core/components/SolidSimulator.tsx"),
     read("app/globals.css"),
+    read("core/measurement/measurement-i18n.ts"),
   ]);
 
-  assert.match(tool, /CHỌN ĐIỂM BẰNG BÀN PHÍM/);
+  assert.match(tool, /\{copy\.keyboardPoints\}/);
+  assert.match(i18n, /keyboardPoints: "CHỌN ĐIỂM BẰNG BÀN PHÍM"/);
   assert.match(tool, /type="search"/);
   assert.match(tool, /visibleCandidates\.map\(\(candidate\)/);
   assert.match(tool, /onCandidateSelect\(candidate\)/);

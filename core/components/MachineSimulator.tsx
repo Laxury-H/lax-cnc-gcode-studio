@@ -2,9 +2,12 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, ContactShadows, Environment, Box, Cylinder, Cone, Sphere } from "@react-three/drei";
 import * as THREE from "three";
-import { Simulation, StockSettings } from "../simulation/types";
+import type { Simulation, StockSettings, Vec3 } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { StockMesh } from "./SolidSimulator";
+import { resolveStockZBounds } from "../measurement/measurement-utils";
+import { resolveSegmentTool } from "../simulation/stock-removal-coordinates";
+import { pointOnSegment } from "../utils/gcode-utils";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
@@ -18,8 +21,36 @@ interface MachineSimulatorProps {
   quality?: "low" | "medium" | "high";
 }
 
-function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number}, t: number) {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+const DEFAULT_MACHINE_LIMIT_MARGIN = 10;
+
+export function mapCncPointToMachineWorld(
+  point: Vec3,
+  bounds: { bottomZ: number },
+): Vec3 {
+  return {
+    x: point.x,
+    y: point.y,
+    z: point.z - bounds.bottomZ,
+  };
+}
+
+export function resolveMachineLimitState(
+  point: Pick<Vec3, "x" | "y">,
+  stock: Pick<
+    StockSettings,
+    "originX" | "originY" | "width" | "height"
+  >,
+  margin = DEFAULT_MACHINE_LIMIT_MARGIN,
+): { x: boolean; y: boolean } {
+  const safeMargin = Number.isFinite(margin) ? Math.max(0, margin) : 0;
+  return {
+    x:
+      point.x < stock.originX - safeMargin ||
+      point.x > stock.originX + stock.width + safeMargin,
+    y:
+      point.y < stock.originY - safeMargin ||
+      point.y > stock.originY + stock.height + safeMargin,
+  };
 }
 
 export function MachineKinematics({
@@ -44,31 +75,22 @@ export function MachineKinematics({
 
   // Interpolate current tool position
   const currentPos = useMemo(() => {
-    if (!curSeg) return { x: 0, y: 0, z: stock.safeZ };
-    
-    const start = {
-      x: curSeg.start?.x ?? 0,
-      y: curSeg.start?.y ?? 0,
-      z: curSeg.start?.z ?? stock.safeZ,
-    };
-    const end = {
-      x: curSeg.end?.x ?? start.x,
-      y: curSeg.end?.y ?? start.y,
-      z: curSeg.end?.z ?? start.z,
-    };
-    
-    return lerpVec(start, end, segmentProgress);
-  }, [curSeg, segmentProgress, stock.safeZ]);
+    if (!curSeg) {
+      return { x: stock.originX, y: stock.originY, z: stock.safeZ };
+    }
+    return pointOnSegment(curSeg, segmentProgress);
+  }, [curSeg, segmentProgress, stock.originX, stock.originY, stock.safeZ]);
 
-  // Machine limits
-  const isXLimit = currentPos.x < 0 || currentPos.x > stock.width + 10;
-  const isYLimit = currentPos.y < 0 || currentPos.y > stock.height + 10;
+  const zBounds = resolveStockZBounds(simulation, stock);
+  const machinePosition = mapCncPointToMachineWorld(currentPos, zBounds);
+  const limitState = resolveMachineLimitState(currentPos, stock);
+  const isCuttingDepth = currentPos.z < zBounds.topZ - 0.000001;
 
   useFrame(() => {
     // Kinematic chain mapping
-    if (gantryRef.current) gantryRef.current.position.y = currentPos.y;
-    if (carriageRef.current) carriageRef.current.position.x = currentPos.x;
-    if (zAxisRef.current) zAxisRef.current.position.z = currentPos.z;
+    if (gantryRef.current) gantryRef.current.position.y = machinePosition.y;
+    if (carriageRef.current) carriageRef.current.position.x = machinePosition.x;
+    if (zAxisRef.current) zAxisRef.current.position.z = machinePosition.z;
     
     // Spindle Rotation Animation
     if (spindleRef.current && curSeg && curSeg.spindle > 0) {
@@ -84,8 +106,7 @@ export function MachineKinematics({
   const stockOffsetY = stock.originY;
 
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
-  const activeToolId = activeSegment?.tool || "1";
-  const activeTool = stock.tools?.find(t => t.id === activeToolId);
+  const activeTool = resolveSegmentTool(stock, activeSegment?.tool);
   const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
   const toolType = activeTool?.type || "flat";
 
@@ -118,15 +139,15 @@ export function MachineKinematics({
       <group ref={gantryRef}>
         {/* Left Leg */}
         <Box args={[40, 60, 150]} position={[-bedW/2 + stock.width/2 + stockOffsetX + 40, 50, 75]} castShadow>
-          <meshStandardMaterial color={isYLimit ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
+          <meshStandardMaterial color={limitState.y ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
         </Box>
         {/* Right Leg */}
         <Box args={[40, 60, 150]} position={[bedW/2 + stock.width/2 + stockOffsetX - 40, 50, 75]} castShadow>
-          <meshStandardMaterial color={isYLimit ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
+          <meshStandardMaterial color={limitState.y ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
         </Box>
         {/* Bridge */}
         <Box args={[bedW, 40, 80]} position={[stock.width/2 + stockOffsetX, 50, 190]} castShadow>
-          <meshStandardMaterial color={isYLimit ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
+          <meshStandardMaterial color={limitState.y ? "#f39c12" : "#e74c3c"} roughness={0.5} metalness={0.4} />
         </Box>
         
         {/* X-Axis Rails (On Gantry) */}
@@ -140,7 +161,7 @@ export function MachineKinematics({
         {/* 3. Carriage (Moves in X) */}
         <group ref={carriageRef}>
           <Box args={[80, 70, 100]} position={[0, 25, 190]} castShadow>
-            <meshStandardMaterial color={isXLimit ? "#f39c12" : "#34495e"} roughness={0.6} metalness={0.3} />
+            <meshStandardMaterial color={limitState.x ? "#f39c12" : "#34495e"} roughness={0.6} metalness={0.3} />
           </Box>
 
           {/* 4. Z-Axis (Moves in Z) */}
@@ -166,24 +187,24 @@ export function MachineKinematics({
                   {toolType === "vbit" ? (
                     <group>
                       <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 30, 16]} castShadow>
-                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
                       </Cylinder>
                       <Cone args={[toolDiameter / 2, 10, 16]} position={[0, -20, 0]} castShadow>
-                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
                       </Cone>
                     </group>
                   ) : toolType === "ball" ? (
                     <group>
                       <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 40 - toolDiameter / 2, 16]} position={[0, toolDiameter / 4, 0]} castShadow>
-                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
                       </Cylinder>
                       <Sphere args={[toolDiameter / 2, 16, 16]} position={[0, -20 + toolDiameter / 4, 0]} castShadow>
-                        <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
                       </Sphere>
                     </group>
                   ) : (
                     <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 40, 16]} castShadow>
-                      <meshStandardMaterial color={currentPos.z < 0 ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
+                      <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
                     </Cylinder>
                   )}
                 </group>
@@ -208,6 +229,8 @@ export function MachineSimulator({
   quality = "medium",
 }: MachineSimulatorProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const stockCenterX = stock.originX + stock.width / 2;
+  const stockCenterY = stock.originY + stock.height / 2;
 
   useEffect(() => {
     if (controlsRef.current && resetTrigger) {
@@ -218,14 +241,14 @@ export function MachineSimulator({
   return (
     <Canvas
       shadows={quality !== "low"}
-      camera={{ position: [stock.width / 2, -stock.height * 1.5, Math.max(stock.width, stock.height)], fov: 45, up: [0, 0, 1], far: 20000 }}
+      camera={{ position: [stockCenterX, stockCenterY - stock.height * 1.5, Math.max(stock.width, stock.height)], fov: 45, up: [0, 0, 1], far: 20000 }}
       style={{ width: "100%", height: "100%", background: "#05080a" }}
     >
       <color attach="background" args={["#05080a"]} />
       
       <ambientLight intensity={0.6} />
       <directionalLight
-        position={[stock.width / 2, stock.height / 2, 3000]}
+        position={[stockCenterX, stockCenterY, 3000]}
         intensity={1.5}
         castShadow={quality !== "low"}
         shadow-mapSize={quality === "high" ? [2048, 2048] : [1024, 1024]}
@@ -247,7 +270,7 @@ export function MachineSimulator({
       />
 
       {quality !== "low" && (
-        <ContactShadows position={[stock.width / 2, stock.height / 2, -26]} opacity={0.6} scale={4000} blur={2} far={200} />
+        <ContactShadows position={[stockCenterX, stockCenterY, -26]} opacity={0.6} scale={4000} blur={2} far={200} />
       )}
       
       {quality === "high" && <Environment preset="city" environmentIntensity={0.2} />}
@@ -255,7 +278,7 @@ export function MachineSimulator({
       <OrbitControls
         ref={controlsRef}
         makeDefault
-        target={[stock.width / 2, stock.height / 2, 0]}
+        target={[stockCenterX, stockCenterY, stock.thickness / 2]}
         onChange={(e) => {
           if (onOrbitChange && e?.target) {
             const az = e.target.getAzimuthalAngle();

@@ -3524,6 +3524,138 @@ button.metric-card {
   font-size: 8px;
 }
 
+.settings-grid label > em {
+  color: #71838e;
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.work-offset-settings {
+  margin: 0 20px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(38, 217, 232, 0.2);
+  border-radius: 6px;
+  background: #0d1317;
+}
+
+.work-offset-settings > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: #c9d7df;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  list-style: none;
+}
+
+.work-offset-settings > summary::-webkit-details-marker {
+  display: none;
+}
+
+.work-offset-settings > summary::before {
+  content: "›";
+  color: var(--cyan);
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 140ms ease;
+}
+
+.work-offset-settings[open] > summary {
+  border-bottom: 1px solid rgba(38, 217, 232, 0.16);
+  color: var(--cyan);
+}
+
+.work-offset-settings[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.work-offset-settings > summary span {
+  flex: 1;
+}
+
+.work-offset-settings > summary small {
+  padding: 4px 6px;
+  border: 1px solid rgba(38, 217, 232, 0.25);
+  border-radius: 4px;
+  color: var(--cyan);
+  font-size: 8px;
+}
+
+.work-offset-settings__body {
+  display: grid;
+  gap: 12px;
+  padding: 13px 14px 14px;
+}
+
+.work-offset-settings__body > p {
+  margin: 0;
+  color: #91a0aa;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.work-offset-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.work-offset-table-wrap table {
+  width: 100%;
+  min-width: 440px;
+  border-spacing: 6px;
+  table-layout: fixed;
+}
+
+.work-offset-table-wrap th {
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-align: left;
+}
+
+.work-offset-table-wrap tbody th {
+  width: 62px;
+  color: #d4e0e6;
+  font-size: 10px;
+}
+
+.work-offset-table-wrap tbody th small {
+  display: inline-block;
+  margin-left: 5px;
+  color: var(--cyan);
+  font-size: 7px;
+}
+
+.work-offset-table-wrap td input {
+  width: 100%;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: 0;
+  background: #10181d;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.work-offset-table-wrap td input:focus-visible {
+  border-color: rgba(38, 217, 232, 0.72);
+  box-shadow: 0 0 0 2px rgba(38, 217, 232, 0.1);
+}
+
+.work-offset-settings__reset {
+  justify-self: end;
+}
+
 .experimental-settings {
   margin: 0 20px 16px;
   overflow: hidden;
@@ -4634,6 +4766,7 @@ button.metric-card {
   }
 
   .experimental-settings,
+  .work-offset-settings,
   .profile-note {
     margin-right: 16px;
     margin-left: 16px;
@@ -4641,6 +4774,21 @@ button.metric-card {
 
   .quick-origin-widget {
     padding: 0 16px 12px;
+  }
+
+  .work-offset-settings__body {
+    padding: 12px;
+  }
+
+  .work-offset-table-wrap td input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .work-offset-settings__reset {
+    width: 100%;
+    min-height: 44px;
+    justify-self: stretch;
   }
 
   .quick-origin-grid {

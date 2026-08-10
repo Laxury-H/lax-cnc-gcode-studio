@@ -134,8 +134,16 @@ export type NormalizedMotion = {
   lineIndex: number;
   rawText: string;
   type: NormalizedMotionType;
+  /** Absolute machine-space endpoints, retained even when Studio rebases view geometry. */
+  machineStart: Vec3;
+  machineEnd: Vec3;
   start: Vec3;
   end: Vec3;
+  /** Active work-coordinate values at the physical motion endpoints. */
+  workStart: Vec3;
+  workEnd: Vec3;
+  /** True only for a non-modal G53 machine-coordinate travel. */
+  machineCoordinates: boolean;
   center?: Vec3;
   radius?: number;
   sweepRadians?: number;
@@ -146,6 +154,7 @@ export type NormalizedMotion = {
   spindleState: SpindleState;
   coolant: CoolantState;
   coordinateSystem: CoordinateSystem;
+  distanceMode: DistanceMode;
   units: Units;
   distance: number;
   estimatedDurationMs: number;

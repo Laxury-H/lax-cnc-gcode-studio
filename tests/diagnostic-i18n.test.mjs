@@ -28,6 +28,7 @@ test("English diagnostic fallback covers parser and interpreter families", async
     "có nhiều hơn một trường checksum",
     "có nhiều hơn một số block N",
     "Checksum phải là trường thực thi cuối cùng",
+    "đang có cùng offset với G54",
   ]) {
     assert.ok(
       translations.includes(sourceFragment),

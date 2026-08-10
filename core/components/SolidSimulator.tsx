@@ -15,7 +15,20 @@ import {
   type MeasurementResult,
   type SnapCandidate,
 } from "../measurement/measurement-utils";
-import type { Segment, Simulation, StockSettings } from "../simulation/types";
+import type {
+  Simulation,
+  StockSettings,
+  ToolProfile,
+} from "../simulation/types";
+import {
+  buildCutterContactBands,
+  depthIntensity,
+  resolveSegmentTool,
+  resolveSolidOverlayPosition,
+  sliceToolpathPoints,
+  stockRemovalRenderKey,
+} from "../simulation/stock-removal-coordinates";
+import { pointOnSegment } from "../utils/gcode-utils";
 import {
   getMeasurementCopy,
   localizeMeasurementLabel,
@@ -67,44 +80,20 @@ function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
 }
 
-function distance3(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number}) {
-  return Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-}
-
-function pointOnSegment(segment: Simulation["segments"][0], progress: number) {
-  const clamped = Math.max(0, Math.min(1, progress));
-  if (segment.points.length <= 2) {
-    return lerpVec(segment.start, segment.end, clamped);
-  }
-  const total = segment.length || 1;
-  let target = total * clamped;
-  for (let index = 1; index < segment.points.length; index += 1) {
-    const from = segment.points[index - 1];
-    const to = segment.points[index];
-    const length = distance3(from, to);
-    if (target <= length || index === segment.points.length - 1) {
-      const ratio = length <= 0.000001 ? 0 : target / length;
-      return lerpVec(from, to, ratio);
-    }
-    target -= length;
-  }
-  return { ...segment.end };
-}
-
 function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds }: { simulation: Simulation, showRapids: boolean, showToolpath?: boolean, showBounds: boolean, stock: SolidSimulatorProps["stock"] }) {
   const { cutPositions, rapidPositions, boundsPositions } = useMemo(() => {
     const cutPositions: number[] = [];
     const rapidPositions: number[] = [];
     
     simulation.segments.forEach(seg => {
-      const isRapid = seg.kind === "rapid";
-      if (isRapid && !showRapids) return;
+      const isTravel = seg.machineCoordinates || seg.kind === "rapid";
+      if (isTravel && !showRapids) return;
       
       const pts = seg.points;
       for (let i = 1; i < pts.length; i++) {
         const p1 = pts[i - 1];
         const p2 = pts[i];
-        if (isRapid) {
+        if (isTravel) {
           rapidPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
         } else {
           cutPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
@@ -179,8 +168,7 @@ function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool 
   const pos = activeSegment ? pointOnSegment(activeSegment, segmentProgress) : { x: stock.originX, y: stock.originY, z: stock.safeZ };
   
   const fluteLength = Math.max(38, stock.thickness * 2.2);
-  const activeToolId = activeSegment?.tool || "1";
-  const activeTool = stock.tools?.find(t => t.id === activeToolId);
+  const activeTool = resolveSegmentTool(stock, activeSegment?.tool);
   const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
   const toolType = activeTool?.type || "flat";
   
@@ -216,12 +204,11 @@ function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool 
   );
 }
 
-// Map Z depth to a grayscale string for the displacement map
-function getDepthColor(z: number, topZ: number, bottomZ: number) {
-  const range = Math.max(0.01, topZ - bottomZ);
-  const ratio = (z - bottomZ) / range;
-  const clamped = Math.max(0, Math.min(1, ratio));
-  const intensity = Math.round(clamped * 255);
+function getDepthColor(
+  z: number,
+  bounds: { topZ: number; bottomZ: number },
+) {
+  const intensity = depthIntensity(z, bounds);
   return `rgb(${intensity}, ${intensity}, ${intensity})`;
 }
 
@@ -234,6 +221,11 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   
   const lastCursorRef = useRef<number>(0);
   const lastProgressRef = useRef<number>(0);
+  const renderSourceRef = useRef<{
+    canvas: HTMLCanvasElement;
+    simulation: Simulation;
+    key: string;
+  } | null>(null);
 
   const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
   const geomRes = quality === "high" ? 1024 : quality === "medium" ? 512 : 256;
@@ -266,87 +258,136 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     const ctx = el.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
 
-    let startCursor = lastCursorRef.current;
-    let startProgress = lastProgressRef.current;
-    
-    if (cursor < startCursor || (cursor === startCursor && segmentProgress < startProgress)) {
+    const zBounds = resolveStockZBounds(simulation, stock);
+    const renderKey = stockRemovalRenderKey(stock, MAP_RES, zBounds);
+    const previousSource = renderSourceRef.current;
+    const sourceChanged =
+      previousSource?.canvas !== el ||
+      previousSource.simulation !== simulation ||
+      previousSource.key !== renderKey;
+
+    let startCursor = sourceChanged ? 0 : lastCursorRef.current;
+    let startProgress = sourceChanged ? 0 : lastProgressRef.current;
+    let hasChanges = false;
+
+    if (
+      sourceChanged ||
+      cursor < startCursor ||
+      (cursor === startCursor && segmentProgress < startProgress)
+    ) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, MAP_RES, MAP_RES);
       startCursor = 0;
       startProgress = 0;
+      hasChanges = true;
     }
-    
-    if (cursor === startCursor && segmentProgress === startProgress) return;
 
-    const scaleX = MAP_RES / Math.max(1, stock.width);
-    const scaleY = MAP_RES / Math.max(1, stock.height);
+    const scaleX = MAP_RES / Math.max(1e-6, stock.width);
+    const scaleY = MAP_RES / Math.max(1e-6, stock.height);
 
-    let hasChanges = false;
-    const { topZ, bottomZ } = resolveStockZBounds(simulation, stock);
+    const drawLine = (
+      from: { x: number; y: number; z: number },
+      to: { x: number; y: number; z: number },
+      tool: ToolProfile,
+    ) => {
+      // Break ramps into shallow depth bands. A single average color would
+      // incorrectly make the whole ramp one depth.
+      const depthSteps = Math.min(
+        96,
+        Math.max(1, Math.ceil(Math.abs(to.z - from.z) / 0.25)),
+      );
+      for (let step = 0; step < depthSteps; step += 1) {
+        const sectionStart = lerpVec(from, to, step / depthSteps);
+        const sectionEnd = lerpVec(from, to, (step + 1) / depthSteps);
+        const averageZ = (sectionStart.z + sectionEnd.z) / 2;
+        const sweepBands = buildCutterContactBands(
+          tool,
+          averageZ,
+          zBounds,
+        );
+        const endpointBands = buildCutterContactBands(
+          tool,
+          sectionEnd.z,
+          zBounds,
+        );
+        if (sweepBands.length === 0 && endpointBands.length === 0) continue;
 
-    const drawLine = (from: {x:number,y:number,z:number}, to: {x:number,y:number,z:number}, tDia: number) => {
-        const startX = (from.x - stock.originX) * scaleX;
-        const startY = MAP_RES - ((from.y - stock.originY) * scaleY);
-        const endX = (to.x - stock.originX) * scaleX;
-        const endY = MAP_RES - ((to.y - stock.originY) * scaleY);
-        const avgZ = (from.z + to.z) / 2;
-        ctx.strokeStyle = getDepthColor(avgZ, topZ, bottomZ);
-        ctx.lineWidth = tDia * scaleX;
+        ctx.save();
+        // CNC mill stock can only get lower. The darken blend prevents a
+        // later shallow pass from visually restoring a previously deep cut.
+        ctx.globalCompositeOperation = "darken";
+        // Draw in millimetres, then scale each stock axis independently. This
+        // preserves a circular cutter footprint on non-square stock.
+        ctx.setTransform(
+          scaleX,
+          0,
+          0,
+          -scaleY,
+          -stock.originX * scaleX,
+          MAP_RES + stock.originY * scaleY,
+        );
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        ctx.stroke();
-        hasChanges = true;
-    };
-
-    const drawArcSeg = (seg: Segment, tDia: number) => {
-        if (!seg.center || seg.radius === undefined || seg.sweepRadians === undefined) return;
-        ctx.strokeStyle = getDepthColor(seg.end.z, topZ, bottomZ);
-        ctx.lineWidth = tDia * scaleX;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        const startAngle = Math.atan2(seg.start.y - seg.center.y, seg.start.x - seg.center.x);
-        const endAngle = startAngle + seg.sweepRadians;
-        const centerX = (seg.center.x - stock.originX) * scaleX;
-        const centerY = MAP_RES - ((seg.center.y - stock.originY) * scaleY);
-        const rX = seg.radius * scaleX;
-        ctx.ellipse(centerX, centerY, rX, rX, 0, startAngle, endAngle, seg.sweepRadians < 0);
-        ctx.stroke();
-        hasChanges = true;
-    };
-
-    for (let i = startCursor; i <= cursor; i++) {
-      const seg = simulation.segments[i];
-      if (!seg || seg.kind === "rapid" || seg.kind === "dwell") continue;
-      
-      const isCurrentSegment = i === cursor;
-      const isStartSegment = i === startCursor;
-      
-      const segStartProgress = isStartSegment ? startProgress : 0;
-      const segEndProgress = isCurrentSegment ? segmentProgress : 1;
-      
-      if (segStartProgress >= segEndProgress) continue; 
-
-      const activeTool = stock.tools?.find(t => t.id === seg.tool) || stock.tools?.[0];
-      const tDia = activeTool?.diameter || stock.toolDiameter || 6;
-
-      if (seg.kind === "cut") {
-        const ptFrom = pointOnSegment(seg, segStartProgress);
-        const ptTo = pointOnSegment(seg, segEndProgress);
-        drawLine(ptFrom, ptTo, tDia);
-      } else if (seg.kind === "arc-cw" || seg.kind === "arc-ccw") {
-        if (segEndProgress < 1) {
-          const ptFrom = pointOnSegment(seg, segStartProgress);
-          const ptTo = pointOnSegment(seg, segEndProgress);
-          drawLine(ptFrom, ptTo, tDia);
-        } else {
-          drawArcSeg(seg, tDia);
+        for (const band of sweepBands) {
+          ctx.strokeStyle = getDepthColor(band.z, zBounds);
+          ctx.lineWidth = band.diameter;
+          ctx.beginPath();
+          ctx.moveTo(sectionStart.x, sectionStart.y);
+          ctx.lineTo(sectionEnd.x, sectionEnd.y);
+          ctx.stroke();
         }
-      } else if (seg.kind === "drill" && segEndProgress > 0) {
-        drawLine(seg.start, seg.end, tDia);
+        // Stamp every cutter-profile band at the exact endpoint depth. This
+        // keeps plunges visible without turning ball noses or V-bits into a
+        // flat, full-diameter cutter.
+        for (const band of endpointBands) {
+          ctx.fillStyle = getDepthColor(band.z, zBounds);
+          ctx.beginPath();
+          ctx.arc(
+            sectionEnd.x,
+            sectionEnd.y,
+            band.diameter / 2,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
+        ctx.restore();
+        hasChanges = true;
+      }
+    };
+
+    if (cursor !== startCursor || segmentProgress !== startProgress) {
+      for (let index = startCursor; index <= cursor; index += 1) {
+        const segment = simulation.segments[index];
+        if (
+          !segment ||
+          segment.machineCoordinates ||
+          segment.kind === "rapid" ||
+          segment.kind === "dwell"
+        ) {
+          continue;
+        }
+
+        const segmentStartProgress = index === startCursor ? startProgress : 0;
+        const segmentEndProgress = index === cursor ? segmentProgress : 1;
+        const points = sliceToolpathPoints(
+          segment.points,
+          segmentStartProgress,
+          segmentEndProgress,
+        );
+        if (points.length < 2) continue;
+
+        const activeTool = resolveSegmentTool(stock, segment.tool);
+        const tool: ToolProfile = activeTool ?? {
+          id: "fallback",
+          diameter: stock.toolDiameter || 6,
+          type: "flat",
+        };
+        for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+          drawLine(points[pointIndex - 1], points[pointIndex], tool);
+        }
       }
     }
 
@@ -356,6 +397,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
 
     lastCursorRef.current = cursor;
     lastProgressRef.current = segmentProgress;
+    renderSourceRef.current = { canvas: el, simulation, key: renderKey };
   }, [simulation, cursor, segmentProgress, stock, MAP_RES]);
 
   // Material Shader Injection
@@ -446,7 +488,13 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   );
 }
 
-function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stock: SolidSimulatorProps["stock"] }) {
+function PartLabelsOverlay({
+  simulation,
+  topZ,
+}: {
+  simulation: Simulation;
+  topZ: number;
+}) {
   if (!simulation.parts || simulation.parts.length === 0) return null;
   return (
     <>
@@ -454,7 +502,7 @@ function PartLabelsOverlay({ simulation, stock }: { simulation: Simulation, stoc
         const centerX = part.minX + part.width / 2;
         const centerY = part.minY + part.height / 2;
         return (
-          <group key={part.id} position={[centerX, centerY, stock.thickness + 0.1]}>
+          <group key={part.id} position={[centerX, centerY, topZ + 0.1]}>
             <Text position={[0, 12, 0]} fontSize={28} color="#111111" anchorX="center" anchorY="middle" outlineWidth={0.5} outlineColor="rgba(255,255,255,0.5)">
               {part.id}
             </Text>
@@ -475,7 +523,10 @@ export function SolidSimulator(props: SolidSimulatorProps) {
     props.simulation,
     props.stock,
   );
-  const centerZ = (topZ + bottomZ) / 2;
+  const overlayPosition = resolveSolidOverlayPosition(props.stock, {
+    topZ,
+    bottomZ,
+  });
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const measurementSession = props.measurementSession;
@@ -539,16 +590,31 @@ export function SolidSimulator(props: SolidSimulatorProps) {
   const measurementHistory = measurementGeometryIsCurrent
     ? measurementState.history
     : [];
+  const activeMeasurementSegment = props.simulation.segments[
+    Math.min(
+      Math.max(0, props.cursor),
+      Math.max(0, props.simulation.segments.length - 1),
+    )
+  ];
   const activeCoordinateSystem =
-    props.simulation.finalState.coordinateSystem || "G54";
-  const workOrigin = useMemo(
-    () =>
-      calculateWorkOrigin(
-        props.simulation.finalState.position,
-        props.simulation.finalState.workPosition,
-      ),
-    [props.simulation],
-  );
+    activeMeasurementSegment?.coordinateSystem ??
+    props.simulation.finalState.coordinateSystem ??
+    "G54";
+  const workOrigin = useMemo(() => {
+    if (activeMeasurementSegment) {
+      // Measurements live in Studio's G54-relative display frame. Derive the
+      // active datum from this segment's displayed endpoint and matching work
+      // endpoint, even for a non-modal G53 move that keeps the active WCS.
+      return calculateWorkOrigin(
+        activeMeasurementSegment.end,
+        activeMeasurementSegment.workEnd,
+      );
+    }
+    return calculateWorkOrigin(
+      props.simulation.finalState.position,
+      props.simulation.finalState.workPosition,
+    );
+  }, [activeMeasurementSegment, props.simulation]);
 
   const rawMeasurementCandidates = useMemo(
     () => buildMeasurementSnapCandidates(props.simulation, props.stock, topZ),
@@ -915,13 +981,9 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           {/* CNC X -> Local X, CNC Y -> Local Y, CNC Z -> Local Z */}
           <group 
             rotation={[-Math.PI / 2, 0, 0]} 
-            position={[
-              -(props.stock.originX + props.stock.width / 2),
-              centerZ, 
-              (props.stock.originY + props.stock.height / 2)
-            ]}
+            position={overlayPosition}
           >
-            <PartLabelsOverlay simulation={props.simulation} stock={props.stock} />
+            <PartLabelsOverlay simulation={props.simulation} topZ={topZ} />
             <ToolpathOverlay 
               simulation={props.simulation} 
               stock={props.stock} 

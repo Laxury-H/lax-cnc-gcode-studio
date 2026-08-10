@@ -3,6 +3,7 @@ import type {
   StudioMachineProfile,
   ToolProfile,
 } from "../simulation/types";
+import type { CoordinateSystem, Vec3 } from "../gcode/types";
 
 export type SimulationQuality = "low" | "medium" | "high";
 
@@ -15,6 +16,7 @@ export type WorkspacePreferences = {
   showRapids: boolean;
   machineSound: boolean;
   finishSound: boolean;
+  workOffsets: Record<CoordinateSystem, Vec3>;
 };
 
 export const WORKSPACE_PREFERENCES_KEY = "lax_cnc_workspace_preferences";
@@ -37,9 +39,18 @@ const Z_ZERO_VALUES = new Set<NonNullable<StockSettings["zZero"]>>([
   "bottom",
 ]);
 const TOOL_TYPES = new Set<ToolProfile["type"]>(["flat", "ball", "vbit"]);
+const COORDINATE_SYSTEMS = [
+  "G54",
+  "G55",
+  "G56",
+  "G57",
+  "G58",
+  "G59",
+] as const satisfies readonly CoordinateSystem[];
 
 const MAX_TOOLS = 256;
 const MAX_TOOL_ID_LENGTH = 64;
+const MAX_WORK_OFFSET = 1_000_000;
 
 type NumericRule = {
   min: number;
@@ -176,6 +187,66 @@ function parseStock(value: unknown): StockSettings | null {
   };
 }
 
+function zeroVector(): Vec3 {
+  return { x: 0, y: 0, z: 0 };
+}
+
+export function createZeroWorkspaceWorkOffsets(): Record<
+  CoordinateSystem,
+  Vec3
+> {
+  return {
+    G54: zeroVector(),
+    G55: zeroVector(),
+    G56: zeroVector(),
+    G57: zeroVector(),
+    G58: zeroVector(),
+    G59: zeroVector(),
+  };
+}
+
+export function cloneWorkspaceWorkOffsets(
+  workOffsets: Record<CoordinateSystem, Vec3>,
+): Record<CoordinateSystem, Vec3> {
+  return Object.fromEntries(
+    COORDINATE_SYSTEMS.map((coordinateSystem) => [
+      coordinateSystem,
+      { ...workOffsets[coordinateSystem] },
+    ]),
+  ) as Record<CoordinateSystem, Vec3>;
+}
+
+function parseWorkOffsets(
+  value: unknown,
+): Record<CoordinateSystem, Vec3> | null {
+  // Version 1 originally had no persisted work-offset field. Keep those saved
+  // workspaces valid and migrate them to an explicit, independent zero vector
+  // for every supported coordinate system.
+  if (value === undefined) return createZeroWorkspaceWorkOffsets();
+  if (!isRecord(value)) return null;
+
+  const workOffsets = createZeroWorkspaceWorkOffsets();
+  const rule: NumericRule = {
+    min: -MAX_WORK_OFFSET,
+    max: MAX_WORK_OFFSET,
+    minInclusive: true,
+  };
+
+  for (const coordinateSystem of COORDINATE_SYSTEMS) {
+    const candidate = value[coordinateSystem];
+    if (!isRecord(candidate)) return null;
+
+    const x = boundedNumber(candidate.x, rule);
+    const y = boundedNumber(candidate.y, rule);
+    const z = boundedNumber(candidate.z, rule);
+    if (x === null || y === null || z === null) return null;
+
+    workOffsets[coordinateSystem] = { x, y, z };
+  }
+
+  return workOffsets;
+}
+
 function normalizePreferences(value: unknown): WorkspacePreferences | null {
   if (!isRecord(value) || value.version !== 1) return null;
   if (
@@ -203,6 +274,8 @@ function normalizePreferences(value: unknown): WorkspacePreferences | null {
 
   const stock = parseStock(value.stock);
   if (!stock) return null;
+  const workOffsets = parseWorkOffsets(value.workOffsets);
+  if (!workOffsets) return null;
 
   return {
     version: 1,
@@ -213,6 +286,7 @@ function normalizePreferences(value: unknown): WorkspacePreferences | null {
     showRapids: value.showRapids,
     machineSound: value.machineSound,
     finishSound: value.finishSound,
+    workOffsets,
   };
 }
 

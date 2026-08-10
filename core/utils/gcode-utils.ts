@@ -1,11 +1,12 @@
-import { cloneVec3, distance3D, lerpVec3 } from "@/core/geometry/line";
-import type { Segment, Vec3 } from "@/core/simulation/types";
+import type { Segment, Units, Vec3 } from "@/core/simulation/types";
 import type { TranslationDict } from "@/app/i18n";
+import {
+  pointAtToolpathProgress,
+  sliceToolpathPoints,
+} from "@/core/simulation/stock-removal-coordinates";
 
 export type ViewMode = "xoy" | "iso" | "solid" | "machine";
 export type OrbitCamera = { yaw: number; pitch: number };
-
-const EPSILON = 0.001;
 
 export function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
   if (viewMode === "xoy") {
@@ -37,47 +38,54 @@ export function getViewMeta(viewMode: ViewMode, t: TranslationDict) {
 }
 
 export function pointOnSegment(segment: Segment, progress: number): Vec3 {
-  const clamped = Math.max(0, Math.min(1, progress));
-  if (segment.points.length <= 2) {
-    return lerpVec3(segment.start, segment.end, clamped);
-  }
+  const points = segment.points.length > 0
+    ? segment.points
+    : [segment.start, segment.end];
+  return pointAtToolpathProgress(points, progress);
+}
 
-  const total = segment.length || 1;
-  let target = total * clamped;
-  for (let index = 1; index < segment.points.length; index += 1) {
-    const from = segment.points[index - 1];
-    const to = segment.points[index];
-    const length = distance3D(from, to);
-    if (target <= length || index === segment.points.length - 1) {
-      const ratio = length <= EPSILON ? 0 : target / length;
-      return lerpVec3(from, to, ratio);
-    }
-    target -= length;
+export function pointOnSegmentInWorkCoordinates(
+  segment: Segment,
+  progress: number,
+): Vec3 {
+  const point = pointOnSegment(segment, progress);
+  const workStart = segment.workStart ?? segment.start;
+  return {
+    x: point.x + workStart.x - segment.start.x,
+    y: point.y + workStart.y - segment.start.y,
+    z: point.z + workStart.z - segment.start.z,
+  };
+}
+
+export function pointOnSegmentInTelemetryCoordinates(
+  segment: Segment,
+  progress: number,
+): Vec3 {
+  if (!segment.machineCoordinates) {
+    return pointOnSegmentInWorkCoordinates(segment, progress);
   }
-  return cloneVec3(segment.end);
+  const machineStart = segment.machineStart ?? segment.start;
+  const machineEnd = segment.machineEnd ?? segment.end;
+  return pointAtToolpathProgress([machineStart, machineEnd], progress);
+}
+
+export function pointInProgramUnits(point: Vec3, units: Units): Vec3 {
+  if (units !== "inch") return { ...point };
+  return {
+    x: point.x / 25.4,
+    y: point.y / 25.4,
+    z: point.z / 25.4,
+  };
 }
 
 export function partialPoints(segment: Segment, progress: number) {
   const clamped = Math.max(0, Math.min(1, progress));
-  if (clamped >= 1) return segment.points;
+  const points = segment.points.length > 0
+    ? segment.points
+    : [segment.start, segment.end];
+  if (clamped >= 1) return points;
   if (clamped <= 0) return [segment.start];
-  const total = segment.length || 1;
-  let remaining = total * clamped;
-  const result = [segment.points[0]];
-  for (let index = 1; index < segment.points.length; index += 1) {
-    const from = segment.points[index - 1];
-    const to = segment.points[index];
-    const length = distance3D(from, to);
-    if (remaining >= length) {
-      result.push(to);
-      remaining -= length;
-    } else {
-      const ratio = length <= EPSILON ? 0 : remaining / length;
-      result.push(lerpVec3(from, to, ratio));
-      break;
-    }
-  }
-  return result;
+  return sliceToolpathPoints(points, 0, clamped);
 }
 
 export function formatTime(totalSeconds: number) {
@@ -97,6 +105,7 @@ export function formatLength(mm: number) {
 
 export function motionLabel(segment: Segment | undefined, t: TranslationDict) {
   if (!segment) return t.noMotion;
+  if (segment.machineCoordinates) return t.machineMove;
   if (segment.kind === "rapid") return t.rapidMove;
   if (segment.kind === "cut") return t.linearCut;
   if (segment.kind === "arc-cw") return t.arcCw;

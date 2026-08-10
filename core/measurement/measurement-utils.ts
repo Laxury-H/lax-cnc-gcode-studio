@@ -88,7 +88,24 @@ export function resolveStockZBounds(
   simulation: Simulation,
   stock: StockSettings,
 ): StockZBounds {
-  const automaticBottomZero = simulation.bounds.minZ >= -0.1;
+  let minimumCutZ = Number.POSITIVE_INFINITY;
+  for (const segment of simulation.segments ?? []) {
+    if (
+      segment.machineCoordinates ||
+      segment.kind === "rapid" ||
+      segment.kind === "dwell"
+    ) {
+      continue;
+    }
+    for (const point of segment.points) {
+      if (Number.isFinite(point.z)) minimumCutZ = Math.min(minimumCutZ, point.z);
+    }
+  }
+  // Auto mode must infer the material datum from cutting moves. Machine-space
+  // rapids such as G53 can sit far below the active work origin and previously
+  // flipped an otherwise valid bottom-zero program into top-zero mode.
+  if (!Number.isFinite(minimumCutZ)) minimumCutZ = simulation.bounds.minZ;
+  const automaticBottomZero = minimumCutZ >= -0.1;
   const isBottomZero =
     stock.zZero === "bottom" ||
     (stock.zZero !== "top" && automaticBottomZero);
@@ -252,7 +269,13 @@ export function buildMeasurementSnapCandidates(
   const candidates = new Map<string, SnapCandidate>();
 
   for (const segment of simulation.segments) {
-    if (segment.kind === "rapid" || segment.kind === "dwell") continue;
+    if (
+      segment.machineCoordinates ||
+      segment.kind === "rapid" ||
+      segment.kind === "dwell"
+    ) {
+      continue;
+    }
 
     addCandidate(candidates, {
       id: `segment:${segment.id}:start`,

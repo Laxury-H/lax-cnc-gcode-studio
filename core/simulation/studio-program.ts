@@ -1,9 +1,14 @@
 import {
+  arcBounds,
   DEFAULT_ARC_QUALITY,
   resolveArc,
   sampleArc,
 } from "../geometry/arc";
-import { bounds2DContains } from "../geometry/bounds";
+import {
+  bounds2DContains,
+  boundsForPoints,
+  mergeBounds,
+} from "../geometry/bounds";
 import { cloneVec3, distance2D } from "../geometry/line";
 import { createDiagnostic, mergeDiagnostics } from "../gcode/diagnostics";
 import {
@@ -12,7 +17,10 @@ import {
 } from "../gcode/dialects";
 import { interpretGcode } from "../gcode/interpreter";
 import type {
+  Bounds3,
   Diagnostic,
+  InterpreterOptions,
+  MachineProfile,
   NormalizedMotion,
   Plane,
   Vec3,
@@ -49,28 +57,35 @@ export function parseProgram(
   source: string,
   stock: StockSettings,
   profileId: StudioMachineProfile,
+  workOffsets: InterpreterOptions["workOffsets"] = {},
 ): Simulation {
   const profile = createMachineProfile(resolveMachineProfile(profileId), {
     rapidRate: Math.max(1, stock.rapidFeed),
+    workOffsets,
   });
+  const referenceOffset = profile.workOffsets.G54;
   const interpreted = interpretGcode(source, {
     profile,
     initialPosition: {
-      x: stock.originX,
-      y: stock.originY,
-      z: stock.safeZ,
+      x: stock.originX + referenceOffset.x,
+      y: stock.originY + referenceOffset.y,
+      z: stock.safeZ + referenceOffset.z,
     },
     initialAxesKnown: { x: false, y: false, z: true },
   });
-  const segments = interpreted.motions.map(motionToSegment);
+  const motions = interpreted.motions.map((motion) =>
+    translateMotionToReference(motion, referenceOffset),
+  );
+  const segments = motions.map(motionToSegment);
   const parts = detectParts(segments, stock);
   const offcuts = extractOffcuts(parts, stock);
   const diagnostics = addStudioDiagnostics(
     interpreted.diagnostics,
-    interpreted.motions,
+    motions,
     segments,
     parts,
     stock,
+    profile.workOffsets,
   );
 
   let cutLength = 0;
@@ -78,7 +93,7 @@ export function parseProgram(
   let drillHoles = 0;
   const drillKeys = new Set<string>();
   for (const segment of segments) {
-    if (segment.kind === "rapid") {
+    if (segment.machineCoordinates || segment.kind === "rapid") {
       rapidLength += segment.length;
     } else if (segment.kind !== "dwell") {
       cutLength += segment.length;
@@ -92,36 +107,34 @@ export function parseProgram(
     }
   }
 
-  const bounds = segments.length
-    ? interpreted.bounds
-    : {
-        minX: stock.originX,
-        minY: stock.originY,
-        minZ: 0,
-        maxX: stock.originX,
-        maxY: stock.originY,
-        maxZ: stock.safeZ,
-      };
+  // G53 moves belong to the machine envelope, not the workpiece. Keep them in
+  // playback, but exclude them from camera fit and stock auto-orientation.
+  const workpieceMotions = motions.filter(
+    (motion) => !motion.machineCoordinates,
+  );
+  const bounds = workpieceMotions.length
+    ? boundsForMotions(workpieceMotions)
+    : stockFallbackBounds(stock);
   const finalState = interpreted.finalState;
 
   return {
     lines: interpreted.lines,
     segments,
-    motions: interpreted.motions,
+    motions,
     diagnostics,
     parts,
     offcuts,
     cutLength,
     rapidLength,
     estimatedSeconds:
-      interpreted.motions.reduce(
+      motions.reduce(
         (total, motion) => total + motion.estimatedDurationMs,
         0,
       ) / 1000,
     drillHoles,
     bounds,
     finalState: {
-      position: cloneVec3(finalState.machinePosition),
+      position: subtractReference(finalState.machinePosition, referenceOffset),
       workPosition: cloneVec3(finalState.workPosition),
       feed: finalState.feed,
       spindle: finalState.spindle,
@@ -141,11 +154,12 @@ export function orientStockForProgram(
   source: string,
   current: StockSettings,
   profile: StudioMachineProfile,
+  workOffsets: InterpreterOptions["workOffsets"] = {},
 ) {
   if (Math.abs(current.width - current.height) <= STUDIO_EPSILON) {
     return { stock: current, rotated: false };
   }
-  const preview = parseProgram(source, current, profile);
+  const preview = parseProgram(source, current, profile, workOffsets);
   const tolerance = Math.max(10, current.toolDiameter);
   const fits = (width: number, height: number) =>
     bounds2DContains(
@@ -167,6 +181,73 @@ export function orientStockForProgram(
     };
   }
   return { stock: current, rotated: false };
+}
+
+function subtractReference(point: Vec3, reference: Vec3): Vec3 {
+  return {
+    x: point.x - reference.x,
+    y: point.y - reference.y,
+    z: point.z - reference.z,
+  };
+}
+
+function translateMotionToReference(
+  motion: NormalizedMotion,
+  reference: Vec3,
+): NormalizedMotion {
+  return {
+    ...motion,
+    start: subtractReference(motion.start, reference),
+    end: subtractReference(motion.end, reference),
+    center: motion.center
+      ? subtractReference(motion.center, reference)
+      : undefined,
+  };
+}
+
+function stockFallbackBounds(stock: StockSettings): Bounds3 {
+  return {
+    minX: stock.originX,
+    minY: stock.originY,
+    minZ: 0,
+    maxX: stock.originX,
+    maxY: stock.originY,
+    maxZ: stock.safeZ,
+  };
+}
+
+function boundsForMotions(motions: readonly NormalizedMotion[]): Bounds3 {
+  let bounds: Bounds3 | null = null;
+  for (const motion of motions) {
+    let exactBounds: Bounds3 | null = null;
+    if (
+      (motion.type === "arc-cw" || motion.type === "arc-ccw") &&
+      motion.center
+    ) {
+      const resolved = resolveArc({
+        start: motion.start,
+        end: motion.end,
+        plane: motion.plane,
+        clockwise: motion.type === "arc-cw",
+        center: centerWords(motion.center, motion.plane),
+        centerMode: "absolute",
+        radiusTolerance: 0.05,
+      });
+      if (resolved.ok) exactBounds = arcBounds(resolved);
+    }
+    bounds = mergeBounds(
+      bounds,
+      exactBounds ?? boundsForPoints([motion.start, motion.end]),
+    );
+  }
+  return bounds ?? {
+    minX: 0,
+    minY: 0,
+    minZ: 0,
+    maxX: 0,
+    maxY: 0,
+    maxZ: 0,
+  };
 }
 
 function motionToSegment(motion: NormalizedMotion): Segment {
@@ -200,8 +281,13 @@ function motionToSegment(motion: NormalizedMotion): Segment {
     lineIndex: motion.lineIndex,
     lineNumber: motion.sourceLine,
     raw: motion.rawText,
+    machineStart: cloneVec3(motion.machineStart),
+    machineEnd: cloneVec3(motion.machineEnd),
     start: cloneVec3(motion.start),
     end: cloneVec3(motion.end),
+    workStart: cloneVec3(motion.workStart),
+    workEnd: cloneVec3(motion.workEnd),
+    machineCoordinates: motion.machineCoordinates,
     points,
     kind,
     plane: motion.plane,
@@ -211,6 +297,8 @@ function motionToSegment(motion: NormalizedMotion): Segment {
     feed: motion.feed ?? 0,
     spindle: motion.spindle ?? 0,
     tool: motion.tool === undefined ? "—" : `T${motion.tool}`,
+    coordinateSystem: motion.coordinateSystem,
+    distanceMode: motion.distanceMode,
     units: motion.units,
     length: motion.distance,
     estimatedDurationMs: motion.estimatedDurationMs,
@@ -239,19 +327,45 @@ function addStudioDiagnostics(
   segments: readonly Segment[],
   parts: Simulation["parts"],
   stock: StockSettings,
+  workOffsets: MachineProfile["workOffsets"],
 ): Diagnostic[] {
   const diagnostics = [...base];
   let spindleWarningReported = false;
 
+  const referenceOffset = workOffsets.G54;
+  const unconfiguredWorkSystem = motions.find((motion) => {
+    if (motion.machineCoordinates || motion.coordinateSystem === "G54") {
+      return false;
+    }
+    const offset = workOffsets[motion.coordinateSystem];
+    return (
+      Math.abs(offset.x - referenceOffset.x) <= STUDIO_EPSILON &&
+      Math.abs(offset.y - referenceOffset.y) <= STUDIO_EPSILON &&
+      Math.abs(offset.z - referenceOffset.z) <= STUDIO_EPSILON
+    );
+  });
+  if (unconfiguredWorkSystem) {
+    diagnostics.push(
+      motionDiagnostic(
+        unconfiguredWorkSystem,
+        "warning",
+        "WCS_OFFSET_UNCONFIGURED",
+        `${unconfiguredWorkSystem.coordinateSystem} đang có cùng offset với G54. Hãy khai báo bù X/Y/Z trong Thiết lập nếu đây là một gốc gá khác.`,
+      ),
+    );
+  }
+
   for (const motion of motions) {
     const segment = segments[motion.id];
     const isCut =
-      motion.type === "linear" ||
-      motion.type === "arc-cw" ||
-      motion.type === "arc-ccw";
+      !motion.machineCoordinates &&
+      (motion.type === "linear" ||
+        motion.type === "arc-cw" ||
+        motion.type === "arc-ccw");
     const planarChange = distance2D(motion.start, motion.end) > STUDIO_EPSILON;
     const stockTolerance = Math.max(0.1, stock.toolDiameter / 2);
     if (
+      !motion.machineCoordinates &&
       planarChange &&
       segment.points.some(
         (point) =>
@@ -279,6 +393,7 @@ function addStudioDiagnostics(
       );
     }
     if (
+      !motion.machineCoordinates &&
       motion.type === "rapid" &&
       planarChange &&
       Math.min(motion.start.z, motion.end.z) <

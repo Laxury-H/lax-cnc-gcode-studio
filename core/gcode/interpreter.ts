@@ -22,6 +22,7 @@ import {
   cloneModalState,
   createInitialModalState,
   getCoordinateTransformOffset,
+  machineToWorkPosition,
   restoreG92Offset,
   setG92FromWorkPosition,
   suspendG92Offset,
@@ -328,20 +329,6 @@ function applyUnitsAndModes(
     );
   }
 
-  if (
-    gCodes.includes(53) &&
-    context.state.distanceMode !== "absolute"
-  ) {
-    block.diagnostics.push(
-      blockDiagnostic(
-        block,
-        "error",
-        "G53_REQUIRES_G90",
-        "G53",
-        "G53 dùng tọa độ máy tuyệt đối và yêu cầu G90.",
-      ),
-    );
-  }
 }
 
 function applyScalarWords(
@@ -584,6 +571,7 @@ function interpretTravel(
     type,
     start,
     end: target,
+    machineCoordinates,
     distance: length,
     estimatedDurationMs: estimateDuration(type, length, context),
   });
@@ -1053,7 +1041,8 @@ function appendMotion(
     | "sweepRadians"
     | "cannedCycle"
     | "cycleInstanceId"
-  >,
+  > &
+    Partial<Pick<NormalizedMotion, "machineCoordinates">>,
   exactBounds?: Bounds3,
 ): void {
   if (
@@ -1079,8 +1068,13 @@ function appendMotion(
     lineIndex: block.lineIndex,
     rawText: block.rawText,
     type: input.type,
+    machineStart: { ...input.start },
+    machineEnd: { ...input.end },
     start: { ...input.start },
     end: { ...input.end },
+    workStart: machineToWorkPosition(input.start, context.state),
+    workEnd: machineToWorkPosition(input.end, context.state),
+    machineCoordinates: input.machineCoordinates ?? false,
     center: input.center ? { ...input.center } : undefined,
     radius: input.radius,
     sweepRadians: input.sweepRadians,
@@ -1091,6 +1085,7 @@ function appendMotion(
     spindleState: context.state.spindleState,
     coolant: context.state.coolant,
     coordinateSystem: context.state.coordinateSystem,
+    distanceMode: context.state.distanceMode,
     units: context.state.units,
     distance: input.distance,
     estimatedDurationMs: Math.max(0, input.estimatedDurationMs),

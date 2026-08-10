@@ -95,6 +95,7 @@ export const translations = {
     editGcodeTooltip: "Chỉnh sửa hoặc dán G-code",
     noMotion: "KHÔNG CÓ CHUYỂN ĐỘNG",
     rapidMove: "G0 · CHẠY DAO NHANH",
+    machineMove: "G53 · DI CHUYỂN TỌA ĐỘ MÁY",
     linearCut: "G1 · CẮT ĐƯỜNG THẲNG",
     arcCw: "G2 · CUNG TRÒN CÙNG CHIỀU KIM ĐỒNG HỒ",
     arcCcw: "G3 · CUNG TRÒN NGƯỢC CHIỀU KIM ĐỒNG HỒ",
@@ -199,7 +200,17 @@ export const translations = {
     lblSafeZ: "Chiều cao an toàn Z",
     lblClearance: "Khoảng cách an toàn tối thiểu",
     lblRapidFeed: "Tốc độ chạy dao nhanh (G0)",
+    stockZReference: "Mốc Z của phôi",
+    stockZAuto: "Tự nhận diện theo đường cắt",
+    stockZTop: "Mặt trên = Z0",
+    stockZBottom: "Đáy phôi = Z0",
+    stockZReferenceHelp: "Mục này chỉ xác định mặt phôi ứng với Z0. Bù G54–G59 được đặt ở phần Nâng cao bên dưới.",
     quickOrigin: "Ghim gốc tọa độ nhanh",
+    workOffsetsTitle: "Bù hệ tọa độ G54–G59",
+    workOffsetsBadge: "NÂNG CAO",
+    workOffsetsDesc: "Nhập tọa độ gốc của từng hệ trong hệ máy. Khung xem dùng G54 làm mốc; G55–G59 được đặt theo độ lệch thực so với G54.",
+    workOffsetsReset: "Đặt tất cả về 0",
+    workOffsetsTableLabel: "Bảng bù hệ tọa độ làm việc",
     toolLibrary: "Thư viện Dao cụ",
     toolId: "ID Dao (VD: 1, 25)",
     toolType: "Loại dao",
@@ -391,6 +402,7 @@ export const translations = {
     editGcodeTooltip: "Edit or paste G-code",
     noMotion: "NO MOTION DETECTED",
     rapidMove: "G0 · RAPID MOVE",
+    machineMove: "G53 · MACHINE-COORDINATE MOVE",
     linearCut: "G1 · LINEAR INTERPOLATION",
     arcCw: "G2 · CIRCULAR INTERPOLATION (CW)",
     arcCcw: "G3 · CIRCULAR INTERPOLATION (CCW)",
@@ -495,7 +507,17 @@ export const translations = {
     lblSafeZ: "Safe Z Height",
     lblClearance: "Clearance Height",
     lblRapidFeed: "Rapid Feedrate (G0)",
+    stockZReference: "Stock Z reference",
+    stockZAuto: "Detect from cutting moves",
+    stockZTop: "Top face = Z0",
+    stockZBottom: "Bottom face = Z0",
+    stockZReferenceHelp: "This only selects which stock face represents Z0. Configure G54–G59 offsets in the Advanced section below.",
     quickOrigin: "Quick Origin Anchor",
+    workOffsetsTitle: "G54–G59 work offsets",
+    workOffsetsBadge: "ADVANCED",
+    workOffsetsDesc: "Enter each work origin in machine coordinates. The viewport uses G54 as its reference; G55–G59 are placed by their real offset from G54.",
+    workOffsetsReset: "Reset all to zero",
+    workOffsetsTableLabel: "Work coordinate offset table",
     toolLibrary: "Tool Library",
     toolId: "Tool ID (e.g. 1, 25)",
     toolType: "Type",
@@ -605,7 +627,6 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
   if (msg.includes("G4 cần giá trị P không âm")) return "G4 dwell requires a non-negative P value in seconds.";
   if (msg.includes("Không được lập trình trục khi G80")) return "Cannot program axis movements while G80 canned cycle cancel is active.";
   if (msg.includes("G53 chỉ hợp lệ trên cùng block với G0 hoặc G1")) return "G53 is only valid on the same block as G0 or G1.";
-  if (msg.includes("G53 dùng tọa độ máy tuyệt đối")) return "G53 uses absolute machine coordinates and requires G90 mode.";
   if (msg.includes("M6 được gọi khi chưa có giá trị T")) return "M6 called without a prior T tool selection.";
   if (msg.includes("G43 cần thanh ghi H là số nguyên không âm")) return "G43 requires the H register to be a non-negative integer.";
   if (msg.includes("Chưa có chiều dài cho H")) return msg.replace("Chưa có chiều dài cho H", "Missing tool length offset for H").replace("đang dùng giá trị 0 mm.", "defaulting to 0 mm.");
@@ -643,6 +664,11 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
   if (msg.includes("Chuyển động tạo ra NaN hoặc vô cực")) return "Motion produced NaN or infinity and has been discarded.";
   if (msg.includes("Chuyển động cắt chưa có tốc độ F")) return "Cutting motion is missing a valid feed rate (F).";
   if (msg.includes("Tọa độ X/Y nằm ngoài vùng phôi")) return "X/Y coordinates exceed the declared stock boundaries.";
+  if (msg.includes("đang có cùng offset với G54")) {
+    return msg
+      .replace("đang có cùng offset với G54.", "has the same offset as G54.")
+      .replace("Hãy khai báo bù X/Y/Z trong Thiết lập nếu đây là một gốc gá khác.", "Configure its X/Y/Z work offset in Settings if it represents a different fixture origin.");
+  }
   if (msg.includes("G0 chạy ngang dưới Z an toàn")) return msg.replace("G0 chạy ngang dưới Z an toàn", "G0 rapid move below the safe Z clearance");
   if (msg.includes("Có chuyển động cắt khi trạng thái spindle chưa bật")) return "Cutting motion detected while the spindle is stopped.";
   if (msg.includes("Dòng có nhiều word")) {

@@ -54,6 +54,7 @@ export function detectParts(
 
   for (const segment of segments) {
     const isPlanarCut =
+      !segment.machineCoordinates &&
       segment.kind !== "rapid" &&
       segment.kind !== "drill" &&
       segment.kind !== "dwell" &&

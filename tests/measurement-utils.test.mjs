@@ -43,6 +43,7 @@ function segment({
   end,
   points = [start, end],
   center,
+  machineCoordinates = false,
 }) {
   return {
     id,
@@ -51,6 +52,7 @@ function segment({
     end,
     points,
     center,
+    machineCoordinates,
   };
 }
 
@@ -107,6 +109,12 @@ const simulation = {
       id: 5,
       start: point(5, 5, 8),
       end: point(15, 5, 8),
+    }),
+    segment({
+      id: 6,
+      machineCoordinates: true,
+      start: point(700, 700, 700),
+      end: point(701, 701, 701),
     }),
   ],
   parts: [part],
@@ -290,6 +298,62 @@ test("uses an explicit stock Z reference instead of relying on an ambiguous tool
     resolveStockZBounds(negativeProgram, { ...stock, zZero: "bottom" }),
     { topZ: 12, bottomZ: 0 },
   );
+
+  const bottomZeroWithMachineRapid = {
+    bounds: { minZ: -100 },
+    segments: [
+      segment({
+        id: 1,
+        kind: "rapid",
+        start: point(0, 0, 20),
+        end: point(0, 0, -100),
+      }),
+      segment({
+        id: 2,
+        kind: "cut",
+        start: point(0, 0, 8),
+        end: point(10, 0, 5),
+      }),
+    ],
+  };
+  assert.deepEqual(
+    resolveStockZBounds(bottomZeroWithMachineRapid, {
+      ...stock,
+      zZero: "auto",
+    }),
+    { topZ: 12, bottomZ: 0 },
+  );
+});
+
+test("automatic stock Z datum ignores G53 machine-coordinate feed moves", async () => {
+  const { resolveStockZBounds } = await loadMeasurementUtils();
+  const stock = { thickness: 18, zZero: "auto" };
+  const simulation = {
+    bounds: { minZ: -100 },
+    segments: [
+      {
+        kind: "cut",
+        machineCoordinates: false,
+        points: [
+          { x: 0, y: 0, z: 18 },
+          { x: 10, y: 0, z: 5 },
+        ],
+      },
+      {
+        kind: "cut",
+        machineCoordinates: true,
+        points: [
+          { x: 10, y: 0, z: 5 },
+          { x: -100, y: -100, z: -100 },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(resolveStockZBounds(simulation, stock), {
+    topZ: 18,
+    bottomZ: 0,
+  });
 });
 
 test("builds and prioritizes deduplicated snap candidates", async () => {
@@ -310,6 +374,10 @@ test("builds and prioritizes deduplicated snap candidates", async () => {
   );
   assert.equal(
     candidates.some((candidate) => candidate.point.x === 800),
+    false,
+  );
+  assert.equal(
+    candidates.some((candidate) => candidate.point.x === 700),
     false,
   );
 

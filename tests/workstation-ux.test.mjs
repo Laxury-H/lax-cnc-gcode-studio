@@ -36,18 +36,26 @@ test("validated preferences hydrate, persist, and edit through a cancellable dra
     /localStorage\.setItem\(\s*WORKSPACE_PREFERENCES_KEY,\s*serializeWorkspacePreferences\(preferences\)/,
   );
   assert.match(source, /setSettingsDraft\(\{[\s\S]*?stock: cloneStockSettings\(stock\)/);
-  assert.match(source, /serializeWorkspacePreferences\(settingsDraft\)/);
-  assert.match(source, /setStock\(cloneStockSettings\(settingsDraft\.stock\)\)/);
+  assert.match(source, /serializeWorkspacePreferences\(nextSettingsDraft\)/);
+  assert.match(source, /setStock\(cloneStockSettings\(nextSettingsDraft\.stock\)\)/);
   for (const setter of [
-    "setProfile(settingsDraft.profile)",
-    "setSpeed(settingsDraft.speed)",
-    "setQuality(settingsDraft.quality)",
-    "setShowRapids(settingsDraft.showRapids)",
-    "setMachineSound(settingsDraft.machineSound)",
-    "setFinishSound(settingsDraft.finishSound)",
+    "setProfile(nextSettingsDraft.profile)",
+    "setSpeed(nextSettingsDraft.speed)",
+    "setQuality(nextSettingsDraft.quality)",
+    "setShowRapids(nextSettingsDraft.showRapids)",
   ]) {
     assert.ok(source.includes(setter), `Missing applied draft field: ${setter}`);
   }
+  assert.match(source, /setMachineSound\(nextMachineSound\)/);
+  assert.match(source, /setFinishSound\(nextFinishSound\)/);
+  assert.match(
+    source,
+    /setWorkOffsets\(cloneWorkspaceWorkOffsets\(parsedWorkOffsets\)\)/,
+  );
+  assert.match(
+    source,
+    /const nextWorkOffsets = cloneWorkspaceWorkOffsets\(workOffsets\)[\s\S]*?setSettingsDraft\(\{[\s\S]*?workOffsets: nextWorkOffsets/,
+  );
   assert.match(source, /value=\{settingsDraft\.stock\[key\]\}/);
   assert.match(source, /onClose=\{\(\) => setSettingsOpen\(false\)\}/);
   assert.match(source, /onClick=\{applySettings\}/);
@@ -80,7 +88,8 @@ test("buttons and keyboard shortcuts share one playback state transition", async
   );
   assert.match(source, /if \(!simulation\.segments\.length\) \{\s*notify\(t\.noMotionPlaybackMsg\)/);
   assert.match(source, /segmentProgress >= 1[\s\S]*?setCursor\(0\);\s*setSegmentProgress\(0\)/);
-  assert.match(source, /event\.code === "Space" \|\| event\.code === "F5"[\s\S]*?togglePlayback\(\)/);
+  assert.match(source, /event\.code === "F5"[\s\S]*?void togglePlayback\(\)/);
+  assert.match(source, /event\.code === "Space"[\s\S]*?void togglePlayback\(\)/);
   assert.match(source, /event\.code === "F10"[\s\S]*?stepForward\(\)/);
   assert.match(source, /event\.code === "F8"[\s\S]*?resetPlayback\(\)/);
   assert.match(source, /onClick=\{togglePlayback\}/);

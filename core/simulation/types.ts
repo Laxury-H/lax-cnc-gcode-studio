@@ -1,5 +1,7 @@
 import type {
+  CoordinateSystem,
   Diagnostic,
+  DistanceMode,
   InterpretedProgram,
   NormalizedMotion,
   Plane,
@@ -44,8 +46,13 @@ export type Segment = {
   lineIndex: number;
   lineNumber: number;
   raw: string;
+  machineStart: Vec3;
+  machineEnd: Vec3;
   start: Vec3;
   end: Vec3;
+  workStart: Vec3;
+  workEnd: Vec3;
+  machineCoordinates: boolean;
   points: Vec3[];
   kind: MotionKind;
   plane: Plane;
@@ -55,6 +62,8 @@ export type Segment = {
   feed: number;
   spindle: number;
   tool: string;
+  coordinateSystem: CoordinateSystem;
+  distanceMode: DistanceMode;
   units: Units;
   length: number;
   estimatedDurationMs: number;

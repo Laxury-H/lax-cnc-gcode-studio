@@ -22,6 +22,10 @@ import {
   parseProgram,
 } from "@/core/simulation/studio-program";
 import type {
+  Axis,
+  CoordinateSystem,
+} from "@/core/gcode/types";
+import type {
   PostProcessorType,
   Segment,
   Simulation,
@@ -36,17 +40,25 @@ import {
   type TranslationDict,
 } from "./i18n";
 import { cncAudio } from "@/core/simulation/audio";
+import { resolveStockZBounds } from "@/core/measurement/measurement-utils";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 import { FileCompareModal } from "@/core/components/FileCompareModal";
 import { MiniCamModal } from "@/core/components/MiniCamModal";
 import {
   WORKSPACE_PREFERENCES_KEY,
   cloneStockSettings,
+  cloneWorkspaceWorkOffsets,
+  createZeroWorkspaceWorkOffsets,
   parseWorkspacePreferences,
   serializeWorkspacePreferences,
   type SimulationQuality,
   type WorkspacePreferences,
 } from "@/core/ui/workspace-preferences";
+import {
+  createWorkOffsetInputDraft,
+  parseWorkOffsetInput,
+  parseWorkOffsetInputDraft,
+} from "@/core/ui/work-offset-input";
 
 import { Icon } from "@/core/components/ui/Icon";
 import { MetricCard } from "@/core/components/ui/MetricCard";
@@ -57,6 +69,8 @@ import {
   OrbitCamera, 
   getViewMeta, 
   pointOnSegment, 
+  pointOnSegmentInTelemetryCoordinates,
+  pointInProgramUnits,
   partialPoints, 
   formatTime, 
   formatLength, 
@@ -80,6 +94,14 @@ const DEFAULT_ORBIT: OrbitCamera = {
 
 const PLANE_GCODE = { XY: "G17", XZ: "G18", YZ: "G19" } as const;
 const MACHINE_VIEW_STORAGE_KEY = "lax_cnc_experimental_machine_view";
+const WORK_COORDINATE_SYSTEMS = [
+  "G54",
+  "G55",
+  "G56",
+  "G57",
+  "G58",
+  "G59",
+] as const satisfies readonly CoordinateSystem[];
 const SURFACE_FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
   "[href]",
@@ -112,6 +134,7 @@ function createDefaultWorkspacePreferences(): WorkspacePreferences {
     showRapids: true,
     machineSound: false,
     finishSound: true,
+    workOffsets: createZeroWorkspaceWorkOffsets(),
   };
 }
 
@@ -338,8 +361,10 @@ function ToolpathCanvas({
 
     const originX = stock.originX;
     const originY = stock.originY;
-    const originZ = 0;
-    const stockBottomZ = originZ - stock.thickness;
+    const { topZ: originZ, bottomZ: stockBottomZ } = resolveStockZBounds(
+      simulation,
+      stock,
+    );
     let project: (point: Vec3) => { x: number; y: number };
     let boardCorners: Array<{ x: number; y: number }> = [];
     let stockBottom: Vec3[] = [];
@@ -647,7 +672,7 @@ function ToolpathCanvas({
       const center = project({
         x: (part.minX + part.maxX) / 2,
         y: (part.minY + part.maxY) / 2,
-        z: 0,
+        z: originZ,
       });
       ctx.font = `600 ${Math.max(10, Math.min(16, scale * 22))}px "Arial Narrow", Arial`;
       ctx.textAlign = "center";
@@ -700,8 +725,9 @@ function ToolpathCanvas({
       let hasPoints = false;
       for (let i = 0; i < segs.length; i++) {
         const seg = segs[i];
-        if (filterKind === "rapid" && seg.kind !== "rapid") continue;
-        if (filterKind === "cut" && (seg.kind === "rapid" || seg.kind === "drill")) continue;
+        const isTravel = seg.machineCoordinates || seg.kind === "rapid";
+        if (filterKind === "rapid" && !isTravel) continue;
+        if (filterKind === "cut" && (isTravel || seg.kind === "drill")) continue;
         if (seg.points.length < 2) continue;
         hasPoints = true;
         const p0 = project(seg.points[0]);
@@ -777,10 +803,11 @@ function ToolpathCanvas({
     ) => {
       if (points.length < 2 || segment.kind === "drill") return;
       const projected = points.map(project);
-      const isRapid = segment.kind === "rapid";
-      const color = isRapid ? rapidColor : cutColor;
+      const isTravel = segment.machineCoordinates || segment.kind === "rapid";
+      if (isTravel && !showRapids) return;
+      const color = isTravel ? rapidColor : cutColor;
 
-      if (!isRapid && active) {
+      if (!isTravel && active) {
         ctx.beginPath();
         ctx.moveTo(projected[0].x, projected[0].y);
         projected.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
@@ -802,7 +829,7 @@ function ToolpathCanvas({
       ctx.lineWidth = view === "iso" ? (active ? 2 : 1.25) : (active ? 2.2 : 1.45);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      if (isRapid) ctx.setLineDash([7, 5]);
+      if (isTravel) ctx.setLineDash([7, 5]);
       ctx.stroke();
       ctx.setLineDash([]);
 
@@ -1185,9 +1212,16 @@ function ToolpathCanvas({
 
   const currentSegment =
     simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
-  const currentPosition = currentSegment
-    ? pointOnSegment(currentSegment, segmentProgress)
+  const activeUnits = currentSegment?.units ?? simulation.finalState.units;
+  const currentPositionMm = currentSegment
+    ? pointOnSegmentInTelemetryCoordinates(currentSegment, segmentProgress)
     : { x: stock.originX, y: stock.originY, z: stock.safeZ };
+  const currentPosition = pointInProgramUnits(currentPositionMm, activeUnits);
+  const activeCoordinateSystem =
+    currentSegment?.coordinateSystem ?? simulation.finalState.coordinateSystem;
+  const activeCoordinateLabel = currentSegment?.machineCoordinates
+    ? "MACHINE · G53"
+    : activeCoordinateSystem;
   const completedMoves = simulation.segments.length
     ? Math.min(
         simulation.segments.length,
@@ -1223,11 +1257,11 @@ function ToolpathCanvas({
       </div>
       <div
         className="canvas-telemetry"
-        aria-label={`Tọa độ dao X ${currentPosition.x.toFixed(3)}, Y ${currentPosition.y.toFixed(3)}, Z ${currentPosition.z.toFixed(3)}`}
+        aria-label={`${activeCoordinateLabel}: tọa độ dao X ${currentPosition.x.toFixed(3)}, Y ${currentPosition.y.toFixed(3)}, Z ${currentPosition.z.toFixed(3)} ${activeUnits}`}
       >
         <span className={`telemetry-state${playing ? " is-running" : ""}`}>
           <i />
-          {playing ? "RUN" : t.ready}
+          {playing ? "RUN" : t.ready} · {activeCoordinateLabel}
         </span>
         {(["x", "y", "z"] as const).map((axis) => (
           <span className={`telemetry-axis is-${axis}`} key={axis}>
@@ -1390,6 +1424,9 @@ export default function Home() {
   const [projectName, setProjectName] = useState("Tủ bếp căn A-01");
   const [stock, setStock] = useState(DEFAULT_STOCK);
   const [profile, setProfile] = useState<MachineProfile>("router-custom");
+  const [workOffsets, setWorkOffsets] = useState(
+    createZeroWorkspaceWorkOffsets,
+  );
   const [lang, setLang] = useState<Lang>("VN");
 
   useEffect(() => {
@@ -1443,6 +1480,9 @@ export default function Home() {
   const [settingsDraft, setSettingsDraft] = useState<WorkspacePreferences>(
     createDefaultWorkspacePreferences,
   );
+  const [workOffsetInputDraft, setWorkOffsetInputDraft] = useState(() =>
+    createWorkOffsetInputDraft(createZeroWorkspaceWorkOffsets()),
+  );
   const [editorOpen, setEditorOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [minicamOpen, setMinicamOpen] = useState(false);
@@ -1485,6 +1525,7 @@ export default function Home() {
         setShowRapids(saved.showRapids);
         setMachineSound(saved.machineSound);
         setFinishSound(saved.finishSound);
+        setWorkOffsets(cloneWorkspaceWorkOffsets(saved.workOffsets));
       }
       preferencesHydratedRef.current = true;
     });
@@ -1502,6 +1543,7 @@ export default function Home() {
       showRapids,
       machineSound,
       finishSound,
+      workOffsets: cloneWorkspaceWorkOffsets(workOffsets),
     };
     try {
       localStorage.setItem(
@@ -1519,6 +1561,7 @@ export default function Home() {
     showRapids,
     speed,
     stock,
+    workOffsets,
   ]);
 
   useEffect(() => {
@@ -1592,8 +1635,8 @@ export default function Home() {
   }, [drawerOpen]);
 
   const simulation = useMemo(
-    () => parseProgram(code, stock, profile),
-    [code, stock, profile],
+    () => parseProgram(code, stock, profile, workOffsets),
+    [code, stock, profile, workOffsets],
   );
 
   const errorCount = simulation.diagnostics.filter(
@@ -1604,9 +1647,34 @@ export default function Home() {
   ).length;
   const activeSegment =
     simulation.segments[Math.min(cursor, Math.max(0, simulation.segments.length - 1))];
-  const currentPosition = activeSegment
-    ? pointOnSegment(activeSegment, segmentProgress)
+  const activeUnits = activeSegment?.units ?? simulation.finalState.units;
+  const currentPositionMm = activeSegment
+    ? pointOnSegmentInTelemetryCoordinates(activeSegment, segmentProgress)
     : { x: stock.originX, y: stock.originY, z: stock.safeZ };
+  const currentPosition = pointInProgramUnits(currentPositionMm, activeUnits);
+  const activeCoordinateSystem =
+    activeSegment?.coordinateSystem ?? simulation.finalState.coordinateSystem;
+  const activeCoordinateLabel = activeSegment?.machineCoordinates
+    ? "MACHINE · G53"
+    : activeCoordinateSystem;
+  const activeModeLabel = activeSegment?.machineCoordinates
+    ? `G53 MCS · ${activeCoordinateSystem} ACTIVE`
+    : activeCoordinateSystem;
+  const activeDistanceMode = activeSegment?.machineCoordinates
+    ? "absolute"
+    : activeSegment?.distanceMode ??
+      (simulation.finalState.absolute ? "absolute" : "incremental");
+  const activeDistanceCodeLabel = activeSegment?.machineCoordinates
+    ? "ABS MACHINE"
+    : activeDistanceMode === "absolute"
+      ? "G90 ABS"
+      : "G91 INC";
+  const activeDistanceFooterLabel = activeSegment?.machineCoordinates
+    ? "ABS · G53"
+    : activeDistanceMode === "absolute"
+      ? "ABS · G90"
+      : "INC · G91";
+  const activePlane = activeSegment?.plane ?? simulation.finalState.plane;
   const currentLine = activeSegment?.lineIndex ?? 0;
   const totalProgress = simulation.segments.length
     ? Math.max(
@@ -1718,6 +1786,7 @@ export default function Home() {
   }, []);
 
   const openSettings = useCallback(() => {
+    const nextWorkOffsets = cloneWorkspaceWorkOffsets(workOffsets);
     setSettingsDraft({
       version: 1,
       profile,
@@ -1727,7 +1796,9 @@ export default function Home() {
       showRapids,
       machineSound,
       finishSound,
+      workOffsets: nextWorkOffsets,
     });
+    setWorkOffsetInputDraft(createWorkOffsetInputDraft(nextWorkOffsets));
     setDrawer(null);
     setSoundMenuOpen(false);
     setSettingsOpen(true);
@@ -1739,6 +1810,7 @@ export default function Home() {
     showRapids,
     speed,
     stock,
+    workOffsets,
   ]);
 
   const updateDraftStock = useCallback(
@@ -1751,15 +1823,37 @@ export default function Home() {
     [],
   );
 
+  const updateDraftWorkOffset = useCallback(
+    (coordinateSystem: CoordinateSystem, axis: Axis, value: string) => {
+      setWorkOffsetInputDraft((current) => ({
+        ...current,
+        [coordinateSystem]: {
+          ...current[coordinateSystem],
+          [axis]: value,
+        },
+      }));
+    },
+    [],
+  );
+
   const applySettings = useCallback(async () => {
+    const parsedWorkOffsets = parseWorkOffsetInputDraft(workOffsetInputDraft);
+    if (!parsedWorkOffsets) {
+      notify(t.invalidSettingsMsg);
+      return;
+    }
+    const nextSettingsDraft: WorkspacePreferences = {
+      ...settingsDraft,
+      workOffsets: parsedWorkOffsets,
+    };
     try {
-      serializeWorkspacePreferences(settingsDraft);
+      serializeWorkspacePreferences(nextSettingsDraft);
     } catch {
       notify(t.invalidSettingsMsg);
       return;
     }
-    let nextMachineSound = settingsDraft.machineSound;
-    let nextFinishSound = settingsDraft.finishSound;
+    let nextMachineSound = nextSettingsDraft.machineSound;
+    let nextFinishSound = nextSettingsDraft.finishSound;
     let audioReady = true;
     if (nextMachineSound || nextFinishSound) {
       audioReady = await ensureAudio();
@@ -1769,13 +1863,14 @@ export default function Home() {
       }
     }
 
-    setStock(cloneStockSettings(settingsDraft.stock));
-    setProfile(settingsDraft.profile);
-    setSpeed(settingsDraft.speed);
-    setQuality(settingsDraft.quality);
-    setShowRapids(settingsDraft.showRapids);
+    setStock(cloneStockSettings(nextSettingsDraft.stock));
+    setProfile(nextSettingsDraft.profile);
+    setSpeed(nextSettingsDraft.speed);
+    setQuality(nextSettingsDraft.quality);
+    setShowRapids(nextSettingsDraft.showRapids);
     setMachineSound(nextMachineSound);
     setFinishSound(nextFinishSound);
+    setWorkOffsets(cloneWorkspaceWorkOffsets(parsedWorkOffsets));
     setSettingsOpen(false);
     resetPlayback();
     notify(
@@ -1791,6 +1886,7 @@ export default function Home() {
     t.audioUnavailableMsg,
     t.invalidSettingsMsg,
     t.settingsAppliedMsg,
+    workOffsetInputDraft,
   ]);
 
   const onResetView = useCallback(() => {
@@ -1861,7 +1957,12 @@ export default function Home() {
 
   const applyCode = useCallback(
     (nextCode: string, nextFileName?: string) => {
-      const oriented = orientStockForProgram(nextCode, stock, profile);
+      const oriented = orientStockForProgram(
+        nextCode,
+        stock,
+        profile,
+        workOffsets,
+      );
       if (oriented.rotated) setStock(oriented.stock);
       setCode(nextCode);
       setDraftCode(nextCode);
@@ -1875,7 +1976,7 @@ export default function Home() {
       setOrbit({ ...DEFAULT_ORBIT });
       return oriented.rotated;
     },
-    [profile, resetPlayback, stock],
+    [profile, resetPlayback, stock, workOffsets],
   );
 
   const readFile = useCallback(
@@ -2660,9 +2761,10 @@ export default function Home() {
               Dòng {currentLine + 1} / {simulation.lines.length}
             </span>
             <span className="code-mode-badges">
-              <b>{simulation.finalState.absolute ? "G90 ABS" : "G91 INC"}</b>
-              <b>{simulation.finalState.units === "mm" ? "G21 MM" : "G20 INCH"}</b>
-              <b>{PLANE_GCODE[simulation.finalState.plane]} {simulation.finalState.plane}</b>
+              <b>{activeModeLabel}</b>
+              <b>{activeDistanceCodeLabel}</b>
+              <b>{activeUnits === "mm" ? "G21 MM" : "G20 INCH"}</b>
+              <b>{PLANE_GCODE[activePlane]} {activePlane}</b>
             </span>
           </div>
         </aside>
@@ -2831,7 +2933,7 @@ export default function Home() {
           {warningCount}
         </MetricCard>
         <div className="position-metric">
-          <span>{t.currentPos}</span>
+          <span>{t.currentPos} · {activeCoordinateLabel}</span>
           <div className="position-grid">
             <span>
               <b>X</b>
@@ -2866,17 +2968,19 @@ export default function Home() {
       <footer className="machine-statebar">
         <span>
           <small>MODE</small>
-          <b>{simulation.finalState.absolute ? "ABS · G90" : "INC · G91"}</b>
+          <b>
+            {activeModeLabel} · {activeDistanceFooterLabel}
+          </b>
         </span>
         <span>
           <small>UNIT</small>
           <b>
-            {simulation.finalState.units === "mm" ? "MM · G21" : "INCH · G20"}
+            {activeUnits === "mm" ? "MM · G21" : "INCH · G20"}
           </b>
         </span>
         <span>
           <small>PLANE</small>
-          <b>{simulation.finalState.plane} · {PLANE_GCODE[simulation.finalState.plane]}</b>
+          <b>{activePlane} · {PLANE_GCODE[activePlane]}</b>
         </span>
         <span>
           <small>SPINDLE</small>
@@ -3516,7 +3620,7 @@ export default function Home() {
                   </label>
                 ))}
                 <label>
-                  <span>{lang === "EN" ? "Stock Z reference" : "Mốc Z của phôi"}</span>
+                  <span>{t.stockZReference}</span>
                   <div>
                     <select
                       value={settingsDraft.stock.zZero ?? "auto"}
@@ -3529,20 +3633,87 @@ export default function Home() {
                         }))
                       }
                     >
-                      <option value="auto">
-                        {lang === "EN" ? "Auto detect" : "Tự nhận diện"}
-                      </option>
-                      <option value="top">
-                        {lang === "EN" ? "Top face = Z0" : "Mặt trên = Z0"}
-                      </option>
-                      <option value="bottom">
-                        {lang === "EN" ? "Bottom face = Z0" : "Đáy phôi = Z0"}
-                      </option>
+                      <option value="auto">{t.stockZAuto}</option>
+                      <option value="top">{t.stockZTop}</option>
+                      <option value="bottom">{t.stockZBottom}</option>
                     </select>
                     <small>Z0</small>
                   </div>
+                  <em>{t.stockZReferenceHelp}</em>
                 </label>
               </div>
+
+              <details className="work-offset-settings">
+                <summary>
+                  <span>{t.workOffsetsTitle}</span>
+                  <small>{t.workOffsetsBadge}</small>
+                </summary>
+                <div className="work-offset-settings__body">
+                  <p>{t.workOffsetsDesc}</p>
+                  <div className="work-offset-table-wrap">
+                    <table aria-label={t.workOffsetsTableLabel}>
+                      <thead>
+                        <tr>
+                          <th scope="col">WCS</th>
+                          <th scope="col">X</th>
+                          <th scope="col">Y</th>
+                          <th scope="col">Z</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {WORK_COORDINATE_SYSTEMS.map((coordinateSystem) => (
+                          <tr key={coordinateSystem}>
+                            <th scope="row">
+                              {coordinateSystem}
+                              {coordinateSystem === "G54" ? (
+                                <small>REF</small>
+                              ) : null}
+                            </th>
+                            {(["x", "y", "z"] as const).map((axis) => (
+                              <td key={axis}>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={workOffsetInputDraft[coordinateSystem][axis]}
+                                  aria-label={`${coordinateSystem} ${axis.toUpperCase()}`}
+                                  aria-invalid={
+                                    parseWorkOffsetInput(
+                                      workOffsetInputDraft[coordinateSystem][axis],
+                                    ) === null
+                                  }
+                                  onChange={(event) =>
+                                    updateDraftWorkOffset(
+                                      coordinateSystem,
+                                      axis,
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-button work-offset-settings__reset"
+                    onClick={() => {
+                      const zeroWorkOffsets = createZeroWorkspaceWorkOffsets();
+                      setSettingsDraft((current) => ({
+                        ...current,
+                        workOffsets: zeroWorkOffsets,
+                      }));
+                      setWorkOffsetInputDraft(
+                        createWorkOffsetInputDraft(zeroWorkOffsets),
+                      );
+                    }}
+                  >
+                    {t.workOffsetsReset}
+                  </button>
+                </div>
+              </details>
 
               <section
                 className="experimental-settings"
@@ -3782,7 +3953,13 @@ export default function Home() {
               <button
                 type="button"
                 className="ghost-button"
-                onClick={() => setSettingsDraft(createDefaultWorkspacePreferences())}
+                onClick={() => {
+                  const defaults = createDefaultWorkspacePreferences();
+                  setSettingsDraft(defaults);
+                  setWorkOffsetInputDraft(
+                    createWorkOffsetInputDraft(defaults.workOffsets),
+                  );
+                }}
               >
                 {t.restoreDefault}
               </button>
