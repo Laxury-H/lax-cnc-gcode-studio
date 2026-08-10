@@ -2417,10 +2417,11 @@ export default function Home() {
           />
           <Icon name="edit" size={15} />
         </label>
+        <div className="header-spacer" />
         <div className="program-chip" title={fileName}>
-          <span>PROGRAM</span>
+          <span>{t.programLabel}</span>
           <strong>{fileName}</strong>
-          <small>{simulation.lines.length} LINES</small>
+          <small>{simulation.lines.length} {t.statusLine.toUpperCase()}</small>
         </div>
         <input
           ref={fileInputRef}
@@ -2958,7 +2959,7 @@ export default function Home() {
             <strong>{totalProgress.toFixed(0)}%</strong>
           </div>
           <small className="progress-detail">
-            BLOCK {activeSegment?.lineNumber ?? 0} ·{" "}
+            {t.blockLabel.toUpperCase()} {activeSegment?.lineNumber ?? 0} ·{" "}
             {Math.min(cursor + 1, simulation.segments.length)}/
             {simulation.segments.length}
           </small>
@@ -2967,41 +2968,41 @@ export default function Home() {
 
       <footer className="machine-statebar">
         <span>
-          <small>MODE</small>
+          <small>{t.modeLabel.toUpperCase()}</small>
           <b>
             {activeModeLabel} · {activeDistanceFooterLabel}
           </b>
         </span>
         <span>
-          <small>UNIT</small>
+          <small>{t.unitLabel.toUpperCase()}</small>
           <b>
             {activeUnits === "mm" ? "MM · G21" : "INCH · G20"}
           </b>
         </span>
         <span>
-          <small>PLANE</small>
+          <small>{t.planeLabel.toUpperCase()}</small>
           <b>{activePlane} · {PLANE_GCODE[activePlane]}</b>
         </span>
         <span>
-          <small>SPINDLE</small>
+          <small>{t.spindleLabel.toUpperCase()}</small>
           <b>{activeSegment?.spindle || simulation.finalState.spindle || 0} RPM</b>
         </span>
         <span>
-          <small>FEED</small>
+          <small>{t.feedLabel.toUpperCase()}</small>
           <b>F {activeSegment?.feed.toFixed(0) ?? 0}</b>
         </span>
         <span>
-          <small>SAFE Z</small>
+          <small>{t.safeZLabel.toUpperCase()}</small>
           <b>{stock.safeZ.toFixed(3)}</b>
         </span>
         <span>
-          <small>DRILL</small>
+          <small>{t.drillLabel.toUpperCase()}</small>
           <b>{simulation.drillHoles} {lang === "EN" ? "HOLES" : "LỖ"}</b>
         </span>
         <span className="statebar-spacer" />
         <span className={`statebar-health${errorCount ? " has-error" : ""}`}>
           <i />
-          <b>{errorCount ? "CHECK REQUIRED" : "PROGRAM OK"}</b>
+          <b>{errorCount ? t.checkRequired : t.programOk}</b>
         </span>
       </footer>
 

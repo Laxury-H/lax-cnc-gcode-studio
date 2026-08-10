@@ -60,10 +60,10 @@ test("renders the detailed CNC workstation telemetry", async () => {
   const html = await response.text();
 
   for (const label of [
-    "PROGRAM",
-    "BLOCK",
+    "CHƯƠNG TRÌNH",
+    "KHỐI",
     "Vị trí hiện tại",
-    "PROGRAM OK",
+    "CHƯƠNG TRÌNH TỐT",
   ]) {
     assert.match(html, new RegExp(label));
   }

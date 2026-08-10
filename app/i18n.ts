@@ -310,6 +310,16 @@ export const translations = {
     guideToolsMER: "Phôi dư (MER): Tìm phần phôi còn dư lớn nhất sau khi cắt để tận dụng.",
     guideToolsRecovery: "Phục hồi: Sinh mã G-code an toàn để chạy tiếp khi bị gãy dao hoặc mất điện.",
     guideToolsPost: "Xuất CAM: Chuyển G-code sang hệ điều khiển chuyên dụng (NcStudio, Syntec).",
+    programLabel: "CHƯƠNG TRÌNH",
+    modeLabel: "CHẾ ĐỘ",
+    unitLabel: "ĐƠN VỊ",
+    planeLabel: "MẶT PHẲNG",
+    spindleLabel: "TRỤC CHÍNH",
+    feedLabel: "BƯỚC TIẾN",
+    drillLabel: "KHOAN LỖ",
+    checkRequired: "CẦN KIỂM TRA",
+    programOk: "CHƯƠNG TRÌNH TỐT",
+    blockLabel: "KHỐI",
   },
   EN: {
     // Header & Topbar
@@ -620,6 +630,16 @@ export const translations = {
     guideToolsMER: "Remnants (MER): Finds the Maximal Empty Rectangle to reuse leftover stock.",
     guideToolsRecovery: "Smart Resume: Generates safe restart G-code if tool breaks or power fails.",
     guideToolsPost: "CAM Post: Translates generic G-code for NcStudio or Syntec ATC.",
+    programLabel: "PROGRAM",
+    modeLabel: "MODE",
+    unitLabel: "UNIT",
+    planeLabel: "PLANE",
+    spindleLabel: "SPINDLE",
+    feedLabel: "FEED",
+    drillLabel: "DRILL",
+    checkRequired: "CHECK REQUIRED",
+    programOk: "PROGRAM OK",
+    blockLabel: "BLOCK",
   },
 } as const;
 
