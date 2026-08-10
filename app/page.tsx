@@ -2630,7 +2630,7 @@ export default function Home() {
           />
           <ToolbarButton
             icon="panel"
-            label="Phân tích & Tiện ích (Kích thước, Phôi dư, Smart Resume...)"
+            label={t.analysisDrawerTooltip}
             onClick={() => setDrawer(drawer ? null : "diagnostics")}
             active={!!drawer}
           />
@@ -2841,7 +2841,7 @@ export default function Home() {
           />
           <div className="scrubber">
             <span className="scrubber-clock">
-              <small>ĐÃ CHẠY</small>
+              <small>{t.statusRunTime.toUpperCase()}</small>
               <strong>
                 {formatTime(
                   simulation.estimatedSeconds * (totalProgress / 100),
@@ -2871,11 +2871,11 @@ export default function Home() {
               <strong>{totalProgress.toFixed(0)}%</strong>
               <small>
                 {Math.min(cursor + 1, simulation.segments.length)}/
-                {simulation.segments.length} MOVE
+                {simulation.segments.length} {t.statusLine.toUpperCase()}
               </small>
             </span>
             <span className="scrubber-clock">
-              <small>TỔNG</small>
+              <small>{t.statusTotalTime.toUpperCase()}</small>
               <strong>{formatTime(simulation.estimatedSeconds)}</strong>
             </span>
           </div>
@@ -3287,6 +3287,7 @@ export default function Home() {
                         max={simulation.segments.length}
                         value={resumeSegment}
                         onChange={(e) => setResumeSegment(Math.max(1, Math.min(simulation.segments.length, Number(e.target.value))))}
+                        autoFocus
                         style={{ padding: "8px", borderRadius: "4px", border: "1px solid #444", background: "#1e1e1e", color: "#fff" }}
                       />
                     </label>

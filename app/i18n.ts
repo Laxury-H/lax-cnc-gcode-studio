@@ -101,6 +101,9 @@ export const translations = {
     arcCcw: "G3 · CUNG TRÒN NGƯỢC CHIỀU KIM ĐỒNG HỒ",
     dwell: "G4 · DỪNG CHỜ",
     drillCycle: "CHU TRÌNH KHOAN",
+    statusRunTime: "ĐÃ CHẠY",
+    statusTotalTime: "TỔNG",
+    statusLine: "DÒNG",
     analysisDrawerTooltip: "Phân tích & Tiện ích (Kích thước, Phôi dư, Phục hồi thông minh...)",
     machineSetupTooltip: "Thiết lập phôi và máy",
 
@@ -408,6 +411,9 @@ export const translations = {
     arcCcw: "G3 · CIRCULAR INTERPOLATION (CCW)",
     dwell: "G4 · DWELL",
     drillCycle: "DRILLING CYCLE",
+    statusRunTime: "RUN TIME",
+    statusTotalTime: "TOTAL",
+    statusLine: "LINE",
     analysisDrawerTooltip: "Analysis & Utilities (Dimensions, Remnants, Smart Resume...)",
     machineSetupTooltip: "Machine and Stock Setup",
 

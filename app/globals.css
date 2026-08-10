@@ -5261,3 +5261,25 @@ button.metric-card {
     grid-template-columns: 1fr;
   }
 }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #00ff66;
+  color: #000;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  z-index: 10020;
+  pointer-events: none;
+  animation: toastFade 3s ease-in-out forwards;
+}
+
+@keyframes toastFade {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  10% { opacity: 1; transform: translate(-50%, 0); }
+  85% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 10px); }
+}
