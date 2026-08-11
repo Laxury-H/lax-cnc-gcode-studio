@@ -2365,6 +2365,7 @@ export default function Home() {
     >
       <div className="top-navigation-island">
         <header className="app-header">
+          <div className="header-left">
         <div className="brand" aria-label="Lax's CNC Pro Workstation">
           <div className="brand-badge" title="Lax's CNC Workstation PRO">
             <div className="brand-logo-icon">
@@ -2417,7 +2418,8 @@ export default function Home() {
           />
           <Icon name="edit" size={15} />
         </label>
-        <div className="header-spacer" />
+          </div>
+          <div className="header-center">
         <div className="program-chip" title={fileName}>
           <span>{t.programLabel}</span>
           <strong>{fileName}</strong>
@@ -2462,7 +2464,8 @@ export default function Home() {
           <span className="lang-divider">|</span>
           <span className={`lang-opt ${lang === "VN" ? "is-active" : ""}`}>VN</span>
         </button>
-        <div className="header-spacer" />
+          </div>
+          <div className="header-right">
         <label className="profile-select">
           <span className="visually-hidden">{t.profileLabel}</span>
           <select
@@ -2483,6 +2486,7 @@ export default function Home() {
             <small>{t.localProcessing}</small>
           </span>
         </div>
+          </div>
       </header>
 
       <section className="command-bar">
@@ -2616,7 +2620,7 @@ export default function Home() {
           />
           <ToolbarButton
             icon="crosshair"
-            label="Về gốc và vừa khung"
+            label={t.fitToScreen}
             onClick={onResetView}
           />
           <ToolbarButton
@@ -2637,7 +2641,7 @@ export default function Home() {
           />
           <ToolbarButton
             icon="settings"
-            label="Thiết lập phôi và máy"
+            label={t.machineSetupTooltip}
             onClick={openSettings}
           />
         </div>
@@ -2886,8 +2890,8 @@ export default function Home() {
       <section className="metrics-strip">
         <MetricCard
           icon="sheet"
-          label="Phôi"
-          detail={`Dày ${stock.thickness.toFixed(1)} mm · Gốc X${stock.originX} Y${stock.originY}`}
+          label={t.stockMetric}
+          detail={lang === "EN" ? `Thick ${stock.thickness.toFixed(1)} mm · Origin X${stock.originX} Y${stock.originY}` : `Dày ${stock.thickness.toFixed(1)} mm · Gốc X${stock.originX} Y${stock.originY}`}
           onClick={openSettings}
         >
           {stock.width.toFixed(0)} × {stock.height.toFixed(0)}
@@ -2895,7 +2899,7 @@ export default function Home() {
         </MetricCard>
         <MetricCard
           icon="tool"
-          label="Dao"
+          label={t.tool}
           detail={`F${activeSegment?.feed.toFixed(0) ?? 0} · S${activeSegment?.spindle.toFixed(0) ?? 0}`}
         >
           {activeSegment?.tool === "—" ? simulation.finalState.tool : activeSegment?.tool}
@@ -2903,8 +2907,8 @@ export default function Home() {
         </MetricCard>
         <MetricCard
           icon="route"
-          label="Quãng cắt"
-          detail={`Chạy nhanh ${formatLength(simulation.rapidLength)}`}
+          label={t.cutDistance}
+          detail={lang === "EN" ? `Rapid ${formatLength(simulation.rapidLength)}` : `Chạy nhanh ${formatLength(simulation.rapidLength)}`}
         >
           {formatLength(simulation.cutLength)}
         </MetricCard>
