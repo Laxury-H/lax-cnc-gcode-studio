@@ -325,3 +325,29 @@ export function depthIntensity(
   const ratio = (z - bounds.bottomZ) / range;
   return Math.round(Math.max(0, Math.min(1, ratio)) * 255);
 }
+
+/**
+ * Visible colour of freshly exposed material. Unlike the old shader threshold,
+ * this remains clearly different from the stock face even for a 0.1-0.2 mm
+ * engraving on thick sheet material; physical depth still comes exclusively
+ * from the heightmap.
+ */
+export function cutSurfaceColor(
+  z: number,
+  bounds: StockZBounds,
+): string {
+  const range = Math.max(0.01, bounds.topZ - bounds.bottomZ);
+  const depthRatio = Math.max(
+    0,
+    Math.min(1, (bounds.topZ - z) / range),
+  );
+  const shade = Math.pow(depthRatio, 0.55);
+  // Render the groove as a shadowed exposed wall. Keeping every cut colour
+  // below the stock albedo lets the canvas use a monotonic darken blend, so a
+  // later shallow pass cannot visually refill a deeper pocket.
+  const shallow = [178, 124, 73] as const;
+  const deep = [68, 39, 22] as const;
+  const channel = (index: number) =>
+    Math.round(shallow[index] + (deep[index] - shallow[index]) * shade);
+  return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
+}

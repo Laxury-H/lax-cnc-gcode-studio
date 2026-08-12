@@ -14,9 +14,11 @@ backplot lớn, theo dõi tọa độ dao và kiểm tra chương trình trướ
 - Trình phân tích modal cho G-code ISO/Fanuc cơ bản và profile router tùy chỉnh
 - Mô phỏng chuyển động nhanh, cắt thẳng, cung tròn và chu trình khoan
 - Hai góc nhìn chính: mặt phẳng phay 2D và mô phỏng bóc vật liệu 3D Solid
+- Heightmap bóc vật liệu lũy tiến hiển thị rõ cả rãnh khắc nông, ramp, cung tròn
+  và cắt xuyên; mặt cắt, vết dao và mạt cắt thay đổi theo dao phẳng/dao cầu/dao V
 - Mô hình động học `3D Machine` được giữ ở `Thiết lập > Tính năng thử nghiệm`,
-  mặc định ẩn; tính năng này chỉ minh họa chuyển động, chưa xác nhận va chạm,
-  giới hạn hành trình hoặc đồ gá
+  mặc định ẩn và dùng chung phôi đã bóc vật liệu với `3D Solid`; tính năng này
+  chỉ minh họa chuyển động, chưa xác nhận va chạm, giới hạn hành trình hoặc đồ gá
 - Camera 3D orbit, pan, zoom, orientation cube và đặt lại góc nhìn
 - Đo 3D CNC với bắt góc/đầu mút/trung điểm/tâm, khóa hướng X/Y/Z/XY,
   gốc hệ tọa độ làm việc, góc phương vị/độ dốc, mm/inch và lịch sử gần nhất

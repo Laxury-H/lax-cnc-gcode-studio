@@ -257,6 +257,12 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
     source,
     /segment\.machineCoordinates \|\|[\s\S]*?segment\.kind === "rapid"/,
   );
+  assert.match(source, /paintStockSurface\(surfaceCtx, MAP_RES\)/);
+  assert.match(source, /map=\{surfaceTexture\}/);
+  assert.match(source, /surfaceCtx,[\s\S]*?"darken",[\s\S]*?cutSurfaceColor/);
+  assert.match(source, /<planeGeometry args=\{\[stock\.width, stock\.height, geomRes, geomRes\]\}/);
+  assert.match(source, /alphaMap=\{texture\}/);
+  assert.doesNotMatch(source, /onBeforeCompile=/);
   assert.doesNotMatch(source, /function pointOnSegment\(/);
 });
 
@@ -307,4 +313,21 @@ test("depth encoding is monotonic so a deeper cut can be preserved with darken b
   assert.equal(depthIntensity(0, bounds), 255);
   assert.equal(depthIntensity(-12, bounds), 0);
   assert.ok(depthIntensity(-8, bounds) < depthIntensity(-2, bounds));
+});
+
+test("a shallow engraving keeps a high-contrast exposed surface colour", async () => {
+  const { cutSurfaceColor, depthIntensity } = await loadCoordinates();
+  const bounds = { topZ: 0, bottomZ: -18 };
+  const shallowIntensity = depthIntensity(-0.2, bounds);
+  const exposed = cutSurfaceColor(-0.2, bounds);
+  const deep = cutSurfaceColor(-12, bounds);
+
+  // This is the regression from the 18 mm sheet shown in the report: the
+  // physical height value is nearly white, but the albedo must still show it.
+  assert.equal(shallowIntensity, 252);
+  assert.match(exposed, /^rgb\(\d+, \d+, \d+\)$/);
+  assert.notEqual(exposed, "rgb(205, 154, 91)");
+  const exposedChannels = exposed.match(/\d+/g).map(Number);
+  const deepChannels = deep.match(/\d+/g).map(Number);
+  assert.ok(exposedChannels.every((channel, index) => channel > deepChannels[index]));
 });

@@ -115,4 +115,6 @@ test("3D Machine applies the shared stock datum and origin-aware helpers", async
   assert.match(source, /resolveSegmentTool\(stock, activeSegment\?\.tool\)/);
   assert.match(source, /stock\.originX \+ stock\.width \/ 2/);
   assert.match(source, /stock\.originY \+ stock\.height \/ 2/);
+  assert.match(source, /<MachiningEffects/);
+  assert.match(source, /active=\{isRemovingMaterial\}/);
 });

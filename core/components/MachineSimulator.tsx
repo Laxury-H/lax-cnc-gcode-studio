@@ -8,6 +8,7 @@ import { StockMesh } from "./SolidSimulator";
 import { resolveStockZBounds } from "../measurement/measurement-utils";
 import { resolveSegmentTool } from "../simulation/stock-removal-coordinates";
 import { pointOnSegment } from "../utils/gcode-utils";
+import { MachiningEffects } from "./MachiningEffects";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
@@ -109,6 +110,13 @@ export function MachineKinematics({
   const activeTool = resolveSegmentTool(stock, activeSegment?.tool);
   const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
   const toolType = activeTool?.type || "flat";
+  const isRemovingMaterial = Boolean(
+    curSeg &&
+      !curSeg.machineCoordinates &&
+      curSeg.kind !== "rapid" &&
+      curSeg.kind !== "dwell" &&
+      isCuttingDepth,
+  );
 
   return (
     <group>
@@ -134,6 +142,13 @@ export function MachineKinematics({
           <StockMesh simulation={simulation} stock={stock} cursor={cursor} segmentProgress={segmentProgress} quality={quality} />
         </group>
       )}
+
+      <MachiningEffects
+        position={[machinePosition.x, machinePosition.y, machinePosition.z]}
+        active={isRemovingMaterial}
+        toolDiameter={toolDiameter}
+        quality={quality}
+      />
 
       {/* 2. Gantry (Moves in Y) */}
       <group ref={gantryRef}>

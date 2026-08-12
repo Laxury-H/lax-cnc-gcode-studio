@@ -1393,6 +1393,7 @@ function ToolpathCanvas({
             showGrid={showGrid}
             resetTrigger={resetTrigger}
             onOrbitChange={onOrbit}
+            quality={quality}
             isMeasuring={isMeasuring}
             measurementSession={measurementSession}
             onMeasurementClose={onMeasurementClose}

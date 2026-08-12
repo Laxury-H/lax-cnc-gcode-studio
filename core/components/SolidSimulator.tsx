@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, ContactShadows, Text, Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -22,6 +22,7 @@ import type {
 } from "../simulation/types";
 import {
   buildCutterContactBands,
+  cutSurfaceColor,
   depthIntensity,
   resolveSegmentTool,
   resolveSolidOverlayPosition,
@@ -39,6 +40,7 @@ import {
   SmartMeasurementOverlay,
   type MeasurementUnit,
 } from "./SmartMeasurementTool";
+import { MachiningEffects } from "./MachiningEffects";
 
 const MAX_MEASUREMENT_HISTORY = 6;
 function addToMeasurementHistory(
@@ -162,7 +164,103 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds }: {
   );
 }
 
-function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool }: { simulation: Simulation, cursor: number, segmentProgress: number, stock: StockSettings, showTool: boolean }) {
+function SpinningCutter({
+  diameter,
+  fluteLength,
+  toolType,
+  spinning,
+}: {
+  diameter: number;
+  fluteLength: number;
+  toolType: ToolProfile["type"];
+  spinning: boolean;
+}) {
+  const cutterRef = useRef<THREE.Group>(null);
+  const radius = diameter / 2;
+  const tipLength = Math.min(12, Math.max(4, diameter * 1.4));
+
+  useFrame((_, delta) => {
+    if (spinning && cutterRef.current) {
+      cutterRef.current.rotation.y -= Math.min(0.75, delta * 24);
+    }
+  });
+
+  const cutterMaterial = (
+    <meshStandardMaterial
+      color={spinning ? "#d8e5e8" : "#9aa6aa"}
+      metalness={0.92}
+      roughness={0.16}
+    />
+  );
+
+  return (
+    <group rotation={[Math.PI / 2, 0, 0]} position={[0, 0, fluteLength / 2]}>
+      <group ref={cutterRef}>
+        {toolType === "vbit" ? (
+          <>
+            <mesh position={[0, tipLength / 2, 0]} castShadow>
+              <cylinderGeometry
+                args={[radius, radius, Math.max(2, fluteLength - tipLength), 24]}
+              />
+              {cutterMaterial}
+            </mesh>
+            <mesh
+              position={[0, -fluteLength / 2 + tipLength / 2, 0]}
+              castShadow
+            >
+              <coneGeometry args={[radius, tipLength, 24]} />
+              {cutterMaterial}
+            </mesh>
+          </>
+        ) : toolType === "ball" ? (
+          <>
+            <mesh position={[0, diameter / 2, 0]} castShadow>
+              <cylinderGeometry
+                args={[radius, radius, Math.max(2, fluteLength - diameter), 24]}
+              />
+              {cutterMaterial}
+            </mesh>
+            <mesh position={[0, -fluteLength / 2 + radius, 0]} castShadow>
+              <sphereGeometry args={[radius, 24, 16]} />
+              {cutterMaterial}
+            </mesh>
+          </>
+        ) : (
+          <mesh castShadow>
+            <cylinderGeometry args={[radius, radius, fluteLength, 24]} />
+            {cutterMaterial}
+          </mesh>
+        )}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[radius * 0.72, Math.max(0.12, radius * 0.1), 8, 32]} />
+          <meshStandardMaterial color="#48565b" metalness={0.8} roughness={0.25} />
+        </mesh>
+      </group>
+      <mesh position={[0, fluteLength / 2 + 9, 0]} castShadow>
+        <cylinderGeometry args={[radius * 1.45, radius * 1.2, 18, 12]} />
+        <meshStandardMaterial color="#323b40" metalness={0.85} roughness={0.24} />
+      </mesh>
+    </group>
+  );
+}
+
+function ToolMeshOverlay({
+  simulation,
+  cursor,
+  segmentProgress,
+  stock,
+  showTool,
+  topZ,
+  quality,
+}: {
+  simulation: Simulation;
+  cursor: number;
+  segmentProgress: number;
+  stock: StockSettings;
+  showTool: boolean;
+  topZ: number;
+  quality: "low" | "medium" | "high";
+}) {
   if (!showTool) return null;
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
   const pos = activeSegment ? pointOnSegment(activeSegment, segmentProgress) : { x: stock.originX, y: stock.originY, z: stock.safeZ };
@@ -171,35 +269,30 @@ function ToolMeshOverlay({ simulation, cursor, segmentProgress, stock, showTool 
   const activeTool = resolveSegmentTool(stock, activeSegment?.tool);
   const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
   const toolType = activeTool?.type || "flat";
+  const isRemovingMaterial = Boolean(
+    activeSegment &&
+      !activeSegment.machineCoordinates &&
+      activeSegment.kind !== "rapid" &&
+      activeSegment.kind !== "dwell" &&
+      pos.z < topZ - 0.000001,
+  );
   
   return (
     <group>
       <group position={[pos.x, pos.y, pos.z]}>
-        <group rotation={[Math.PI / 2, 0, 0]} position={[0, 0, fluteLength / 2]}>
-          {toolType === "vbit" ? (
-            <group>
-              <cylinderGeometry args={[toolDiameter / 2, toolDiameter / 2, fluteLength - 10, 16]} />
-              <mesh position={[0, -(fluteLength / 2) + 5, 0]}>
-                <coneGeometry args={[toolDiameter / 2, 10, 16]} />
-                <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
-              </mesh>
-            </group>
-          ) : toolType === "ball" ? (
-            <group>
-              <cylinderGeometry args={[toolDiameter / 2, toolDiameter / 2, fluteLength - toolDiameter / 2, 16]} />
-              <mesh position={[0, -(fluteLength / 2) + toolDiameter / 4, 0]}>
-                <sphereGeometry args={[toolDiameter / 2, 16, 16]} />
-                <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
-              </mesh>
-            </group>
-          ) : (
-            <mesh>
-              <cylinderGeometry args={[toolDiameter / 2, toolDiameter / 2, fluteLength, 16]} />
-              <meshStandardMaterial color="#888" metalness={0.8} roughness={0.2} />
-            </mesh>
-          )}
-        </group>
+        <SpinningCutter
+          diameter={toolDiameter}
+          fluteLength={fluteLength}
+          toolType={toolType}
+          spinning={Boolean(activeSegment && activeSegment.spindle > 0)}
+        />
       </group>
+      <MachiningEffects
+        position={[pos.x, pos.y, pos.z]}
+        active={isRemovingMaterial}
+        toolDiameter={toolDiameter}
+        quality={quality}
+      />
     </group>
   );
 }
@@ -213,11 +306,38 @@ function getDepthColor(
 }
 
 const STOCK_COLOR = "#cd9a5b"; // Realistic plywood surface color
-const CUT_COLOR = "#e8c99b"; // Lighter exposed core color
+const SURFACE_EPSILON = 0.000001;
+
+function paintStockSurface(
+  ctx: CanvasRenderingContext2D,
+  resolution: number,
+) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = STOCK_COLOR;
+  ctx.fillRect(0, 0, resolution, resolution);
+
+  const grainSpacing = Math.max(4, Math.round(resolution / 150));
+  for (let y = grainSpacing; y < resolution; y += grainSpacing) {
+    const phase = y / grainSpacing;
+    ctx.strokeStyle =
+      phase % 3 === 0 ? "rgba(79, 43, 20, 0.14)" : "rgba(255, 226, 174, 0.08)";
+    ctx.lineWidth = phase % 5 === 0 ? 1.4 : 0.75;
+    ctx.beginPath();
+    for (let x = 0; x <= resolution; x += 24) {
+      const wave = Math.sin(x * 0.018 + phase * 0.71) * grainSpacing * 0.42;
+      if (x === 0) ctx.moveTo(x, y + wave);
+      else ctx.lineTo(x, y + wave);
+    }
+    ctx.stroke();
+  }
+}
 
 export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: StockMeshProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
+  const surfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const surfaceTextureRef = useRef<THREE.CanvasTexture | null>(null);
   
   const lastCursorRef = useRef<number>(0);
   const lastProgressRef = useRef<number>(0);
@@ -228,9 +348,9 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   } | null>(null);
 
   const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
-  const geomRes = quality === "high" ? 1024 : quality === "medium" ? 512 : 256;
+  const geomRes = quality === "high" ? 512 : quality === "medium" ? 256 : 128;
 
-  const { canvas, texture } = useMemo(() => {
+  const { canvas, texture, surfaceCanvas, surfaceTexture } = useMemo(() => {
     const el = document.createElement("canvas");
     el.width = MAP_RES;
     el.height = MAP_RES;
@@ -242,21 +362,46 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     const tex = new THREE.CanvasTexture(el);
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
-    return { canvas: el, texture: tex };
+    tex.generateMipmaps = false;
+
+    const surfaceEl = document.createElement("canvas");
+    surfaceEl.width = MAP_RES;
+    surfaceEl.height = MAP_RES;
+    const surfaceCtx = surfaceEl.getContext("2d");
+    if (surfaceCtx) paintStockSurface(surfaceCtx, MAP_RES);
+    const surfaceTex = new THREE.CanvasTexture(surfaceEl);
+    surfaceTex.colorSpace = THREE.SRGBColorSpace;
+    surfaceTex.minFilter = THREE.LinearFilter;
+    surfaceTex.magFilter = THREE.LinearFilter;
+    surfaceTex.generateMipmaps = false;
+    return {
+      canvas: el,
+      texture: tex,
+      surfaceCanvas: surfaceEl,
+      surfaceTexture: surfaceTex,
+    };
   }, [MAP_RES]);
 
   useEffect(() => {
     canvasRef.current = canvas;
     textureRef.current = texture;
-    return () => { texture.dispose(); };
-  }, [canvas, texture]);
+    surfaceCanvasRef.current = surfaceCanvas;
+    surfaceTextureRef.current = surfaceTexture;
+    return () => {
+      texture.dispose();
+      surfaceTexture.dispose();
+    };
+  }, [canvas, surfaceCanvas, surfaceTexture, texture]);
 
   useEffect(() => {
     const el = canvasRef.current;
     const tex = textureRef.current;
-    if (!el || !tex) return;
+    const surfaceEl = surfaceCanvasRef.current;
+    const surfaceTex = surfaceTextureRef.current;
+    if (!el || !tex || !surfaceEl || !surfaceTex) return;
     const ctx = el.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
+    const surfaceCtx = surfaceEl.getContext("2d");
+    if (!ctx || !surfaceCtx) return;
 
     const zBounds = resolveStockZBounds(simulation, stock);
     const renderKey = stockRemovalRenderKey(stock, MAP_RES, zBounds);
@@ -279,6 +424,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, MAP_RES, MAP_RES);
+      paintStockSurface(surfaceCtx, MAP_RES);
       startCursor = 0;
       startProgress = 0;
       hasChanges = true;
@@ -314,46 +460,92 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
         );
         if (sweepBands.length === 0 && endpointBands.length === 0) continue;
 
-        ctx.save();
-        // CNC mill stock can only get lower. The darken blend prevents a
-        // later shallow pass from visually restoring a previously deep cut.
-        ctx.globalCompositeOperation = "darken";
-        // Draw in millimetres, then scale each stock axis independently. This
-        // preserves a circular cutter footprint on non-square stock.
-        ctx.setTransform(
-          scaleX,
-          0,
-          0,
-          -scaleY,
-          -stock.originX * scaleX,
-          MAP_RES + stock.originY * scaleY,
-        );
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        for (const band of sweepBands) {
-          ctx.strokeStyle = getDepthColor(band.z, zBounds);
-          ctx.lineWidth = band.diameter;
-          ctx.beginPath();
-          ctx.moveTo(sectionStart.x, sectionStart.y);
-          ctx.lineTo(sectionEnd.x, sectionEnd.y);
-          ctx.stroke();
-        }
-        // Stamp every cutter-profile band at the exact endpoint depth. This
-        // keeps plunges visible without turning ball noses or V-bits into a
-        // flat, full-diameter cutter.
-        for (const band of endpointBands) {
-          ctx.fillStyle = getDepthColor(band.z, zBounds);
-          ctx.beginPath();
-          ctx.arc(
-            sectionEnd.x,
-            sectionEnd.y,
-            band.diameter / 2,
+        const paintBands = (
+          target: CanvasRenderingContext2D,
+          composite: GlobalCompositeOperation,
+          color: (z: number) => string,
+          minimumDepth: number,
+        ) => {
+          target.save();
+          target.globalCompositeOperation = composite;
+          // Draw in millimetres, then scale each stock axis independently.
+          // This preserves a circular cutter footprint on non-square stock.
+          target.setTransform(
+            scaleX,
             0,
-            Math.PI * 2,
+            0,
+            -scaleY,
+            -stock.originX * scaleX,
+            MAP_RES + stock.originY * scaleY,
           );
-          ctx.fill();
+          target.lineCap = "round";
+          target.lineJoin = "round";
+          for (const band of sweepBands) {
+            if (band.z >= minimumDepth) continue;
+            target.strokeStyle = color(band.z);
+            target.lineWidth = band.diameter;
+            target.beginPath();
+            target.moveTo(sectionStart.x, sectionStart.y);
+            target.lineTo(sectionEnd.x, sectionEnd.y);
+            target.stroke();
+          }
+          // Stamp every cutter-profile band at the exact endpoint depth. This
+          // keeps plunges visible without flattening ball noses or V-bits.
+          for (const band of endpointBands) {
+            if (band.z >= minimumDepth) continue;
+            target.fillStyle = color(band.z);
+            target.beginPath();
+            target.arc(
+              sectionEnd.x,
+              sectionEnd.y,
+              band.diameter / 2,
+              0,
+              Math.PI * 2,
+            );
+            target.fill();
+          }
+          target.restore();
+        };
+
+        // The height texture is monotonic: a later shallow pass can never
+        // restore material removed by a deeper pass.
+        paintBands(
+          ctx,
+          "darken",
+          (z) => getDepthColor(z, zBounds),
+          zBounds.topZ + SURFACE_EPSILON,
+        );
+        // A separate albedo texture makes even physically shallow engraving
+        // visible. The old shader hid a 0.2 mm cut on 18 mm stock almost fully.
+        paintBands(
+          surfaceCtx,
+          "darken",
+          (z) => cutSurfaceColor(z, zBounds),
+          zBounds.topZ - SURFACE_EPSILON,
+        );
+
+        if (
+          sweepBands.some((band) => band.z < zBounds.topZ - SURFACE_EPSILON)
+        ) {
+          surfaceCtx.save();
+          surfaceCtx.globalCompositeOperation = "multiply";
+          surfaceCtx.setTransform(
+            scaleX,
+            0,
+            0,
+            -scaleY,
+            -stock.originX * scaleX,
+            MAP_RES + stock.originY * scaleY,
+          );
+          surfaceCtx.strokeStyle = "rgba(105, 64, 35, 0.16)";
+          surfaceCtx.lineWidth = Math.max(0.18, Math.min(1.1, tool.diameter * 0.1));
+          surfaceCtx.lineCap = "round";
+          surfaceCtx.beginPath();
+          surfaceCtx.moveTo(sectionStart.x, sectionStart.y);
+          surfaceCtx.lineTo(sectionEnd.x, sectionEnd.y);
+          surfaceCtx.stroke();
+          surfaceCtx.restore();
         }
-        ctx.restore();
         hasChanges = true;
       }
     };
@@ -393,6 +585,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
 
     if (hasChanges) {
       tex.needsUpdate = true;
+      surfaceTex.needsUpdate = true;
     }
 
     lastCursorRef.current = cursor;
@@ -400,91 +593,47 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     renderSourceRef.current = { canvas: el, simulation, key: renderKey };
   }, [simulation, cursor, segmentProgress, stock, MAP_RES]);
 
-  // Material Shader Injection
-  const onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
-    shader.uniforms.uStockColor = { value: new THREE.Color(STOCK_COLOR) };
-    shader.uniforms.uCutColor = { value: new THREE.Color(CUT_COLOR) };
-    
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <common>',
-      `#include <common>
-       varying float vDisplacement;
-       varying vec2 vUvWood;`
-    );
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <displacementmap_vertex>',
-      `#include <displacementmap_vertex>
-       #ifdef USE_DISPLACEMENTMAP
-         vDisplacement = texture2D( displacementMap, uv ).x;
-       #endif
-       vUvWood = uv;`
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      `#include <common>
-       varying float vDisplacement;
-       varying vec2 vUvWood;
-       uniform vec3 uStockColor;
-       uniform vec3 uCutColor;`
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      'vec4 diffuseColor = vec4( diffuse, opacity );',
-      `
-       if (vDisplacement <= 0.01) {
-         discard; // True cut-through (nesting)
-       }
-
-       vec2 pos = vUvWood * vec2(150.0, 10.0);
-       float n = sin(pos.y) * 0.5 + sin(pos.x * 0.5) * 0.5;
-       float ring = fract(pos.x * 0.1 + n * 0.3);
-       float grain = smoothstep(0.0, 0.1, ring) * (1.0 - smoothstep(0.8, 1.0, ring));
-       vec3 grainColor = mix(uStockColor * 0.85, uStockColor, grain);
-       
-       vec3 finalColor = mix(uCutColor, grainColor, smoothstep(0.95, 0.99, vDisplacement));
-       vec4 diffuseColor = vec4( finalColor, opacity );
-      `
-    );
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <roughnessmap_fragment>',
-      `#include <roughnessmap_fragment>
-       float cutFactor = 1.0 - smoothstep(0.95, 0.99, vDisplacement);
-       roughnessFactor = mix(0.9, 0.7, cutFactor);
-       `
-    );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <metalnessmap_fragment>',
-      `#include <metalnessmap_fragment>
-       metalnessFactor = 0.05;
-       `
-    );
-  };
-
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <boxGeometry args={[stock.width, stock.height, stock.thickness, geomRes, geomRes, 1]} />
-      
-      {/* Faces: 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z (Top after rotation), 5: -Z (Bottom) */}
-      {[0, 1, 2, 3].map((idx) => (
-        <meshStandardMaterial key={idx} attach={`material-${idx}`} color={STOCK_COLOR} roughness={0.9} metalness={0.1} />
-      ))}
-      <meshStandardMaterial attach="material-5" transparent={true} opacity={0} depthWrite={false} />
-      
-      <meshStandardMaterial 
-        attach="material-4"
-        roughness={0.9}
-        metalness={0.1}
-        displacementMap={texture}
-        displacementScale={stock.thickness}
-        displacementBias={-stock.thickness}
-        bumpMap={texture}
-        bumpScale={stock.thickness * 0.3}
-        onBeforeCompile={onBeforeCompile}
-        customProgramCacheKey={() => 'solid-wood'}
-      />
-    </mesh>
+    <group rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[stock.width, stock.height, stock.thickness, 1, 1, 1]} />
+        {[0, 1, 2, 3].map((idx) => (
+          <meshStandardMaterial
+            key={idx}
+            attach={`material-${idx}`}
+            color={STOCK_COLOR}
+            roughness={0.9}
+            metalness={0.02}
+          />
+        ))}
+        {[4, 5].map((idx) => (
+          <meshStandardMaterial
+            key={idx}
+            attach={`material-${idx}`}
+            transparent
+            opacity={0}
+            depthWrite={false}
+          />
+        ))}
+      </mesh>
+
+      <mesh position={[0, 0, stock.thickness / 2]} castShadow receiveShadow>
+        <planeGeometry args={[stock.width, stock.height, geomRes, geomRes]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          map={surfaceTexture}
+          roughness={0.76}
+          metalness={0.015}
+          displacementMap={texture}
+          displacementScale={stock.thickness}
+          displacementBias={-stock.thickness}
+          bumpMap={texture}
+          bumpScale={Math.max(0.35, stock.thickness * 0.42)}
+          alphaMap={texture}
+          alphaTest={0.012}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -1017,7 +1166,9 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               cursor={props.cursor} 
               segmentProgress={props.segmentProgress ?? 1} 
               stock={props.stock} 
-              showTool={props.showTool ?? true} 
+              showTool={props.showTool ?? true}
+              topZ={topZ}
+              quality={props.quality ?? "medium"}
             />
           </group>
         </group>
