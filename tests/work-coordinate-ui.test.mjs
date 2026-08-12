@@ -26,6 +26,7 @@ test("the workstation persists and applies its G54-G59 offset table", async () =
     /updateDraftWorkOffset\([\s\S]*?event\.target\.value/,
   );
   assert.match(page, /parseWorkOffsetInputDraft\(workOffsetInputDraft\)/);
+  assert.match(page, /resizeStockPreservingPinnedOrigin/);
   assert.match(preferences, /value === undefined[\s\S]*?createZeroWorkspaceWorkOffsets/);
 });
 

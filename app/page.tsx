@@ -20,6 +20,7 @@ import {
   generateSmartResume,
   orientStockForProgram,
   parseProgram,
+  resizeStockPreservingPinnedOrigin,
 } from "@/core/simulation/studio-program";
 import type {
   Axis,
@@ -3615,10 +3616,24 @@ export default function Home() {
                         settingsDraft.stock[key],
                       )}
                       onChange={(event) =>
-                        updateDraftStock((current) => ({
-                          ...current,
-                          [key]: Number(event.target.value) || 0,
-                        }))
+                        updateDraftStock((current) => {
+                          const value = Number(event.target.value) || 0;
+                          if (key === "width") {
+                            return resizeStockPreservingPinnedOrigin(
+                              current,
+                              value,
+                              current.height,
+                            );
+                          }
+                          if (key === "height") {
+                            return resizeStockPreservingPinnedOrigin(
+                              current,
+                              current.width,
+                              value,
+                            );
+                          }
+                          return { ...current, [key]: value };
+                        })
                       }
                     />
                       <small>{unit}</small>

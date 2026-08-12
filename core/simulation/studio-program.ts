@@ -36,6 +36,45 @@ import type {
 } from "./types";
 
 const STUDIO_EPSILON = 0.001;
+const STOCK_ORIGIN_ANCHOR_STOPS = [0, 0.5, 1] as const;
+
+type StockOriginAnchorStop = (typeof STOCK_ORIGIN_ANCHOR_STOPS)[number];
+
+function matchStockOriginAnchorStop(
+  origin: number,
+  size: number,
+): StockOriginAnchorStop | null {
+  if (!Number.isFinite(origin) || !Number.isFinite(size) || size <= 0) {
+    return null;
+  }
+  return (
+    STOCK_ORIGIN_ANCHOR_STOPS.find(
+      (stop) => Math.abs(origin + size * stop) <= STUDIO_EPSILON,
+    ) ?? null
+  );
+}
+
+/**
+ * Resize a stock while keeping a quick-origin pin attached to the same edge,
+ * corner, or centre. Free-form origin values remain absolute coordinates.
+ */
+export function resizeStockPreservingPinnedOrigin(
+  stock: StockSettings,
+  width: number,
+  height: number,
+): StockSettings {
+  const anchorX = matchStockOriginAnchorStop(stock.originX, stock.width);
+  const anchorY = matchStockOriginAnchorStop(stock.originY, stock.height);
+  return {
+    ...stock,
+    width,
+    height,
+    originX:
+      anchorX === null ? stock.originX : anchorX === 0 ? 0 : -width * anchorX,
+    originY:
+      anchorY === null ? stock.originY : anchorY === 0 ? 0 : -height * anchorY,
+  };
+}
 
 export const DEFAULT_STOCK: StockSettings = {
   width: 2440,
@@ -161,22 +200,27 @@ export function orientStockForProgram(
   }
   const preview = parseProgram(source, current, profile, workOffsets);
   const tolerance = Math.max(10, current.toolDiameter);
-  const fits = (width: number, height: number) =>
+  const rotatedStock = resizeStockPreservingPinnedOrigin(
+    current,
+    current.height,
+    current.width,
+  );
+  const fits = (candidate: StockSettings) =>
     bounds2DContains(
       {
-        minX: current.originX,
-        minY: current.originY,
-        maxX: current.originX + width,
-        maxY: current.originY + height,
+        minX: candidate.originX,
+        minY: candidate.originY,
+        maxX: candidate.originX + candidate.width,
+        maxY: candidate.originY + candidate.height,
       },
       preview.bounds,
       tolerance,
     );
-  const currentFits = fits(current.width, current.height);
-  const rotatedFits = fits(current.height, current.width);
+  const currentFits = fits(current);
+  const rotatedFits = fits(rotatedStock);
   if (!currentFits && rotatedFits) {
     return {
-      stock: { ...current, width: current.height, height: current.width },
+      stock: rotatedStock,
       rotated: true,
     };
   }

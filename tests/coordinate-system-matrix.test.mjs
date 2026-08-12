@@ -175,6 +175,83 @@ test("all seven stock-origin presets bound geometry without shifting programmed 
   }
 });
 
+test("auto-orientation preserves every pinned stock origin", async () => {
+  const { DEFAULT_STOCK, orientStockForProgram } = await loadModule(
+    "../core/simulation/studio-program.ts",
+  );
+  const anchors = [
+    ["top-left", 0, -50, 0, -100],
+    ["top-center", -50, -50, -25, -100],
+    ["top-right", -100, -50, -50, -100],
+    ["center", -50, -25, -25, -50],
+    ["bottom-left", 0, 0, 0, 0],
+    ["bottom-center", -50, 0, -25, 0],
+    ["bottom-right", -100, 0, -50, 0],
+  ];
+
+  for (const [name, originX, originY, rotatedOriginX, rotatedOriginY] of anchors) {
+    const currentStock = {
+      ...DEFAULT_STOCK,
+      width: 100,
+      height: 50,
+      originX,
+      originY,
+      safeZ: 5,
+      zZero: "top",
+    };
+    const portraitProgram = [
+      "G21 G90 G54",
+      `G0 X${rotatedOriginX + 5} Y${rotatedOriginY + 5} Z5`,
+      `G1 X${rotatedOriginX + 45} Y${rotatedOriginY + 95} Z-1 F100`,
+    ].join("\n");
+    const orientation = orientStockForProgram(
+      portraitProgram,
+      currentStock,
+      "iso",
+    );
+
+    assert.equal(orientation.rotated, true, name);
+    assert.equal(orientation.stock.width, 50, `${name} width`);
+    assert.equal(orientation.stock.height, 100, `${name} height`);
+    assert.equal(orientation.stock.originX, rotatedOriginX, `${name} origin X`);
+    assert.equal(orientation.stock.originY, rotatedOriginY, `${name} origin Y`);
+  }
+});
+
+test("manual stock resize preserves quick pins but not free-form origins", async () => {
+  const { DEFAULT_STOCK, resizeStockPreservingPinnedOrigin } = await loadModule(
+    "../core/simulation/studio-program.ts",
+  );
+
+  const pinned = resizeStockPreservingPinnedOrigin(
+    {
+      ...DEFAULT_STOCK,
+      width: 100,
+      height: 50,
+      originX: -50,
+      originY: -50,
+    },
+    200,
+    80,
+  );
+  assert.equal(pinned.originX, -100);
+  assert.equal(pinned.originY, -80);
+
+  const freeForm = resizeStockPreservingPinnedOrigin(
+    {
+      ...DEFAULT_STOCK,
+      width: 100,
+      height: 50,
+      originX: 12.5,
+      originY: -17.5,
+    },
+    200,
+    80,
+  );
+  assert.equal(freeForm.originX, 12.5);
+  assert.equal(freeForm.originY, -17.5);
+});
+
 test("top-zero and bottom-zero stock references produce explicit numerical Z bounds", async () => {
   const { resolveStockZBounds } = await loadModule("../core/measurement/measurement-utils.ts");
   const stock = { thickness: 18 };
