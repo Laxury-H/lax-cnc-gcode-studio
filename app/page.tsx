@@ -2498,7 +2498,10 @@ export default function Home() {
           </div>
       </header>
 
-      <section className="command-bar">
+      <section
+        className="command-bar"
+        aria-label={lang === "EN" ? "Simulation controls" : "Điều khiển mô phỏng"}
+      >
         <div className="playback-controls">
           <button
             className="primary-control"
@@ -2660,8 +2663,12 @@ export default function Home() {
 
       <section
         className={`workspace${codeCollapsed ? " is-code-collapsed" : ""} is-mobile-${mobilePanel}`}
+        aria-label={lang === "EN" ? "CNC workspace" : "Không gian làm việc CNC"}
       >
-        <aside className="code-panel">
+        <aside
+          className="code-panel"
+          aria-label={lang === "EN" ? "G-code program" : "Chương trình G-code"}
+        >
           <div className="panel-titlebar">
             <div className="panel-title-copy">
               <strong>PROGRAM</strong>
@@ -2726,6 +2733,7 @@ export default function Home() {
                 tabIndex={index === focusedCodeLine ? 0 : -1}
                 className={`code-line${index === currentLine ? " is-active" : ""}`}
                 data-code-line={index}
+                title={line || undefined}
                 key={`${index}-${line}`}
                 onFocus={() => setFocusedCodeLine(index)}
                 onClick={() => seekToLine(index)}
@@ -2783,7 +2791,10 @@ export default function Home() {
           </div>
         </aside>
 
-        <section className="simulation-panel">
+        <section
+          className="simulation-panel"
+          aria-label={lang === "EN" ? "Toolpath simulation" : "Mô phỏng đường chạy dao"}
+        >
           <div className="simulation-titlebar">
             <div className="simulation-heading">
               {codeCollapsed ? (
@@ -2802,7 +2813,10 @@ export default function Home() {
                 </button>
               ) : null}
               <span>{getViewMeta(view, t).title.toUpperCase()}</span>
-              <strong className={`simulation-state${playing ? " is-running" : ""}`}>
+              <strong
+                className={`simulation-state${playing ? " is-running" : ""}`}
+                aria-live="polite"
+              >
                 <i />
                 {playing ? "LIVE" : "READY"}
               </strong>
@@ -2896,7 +2910,10 @@ export default function Home() {
         </section>
       </section>
 
-      <section className="metrics-strip">
+      <section
+        className="metrics-strip"
+        aria-label={lang === "EN" ? "Program metrics" : "Chỉ số chương trình"}
+      >
         <MetricCard
           icon="sheet"
           label={t.stockMetric}
@@ -2966,7 +2983,14 @@ export default function Home() {
         <div className="progress-metric">
           <span>{t.progressLabel}</span>
           <div className="progress-row">
-            <div className="progress-track">
+            <div
+              className="progress-track"
+              role="progressbar"
+              aria-label={t.progressLabel}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(totalProgress)}
+            >
               <i style={{ width: `${totalProgress}%` }} />
             </div>
             <strong>{totalProgress.toFixed(0)}%</strong>
@@ -2979,7 +3003,10 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="machine-statebar">
+      <footer
+        className="machine-statebar"
+        aria-label={lang === "EN" ? "Machine state" : "Trạng thái máy"}
+      >
         <span>
           <small>{t.modeLabel.toUpperCase()}</small>
           <b>

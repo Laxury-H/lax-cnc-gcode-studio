@@ -118,6 +118,17 @@ test("code navigation, analysis tabs, and transient feedback expose accessible s
   assert.match(source, /createPortal\(/);
 });
 
+test("primary workstation regions and simulation progress expose accessible context", async () => {
+  const source = await read("app/page.tsx");
+
+  assert.match(source, /aria-label=\{lang === "EN" \? "CNC workspace" : "Không gian làm việc CNC"\}/);
+  assert.match(source, /aria-label=\{lang === "EN" \? "G-code program" : "Chương trình G-code"\}/);
+  assert.match(source, /aria-label=\{lang === "EN" \? "Toolpath simulation" : "Mô phỏng đường chạy dao"\}/);
+  assert.match(source, /className=\{`simulation-state\$\{playing \? " is-running" : ""\}`\}[\s\S]*?aria-live="polite"/);
+  assert.match(source, /className="progress-track"[\s\S]*?role="progressbar"[\s\S]*?aria-valuenow=\{Math\.round\(totalProgress\)\}/);
+  assert.match(source, /title=\{line \|\| undefined\}/);
+});
+
 test("the canvas observes its real container and supports two-pointer zoom and pan", async () => {
   const source = await read("app/page.tsx");
 

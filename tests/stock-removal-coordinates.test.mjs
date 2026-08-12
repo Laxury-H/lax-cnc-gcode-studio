@@ -277,6 +277,8 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
     source,
     /cutPositions\.push\(p1\.x, p1\.y, surfaceZ, p2\.x, p2\.y, surfaceZ\)/,
   );
+  assert.match(source, /color="#03171c"[\s\S]*?lineWidth=\{2\.6\}/);
+  assert.match(source, /color="#22e6ff"[\s\S]*?lineWidth=\{1\.1\}/);
   assert.match(source, /depthTest=\{false\}[\s\S]*?renderOrder=\{31\}/);
   assert.match(source, /<planeGeometry args=\{\[stock\.width, stock\.height, geomRes, geomRes\]\}/);
   assert.match(source, /alphaMap=\{texture\}/);
