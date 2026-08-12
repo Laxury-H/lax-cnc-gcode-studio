@@ -101,6 +101,19 @@ test("maps every stock origin to the same displacement texture bounds", async ()
   }
 });
 
+test("lifts the 3D toolpath guide above either stock Z datum", async () => {
+  const { resolveToolpathOverlayZ } = await loadCoordinates();
+  const topZero = { topZ: 0, bottomZ: -12 };
+  const bottomZero = { topZ: 12, bottomZ: 0 };
+
+  assert.equal(resolveToolpathOverlayZ(stock, topZero), 0.5);
+  assert.equal(resolveToolpathOverlayZ(stock, bottomZero), 12.5);
+  assert.ok(
+    resolveToolpathOverlayZ({ ...stock, thickness: 100 }, bottomZero) <=
+      bottomZero.topZ + 1.2,
+  );
+});
+
 test("partial curved playback keeps sampled arc points instead of cutting a chord", async () => {
   const { pointAtToolpathProgress, sliceToolpathPoints } = await loadCoordinates();
   const points = [
@@ -260,6 +273,11 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
   assert.match(source, /paintStockSurface\(surfaceCtx, MAP_RES\)/);
   assert.match(source, /map=\{surfaceTexture\}/);
   assert.match(source, /surfaceCtx,[\s\S]*?"darken",[\s\S]*?cutSurfaceColor/);
+  assert.match(
+    source,
+    /cutPositions\.push\(p1\.x, p1\.y, surfaceZ, p2\.x, p2\.y, surfaceZ\)/,
+  );
+  assert.match(source, /depthTest=\{false\}[\s\S]*?renderOrder=\{31\}/);
   assert.match(source, /<planeGeometry args=\{\[stock\.width, stock\.height, geomRes, geomRes\]\}/);
   assert.match(source, /alphaMap=\{texture\}/);
   assert.doesNotMatch(source, /onBeforeCompile=/);

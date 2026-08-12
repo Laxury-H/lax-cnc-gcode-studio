@@ -26,6 +26,7 @@ import {
   depthIntensity,
   resolveSegmentTool,
   resolveSolidOverlayPosition,
+  resolveToolpathOverlayZ,
   sliceToolpathPoints,
   stockRemovalRenderKey,
 } from "../simulation/stock-removal-coordinates";
@@ -82,7 +83,7 @@ function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
 }
 
-function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds }: { simulation: Simulation, showRapids: boolean, showToolpath?: boolean, showBounds: boolean, stock: SolidSimulatorProps["stock"] }) {
+function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, surfaceZ }: { simulation: Simulation, showRapids: boolean, showToolpath?: boolean, showBounds: boolean, surfaceZ: number }) {
   const { cutPositions, rapidPositions, boundsPositions } = useMemo(() => {
     const cutPositions: number[] = [];
     const rapidPositions: number[] = [];
@@ -98,7 +99,9 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds }: {
         if (isTravel) {
           rapidPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
         } else {
-          cutPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
+          // Keep the cutter at its real programmed Z, but project the visual
+          // guide onto the stock face so deep cuts are not hidden by the mesh.
+          cutPositions.push(p1.x, p1.y, surfaceZ, p2.x, p2.y, surfaceZ);
         }
       }
     });
@@ -124,27 +127,49 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds }: {
     }
 
     return { cutPositions, rapidPositions, boundsPositions };
-  }, [simulation, showRapids, showBounds]);
+  }, [simulation, showRapids, showBounds, surfaceZ]);
 
   return (
     <group>
       {showToolpath !== false && cutPositions.length > 0 && (
-        <Line 
-          points={cutPositions} 
-          color="#00e5ff" 
-          lineWidth={2} 
-          opacity={0.7} 
-          transparent 
-          segments 
-        />
+        <>
+          <Line
+            points={cutPositions}
+            color="#03171c"
+            lineWidth={4.5}
+            opacity={0.72}
+            transparent
+            depthTest={false}
+            depthWrite={false}
+            renderOrder={30}
+            toneMapped={false}
+            segments
+          />
+          <Line
+            points={cutPositions}
+            color="#22e6ff"
+            lineWidth={2.25}
+            opacity={0.98}
+            transparent
+            depthTest={false}
+            depthWrite={false}
+            renderOrder={31}
+            toneMapped={false}
+            segments
+          />
+        </>
       )}
       {showToolpath !== false && showRapids && rapidPositions.length > 0 && (
         <Line 
           points={rapidPositions} 
           color="#ff3366" 
           lineWidth={1.5} 
-          opacity={0.3} 
+          opacity={0.5}
           transparent 
+          depthTest={false}
+          depthWrite={false}
+          renderOrder={29}
+          toneMapped={false}
           dashed 
           dashScale={50} 
           segments 
@@ -676,6 +701,10 @@ export function SolidSimulator(props: SolidSimulatorProps) {
     topZ,
     bottomZ,
   });
+  const toolpathSurfaceZ = resolveToolpathOverlayZ(props.stock, {
+    topZ,
+    bottomZ,
+  });
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const measurementSession = props.measurementSession;
@@ -1135,10 +1164,10 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             <PartLabelsOverlay simulation={props.simulation} topZ={topZ} />
             <ToolpathOverlay 
               simulation={props.simulation} 
-              stock={props.stock} 
               showRapids={props.showRapids ?? true} 
               showToolpath={props.showToolpath ?? true}
               showBounds={props.showBounds ?? true} 
+              surfaceZ={toolpathSurfaceZ}
             />
             {props.isMeasuring ? (
               <SmartMeasurementOverlay

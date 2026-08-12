@@ -110,6 +110,22 @@ export function resolveSolidOverlayPosition(
   ];
 }
 
+/**
+ * Z plane used by the 3D toolpath guide. The actual cutter keeps its programmed
+ * depth, while this guide is lifted just above the stock so deep paths remain
+ * readable before material has been removed.
+ */
+export function resolveToolpathOverlayZ(
+  stock: StockSettings,
+  bounds: StockZBounds,
+): number {
+  const surfaceLift = Math.max(
+    0.5,
+    Math.min(1.2, stock.thickness * 0.04),
+  );
+  return bounds.topZ + surfaceLift;
+}
+
 /** Maps a programmed CNC point to the world axes used by SolidSimulator. */
 export function mapCncPointToSolidWorld(
   point: Vec3,
