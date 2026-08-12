@@ -1520,7 +1520,14 @@ export default function Home() {
     }
     const frame = window.requestAnimationFrame(() => {
       if (saved) {
-        setStock(cloneStockSettings(saved.stock));
+        const restoredStock = cloneStockSettings(saved.stock);
+        const orientedStock = orientStockForProgram(
+          SAMPLE_GCODE,
+          restoredStock,
+          saved.profile,
+          saved.workOffsets,
+        ).stock;
+        setStock(orientedStock);
         setProfile(saved.profile);
         setSpeed(saved.speed);
         setQuality(saved.quality);

@@ -92,6 +92,31 @@ test("rotates a 2440 by 1220 stock when program coordinates are portrait", async
   assert.equal(result.stock.height, 2440);
 });
 
+test("restores a persisted portrait stock to landscape for a landscape program", async () => {
+  const { DEFAULT_STOCK, orientStockForProgram } = await loadParser();
+  const landscapeProgram = `G90 G21 G54
+G0 X10 Y10
+G1 X90 Y10 F100
+G1 X90 Y40
+G1 X10 Y40
+G1 X10 Y10`;
+  const persistedPortraitStock = {
+    ...DEFAULT_STOCK,
+    width: 50,
+    height: 100,
+  };
+
+  const result = orientStockForProgram(
+    landscapeProgram,
+    persistedPortraitStock,
+    "iso",
+  );
+
+  assert.equal(result.rotated, true);
+  assert.equal(result.stock.width, 100);
+  assert.equal(result.stock.height, 50);
+});
+
 test("extracts usable offcuts from sheet stock without overlapping parts", async () => {
   const { DEFAULT_STOCK, parseProgram } = await loadParser();
   const stock = { ...DEFAULT_STOCK, width: 1220, height: 2440 };

@@ -33,6 +33,10 @@ test("validated preferences hydrate, persist, and edit through a cancellable dra
   assert.match(source, /preferencesHydratedRef\.current = true/);
   assert.match(
     source,
+    /const restoredStock = cloneStockSettings\(saved\.stock\);[\s\S]*?orientStockForProgram\(\s*SAMPLE_GCODE,\s*restoredStock,\s*saved\.profile,\s*saved\.workOffsets,\s*\)\.stock;[\s\S]*?setStock\(orientedStock\)/,
+  );
+  assert.match(
+    source,
     /localStorage\.setItem\(\s*WORKSPACE_PREFERENCES_KEY,\s*serializeWorkspacePreferences\(preferences\)/,
   );
   assert.match(source, /setSettingsDraft\(\{[\s\S]*?stock: cloneStockSettings\(stock\)/);
