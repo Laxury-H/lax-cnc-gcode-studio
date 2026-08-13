@@ -89,6 +89,7 @@ export const DEFAULT_STOCK: StockSettings = {
   zZero: "auto",
   tools: [
     { id: "1", diameter: 6, type: "flat" },
+    { id: "90", diameter: 12.7, type: "vbit", angle: 90, tipDiameter: 0.2 },
   ],
 };
 
@@ -339,6 +340,7 @@ function motionToSegment(motion: NormalizedMotion): Segment {
     sweepRadians: motion.sweepRadians,
     feed: motion.feed ?? 0,
     spindle: motion.spindle ?? 0,
+    spindleState: motion.spindleState,
     tool: motion.tool === undefined ? "—" : `T${motion.tool}`,
     coordinateSystem: motion.coordinateSystem,
     distanceMode: motion.distanceMode,

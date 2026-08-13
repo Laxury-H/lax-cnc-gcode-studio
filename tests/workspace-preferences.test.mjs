@@ -39,7 +39,7 @@ const validPreferences = {
     zZero: "auto",
     tools: [
       { id: "1", diameter: 6, type: "flat" },
-      { id: "25", diameter: 12.7, type: "vbit", angle: 90 },
+      { id: "25", diameter: 12.7, type: "vbit", angle: 90, tipDiameter: 0.2 },
     ],
   },
   speed: 2,
@@ -181,6 +181,34 @@ test("parser validates zZero and every nested tool", async () => {
   assert.equal(
     parseWorkspacePreferences(
       withStock({ tools: [{ id: "", diameter: 6, type: "flat" }] }),
+    ),
+    null,
+  );
+  assert.equal(
+    parseWorkspacePreferences(
+      withStock({
+        tools: [
+          { id: "1", diameter: 6, type: "vbit", angle: 90, tipDiameter: -0.1 },
+        ],
+      }),
+    ),
+    null,
+  );
+  assert.equal(
+    parseWorkspacePreferences(
+      withStock({
+        tools: [
+          { id: "1", diameter: 6, type: "vbit", angle: 90, tipDiameter: 6 },
+        ],
+      }),
+    ),
+    null,
+  );
+  assert.equal(
+    parseWorkspacePreferences(
+      withStock({
+        tools: [{ id: "1", diameter: 6, type: "flat", tipDiameter: 0.2 }],
+      }),
     ),
     null,
   );

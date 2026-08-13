@@ -24,6 +24,7 @@ import {
   buildCutterContactBands,
   cutSurfaceColor,
   depthIntensity,
+  resolveCutterContactDiameter,
   resolveSegmentTool,
   resolveSolidOverlayPosition,
   resolveToolpathOverlayZ,
@@ -42,6 +43,7 @@ import {
   type MeasurementUnit,
 } from "./SmartMeasurementTool";
 import { MachiningEffects } from "./MachiningEffects";
+import { CutterModel, resolveCutterModelLength } from "./CutterModel";
 
 const MAX_MEASUREMENT_HISTORY = 6;
 function addToMeasurementHistory(
@@ -190,19 +192,17 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
 }
 
 function SpinningCutter({
-  diameter,
+  tool,
   fluteLength,
-  toolType,
   spinning,
 }: {
-  diameter: number;
+  tool: ToolProfile;
   fluteLength: number;
-  toolType: ToolProfile["type"];
   spinning: boolean;
 }) {
   const cutterRef = useRef<THREE.Group>(null);
-  const radius = diameter / 2;
-  const tipLength = Math.min(12, Math.max(4, diameter * 1.4));
+  const radius = tool.diameter / 2;
+  const cutterLength = resolveCutterModelLength(tool, fluteLength);
 
   useFrame((_, delta) => {
     if (spinning && cutterRef.current) {
@@ -210,58 +210,21 @@ function SpinningCutter({
     }
   });
 
-  const cutterMaterial = (
-    <meshStandardMaterial
-      color={spinning ? "#d8e5e8" : "#9aa6aa"}
-      metalness={0.92}
-      roughness={0.16}
-    />
-  );
-
   return (
-    <group rotation={[Math.PI / 2, 0, 0]} position={[0, 0, fluteLength / 2]}>
+    <group rotation={[Math.PI / 2, 0, 0]}>
       <group ref={cutterRef}>
-        {toolType === "vbit" ? (
-          <>
-            <mesh position={[0, tipLength / 2, 0]} castShadow>
-              <cylinderGeometry
-                args={[radius, radius, Math.max(2, fluteLength - tipLength), 24]}
-              />
-              {cutterMaterial}
-            </mesh>
-            <mesh
-              position={[0, -fluteLength / 2 + tipLength / 2, 0]}
-              castShadow
-            >
-              <coneGeometry args={[radius, tipLength, 24]} />
-              {cutterMaterial}
-            </mesh>
-          </>
-        ) : toolType === "ball" ? (
-          <>
-            <mesh position={[0, diameter / 2, 0]} castShadow>
-              <cylinderGeometry
-                args={[radius, radius, Math.max(2, fluteLength - diameter), 24]}
-              />
-              {cutterMaterial}
-            </mesh>
-            <mesh position={[0, -fluteLength / 2 + radius, 0]} castShadow>
-              <sphereGeometry args={[radius, 24, 16]} />
-              {cutterMaterial}
-            </mesh>
-          </>
-        ) : (
-          <mesh castShadow>
-            <cylinderGeometry args={[radius, radius, fluteLength, 24]} />
-            {cutterMaterial}
-          </mesh>
-        )}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <CutterModel
+          tool={tool}
+          minimumLength={fluteLength}
+          color={spinning ? "#d8e5e8" : "#9aa6aa"}
+          segments={32}
+        />
+        <mesh position={[0, cutterLength * 0.55, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[radius * 0.72, Math.max(0.12, radius * 0.1), 8, 32]} />
           <meshStandardMaterial color="#48565b" metalness={0.8} roughness={0.25} />
         </mesh>
       </group>
-      <mesh position={[0, fluteLength / 2 + 9, 0]} castShadow>
+      <mesh position={[0, cutterLength + 9, 0]} castShadow>
         <cylinderGeometry args={[radius * 1.45, radius * 1.2, 18, 12]} />
         <meshStandardMaterial color="#323b40" metalness={0.85} roughness={0.24} />
       </mesh>
@@ -276,6 +239,7 @@ function ToolMeshOverlay({
   stock,
   showTool,
   topZ,
+  bottomZ,
   quality,
 }: {
   simulation: Simulation;
@@ -284,6 +248,7 @@ function ToolMeshOverlay({
   stock: StockSettings;
   showTool: boolean;
   topZ: number;
+  bottomZ: number;
   quality: "low" | "medium" | "high";
 }) {
   if (!showTool) return null;
@@ -291,14 +256,23 @@ function ToolMeshOverlay({
   const pos = activeSegment ? pointOnSegment(activeSegment, segmentProgress) : { x: stock.originX, y: stock.originY, z: stock.safeZ };
   
   const fluteLength = Math.max(38, stock.thickness * 2.2);
-  const activeTool = resolveSegmentTool(stock, activeSegment?.tool);
-  const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
-  const toolType = activeTool?.type || "flat";
+  const activeTool = resolveSegmentTool(stock, activeSegment?.tool) ?? {
+    id: "fallback",
+    diameter: stock.toolDiameter || 6,
+    type: "flat" as const,
+  };
+  const toolDiameter = activeTool.diameter;
+  const contactDiameter = resolveCutterContactDiameter(activeTool, pos.z, {
+    topZ,
+    bottomZ,
+  });
   const isRemovingMaterial = Boolean(
     activeSegment &&
       !activeSegment.machineCoordinates &&
       activeSegment.kind !== "rapid" &&
       activeSegment.kind !== "dwell" &&
+      activeSegment.spindleState !== "off" &&
+      activeSegment.spindle > 0 &&
       pos.z < topZ - 0.000001,
   );
   
@@ -306,16 +280,20 @@ function ToolMeshOverlay({
     <group>
       <group position={[pos.x, pos.y, pos.z]}>
         <SpinningCutter
-          diameter={toolDiameter}
+          tool={activeTool}
           fluteLength={fluteLength}
-          toolType={toolType}
-          spinning={Boolean(activeSegment && activeSegment.spindle > 0)}
+          spinning={Boolean(
+            activeSegment &&
+              activeSegment.spindleState !== "off" &&
+              activeSegment.spindle > 0,
+          )}
         />
       </group>
       <MachiningEffects
         position={[pos.x, pos.y, pos.z]}
         active={isRemovingMaterial}
         toolDiameter={toolDiameter}
+        contactDiameter={contactDiameter}
         quality={quality}
       />
     </group>
@@ -457,6 +435,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
 
     const scaleX = MAP_RES / Math.max(1e-6, stock.width);
     const scaleY = MAP_RES / Math.max(1e-6, stock.height);
+    const profileBandCount = quality === "high" ? 32 : quality === "medium" ? 20 : 10;
 
     const drawLine = (
       from: { x: number; y: number; z: number },
@@ -465,9 +444,16 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     ) => {
       // Break ramps into shallow depth bands. A single average color would
       // incorrectly make the whole ramp one depth.
+      const depthQuantum = tool.type === "flat"
+        ? 0.25
+        : quality === "high"
+          ? 0.05
+          : quality === "medium"
+            ? 0.1
+            : 0.18;
       const depthSteps = Math.min(
-        96,
-        Math.max(1, Math.ceil(Math.abs(to.z - from.z) / 0.25)),
+        256,
+        Math.max(1, Math.ceil(Math.abs(to.z - from.z) / depthQuantum)),
       );
       for (let step = 0; step < depthSteps; step += 1) {
         const sectionStart = lerpVec(from, to, step / depthSteps);
@@ -477,11 +463,13 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
           tool,
           averageZ,
           zBounds,
+          profileBandCount,
         );
         const endpointBands = buildCutterContactBands(
           tool,
           sectionEnd.z,
           zBounds,
+          profileBandCount,
         );
         if (sweepBands.length === 0 && endpointBands.length === 0) continue;
 
@@ -582,7 +570,9 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
           !segment ||
           segment.machineCoordinates ||
           segment.kind === "rapid" ||
-          segment.kind === "dwell"
+          segment.kind === "dwell" ||
+          segment.spindleState === "off" ||
+          segment.spindle <= 0
         ) {
           continue;
         }
@@ -616,7 +606,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     lastCursorRef.current = cursor;
     lastProgressRef.current = segmentProgress;
     renderSourceRef.current = { canvas: el, simulation, key: renderKey };
-  }, [simulation, cursor, segmentProgress, stock, MAP_RES]);
+  }, [simulation, cursor, segmentProgress, stock, MAP_RES, quality]);
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
@@ -1197,6 +1187,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               stock={props.stock} 
               showTool={props.showTool ?? true}
               topZ={topZ}
+              bottomZ={bottomZ}
               quality={props.quality ?? "medium"}
             />
           </group>

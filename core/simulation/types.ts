@@ -5,6 +5,7 @@ import type {
   InterpretedProgram,
   NormalizedMotion,
   Plane,
+  SpindleState,
   Units,
   Vec3,
 } from "../gcode/types";
@@ -15,7 +16,8 @@ export type ToolProfile = {
   id: string; // e.g., "1", "25"
   diameter: number; // mm
   type: "flat" | "ball" | "vbit";
-  angle?: number; // degrees, only for vbit
+  angle?: number; // included angle in degrees, only for V-bits
+  tipDiameter?: number; // physical flat/tipped-off end diameter in mm, V-bits only
 };
 
 export type StockSettings = {
@@ -61,6 +63,7 @@ export type Segment = {
   sweepRadians?: number;
   feed: number;
   spindle: number;
+  spindleState: SpindleState;
   tool: string;
   coordinateSystem: CoordinateSystem;
   distanceMode: DistanceMode;
@@ -135,6 +138,7 @@ export type {
   InterpretedProgram,
   NormalizedMotion,
   Plane,
+  SpindleState,
   Units,
   Vec3,
 };

@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Environment, Box, Cylinder, Cone, Sphere } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Environment, Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import type { Simulation, StockSettings, Vec3 } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { StockMesh } from "./SolidSimulator";
 import { resolveStockZBounds } from "../measurement/measurement-utils";
-import { resolveSegmentTool } from "../simulation/stock-removal-coordinates";
+import {
+  resolveCutterContactDiameter,
+  resolveSegmentTool,
+} from "../simulation/stock-removal-coordinates";
 import { pointOnSegment } from "../utils/gcode-utils";
 import { MachiningEffects } from "./MachiningEffects";
+import { CutterModel } from "./CutterModel";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
@@ -94,7 +98,12 @@ export function MachineKinematics({
     if (zAxisRef.current) zAxisRef.current.position.z = machinePosition.z;
     
     // Spindle Rotation Animation
-    if (spindleRef.current && curSeg && curSeg.spindle > 0) {
+    if (
+      spindleRef.current &&
+      curSeg &&
+      curSeg.spindleState !== "off" &&
+      curSeg.spindle > 0
+    ) {
       spindleRef.current.rotation.z -= 0.3; // Rotate CCW/CW
     }
   });
@@ -107,14 +116,24 @@ export function MachineKinematics({
   const stockOffsetY = stock.originY;
 
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
-  const activeTool = resolveSegmentTool(stock, activeSegment?.tool);
-  const toolDiameter = activeTool?.diameter || stock.toolDiameter || 6;
-  const toolType = activeTool?.type || "flat";
+  const activeTool = resolveSegmentTool(stock, activeSegment?.tool) ?? {
+    id: "fallback",
+    diameter: stock.toolDiameter || 6,
+    type: "flat" as const,
+  };
+  const toolDiameter = activeTool.diameter;
+  const contactDiameter = resolveCutterContactDiameter(
+    activeTool,
+    currentPos.z,
+    zBounds,
+  );
   const isRemovingMaterial = Boolean(
     curSeg &&
       !curSeg.machineCoordinates &&
       curSeg.kind !== "rapid" &&
       curSeg.kind !== "dwell" &&
+      curSeg.spindleState !== "off" &&
+      curSeg.spindle > 0 &&
       isCuttingDepth,
   );
 
@@ -147,6 +166,7 @@ export function MachineKinematics({
         position={[machinePosition.x, machinePosition.y, machinePosition.z]}
         active={isRemovingMaterial}
         toolDiameter={toolDiameter}
+        contactDiameter={contactDiameter}
         quality={quality}
       />
 
@@ -198,30 +218,13 @@ export function MachineKinematics({
               </Cylinder>
               {/* Tool */}
               {showTool && (
-                <group position={[0, 0, -70]} rotation={[Math.PI / 2, 0, 0]}>
-                  {toolType === "vbit" ? (
-                    <group>
-                      <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 30, 16]} castShadow>
-                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
-                      </Cylinder>
-                      <Cone args={[toolDiameter / 2, 10, 16]} position={[0, -20, 0]} castShadow>
-                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
-                      </Cone>
-                    </group>
-                  ) : toolType === "ball" ? (
-                    <group>
-                      <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 40 - toolDiameter / 2, 16]} position={[0, toolDiameter / 4, 0]} castShadow>
-                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
-                      </Cylinder>
-                      <Sphere args={[toolDiameter / 2, 16, 16]} position={[0, -20 + toolDiameter / 4, 0]} castShadow>
-                        <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
-                      </Sphere>
-                    </group>
-                  ) : (
-                    <Cylinder args={[toolDiameter / 2, toolDiameter / 2, 40, 16]} castShadow>
-                      <meshStandardMaterial color={isCuttingDepth ? "#e74c3c" : "#95a5a6"} roughness={0.2} metalness={0.9} />
-                    </Cylinder>
-                  )}
+                <group position={[0, 0, -80]} rotation={[Math.PI / 2, 0, 0]}>
+                  <CutterModel
+                    tool={activeTool}
+                    minimumLength={40}
+                    color={isCuttingDepth ? "#e74c3c" : "#95a5a6"}
+                    segments={24}
+                  />
                 </group>
               )}
             </group>

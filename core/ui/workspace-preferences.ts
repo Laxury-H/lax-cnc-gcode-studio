@@ -125,11 +125,24 @@ function parseTool(value: unknown): ToolProfile | null {
     angle = parsedAngle;
   }
 
+  let tipDiameter: number | undefined;
+  if (value.tipDiameter !== undefined) {
+    const parsedTipDiameter = boundedNumber(value.tipDiameter, {
+      min: 0,
+      minInclusive: true,
+      max: diameter,
+      maxInclusive: false,
+    });
+    if (parsedTipDiameter === null || value.type !== "vbit") return null;
+    tipDiameter = parsedTipDiameter;
+  }
+
   return {
     id,
     diameter,
     type: value.type as ToolProfile["type"],
     ...(angle === undefined ? {} : { angle }),
+    ...(tipDiameter === undefined ? {} : { tipDiameter }),
   };
 }
 

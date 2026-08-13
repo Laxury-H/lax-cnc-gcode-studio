@@ -117,4 +117,9 @@ test("3D Machine applies the shared stock datum and origin-aware helpers", async
   assert.match(source, /stock\.originY \+ stock\.height \/ 2/);
   assert.match(source, /<MachiningEffects/);
   assert.match(source, /active=\{isRemovingMaterial\}/);
+  assert.match(source, /curSeg\.spindle > 0/);
+  assert.match(source, /curSeg\.spindleState !== "off"/);
+  assert.match(source, /resolveCutterContactDiameter\(/);
+  assert.match(source, /contactDiameter=\{contactDiameter\}/);
+  assert.match(source, /<CutterModel/);
 });

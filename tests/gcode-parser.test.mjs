@@ -162,6 +162,34 @@ M30`,
   assert.doesNotMatch(recovery, /M3 S18000\b/);
 });
 
+test("preserves M3/M5 spindle state on each motion for physical stock removal", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const simulation = parseProgram(
+    `G21 G90
+G0 X0 Y0 Z5
+M3 S12000
+G1 X10 Y0 Z-1 F500
+M5
+G1 X20 Y0 Z-1`,
+    { ...DEFAULT_STOCK, width: 100, height: 50 },
+    "iso",
+  );
+
+  const cutting = simulation.segments.find((segment) => segment.raw.includes("X10"));
+  const spindleStopped = simulation.segments.find((segment) => segment.raw.includes("X20"));
+  assert.equal(cutting?.spindleState, "cw");
+  assert.equal(cutting?.spindle, 12000);
+  assert.equal(spindleStopped?.spindleState, "off");
+  assert.equal(spindleStopped?.spindle, 12000);
+
+  const counterClockwise = parseProgram(
+    "G21 G90\nG0 X0 Y0 Z5\nM4 S8000\nG1 X5 Y0 Z-0.5 F300",
+    { ...DEFAULT_STOCK, width: 100, height: 50 },
+    "iso",
+  );
+  assert.equal(counterClockwise.segments.at(-1)?.spindleState, "ccw");
+});
+
 test("exports CAM post-processor dialects for NcStudio and Syntec", async () => {
   const { DEFAULT_STOCK, parseProgram, exportCAM } = await loadParser();
   const simulation = parseProgram(topPanelFixture, DEFAULT_STOCK, "iso");

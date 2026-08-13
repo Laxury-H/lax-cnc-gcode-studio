@@ -6,6 +6,7 @@ type MachiningEffectsProps = {
   position: [number, number, number];
   active: boolean;
   toolDiameter: number;
+  contactDiameter?: number;
   quality?: "low" | "medium" | "high";
 };
 
@@ -32,11 +33,16 @@ export function MachiningEffects({
   position,
   active,
   toolDiameter,
+  contactDiameter,
   quality = "medium",
 }: MachiningEffectsProps) {
   const pointsRef = useRef<THREE.Points>(null);
   const count = CHIP_COUNTS[quality];
   const safeDiameter = Math.max(0.5, toolDiameter);
+  const engagementDiameter = Math.max(
+    0.2,
+    Math.min(safeDiameter, contactDiameter ?? safeDiameter),
+  );
   const seeds = useMemo<ChipSeed[]>(
     () =>
       Array.from({ length: count }, (_, index) => {
@@ -71,12 +77,12 @@ export function MachiningEffects({
     for (let index = 0; index < count; index += 1) {
       const seed = seeds[index];
       const phase = (time * seed.speed + seed.phase) % 1;
-      const radius = safeDiameter * seed.radius * (0.35 + phase * 1.8);
+      const radius = engagementDiameter * seed.radius * (0.35 + phase * 1.8);
       attribute.setXYZ(
         index,
         Math.cos(seed.angle + time * 2.1) * radius,
         Math.sin(seed.angle + time * 2.1) * radius,
-        safeDiameter * (0.15 + phase * seed.lift * 2.2),
+        engagementDiameter * (0.15 + phase * seed.lift * 2.2),
       );
     }
     attribute.needsUpdate = true;
@@ -89,7 +95,7 @@ export function MachiningEffects({
       <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
         <pointsMaterial
           color="#f2c57f"
-          size={Math.max(0.35, safeDiameter * 0.14)}
+          size={Math.max(0.3, engagementDiameter * 0.14)}
           sizeAttenuation
           transparent
           opacity={0.82}
@@ -99,8 +105,8 @@ export function MachiningEffects({
       <mesh position={[0, 0, 0.025]}>
         <ringGeometry
           args={[
-            Math.max(0.25, safeDiameter * 0.42),
-            Math.max(0.5, safeDiameter * 0.78),
+            Math.max(0.1, engagementDiameter * 0.42),
+            Math.max(0.2, engagementDiameter * 0.78),
             32,
           ]}
         />

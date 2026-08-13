@@ -3840,8 +3840,13 @@ button.metric-card {
 
 .tool-item {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
+  padding: 12px;
+  border: 1px solid rgba(74, 99, 111, 0.4);
+  border-radius: 8px;
+  background: rgba(6, 12, 16, 0.48);
 }
 
 .tool-item label {
@@ -5310,6 +5315,14 @@ button.metric-card {
   10% { opacity: 1; transform: translate(-50%, 0); }
   85% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, 10px); }
+}
+
+.tool-item label .tool-geometry-hint {
+  padding: 0;
+  color: #70a6b3;
+  font-size: 8px;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .code-lines-virtual-space {

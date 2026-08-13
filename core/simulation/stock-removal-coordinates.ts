@@ -13,6 +13,16 @@ export type CutterContactBand = {
   z: number;
 };
 
+export type VBitGeometry = {
+  diameter: number;
+  radius: number;
+  angle: number;
+  halfAngleRadians: number;
+  tipDiameter: number;
+  tipRadius: number;
+  taperHeight: number;
+};
+
 const POINT_EPSILON = 1e-9;
 const DEFAULT_PROFILE_BANDS = 12;
 
@@ -212,7 +222,37 @@ function clampCutZ(z: number, bounds: StockZBounds): number {
   return Math.max(bounds.bottomZ, Math.min(bounds.topZ, z));
 }
 
-function cutterProfileHeight(tool: ToolProfile, radius: number): number {
+/**
+ * Resolves the physical cutting part of a V-bit. Both true pointed cutters
+ * (tipDiameter = 0) and commercially common tipped-off engraving cutters are
+ * represented by the same truncated-cone model.
+ */
+export function resolveVBitGeometry(tool: ToolProfile): VBitGeometry {
+  const diameter = finitePositive(tool.diameter, 1);
+  const radius = diameter / 2;
+  const angle = Math.max(1, Math.min(179, tool.angle ?? 90));
+  const halfAngleRadians = (angle * Math.PI) / 360;
+  const requestedTipDiameter = Number.isFinite(tool.tipDiameter)
+    ? Math.max(0, tool.tipDiameter ?? 0)
+    : 0;
+  const tipDiameter = Math.min(diameter, requestedTipDiameter);
+  const tipRadius = tipDiameter / 2;
+  return {
+    diameter,
+    radius,
+    angle,
+    halfAngleRadians,
+    tipDiameter,
+    tipRadius,
+    taperHeight:
+      (radius - tipRadius) / Math.max(POINT_EPSILON, Math.tan(halfAngleRadians)),
+  };
+}
+
+export function resolveCutterProfileHeight(
+  tool: ToolProfile,
+  radius: number,
+): number {
   const cutterRadius = finitePositive(tool.diameter, 1) / 2;
   const clampedRadius = Math.max(0, Math.min(cutterRadius, radius));
 
@@ -222,8 +262,9 @@ function cutterProfileHeight(tool: ToolProfile, radius: number): number {
     );
   }
   if (tool.type === "vbit") {
-    const angle = Math.max(1, Math.min(179, tool.angle ?? 90));
-    return clampedRadius / Math.tan((angle * Math.PI) / 360);
+    const geometry = resolveVBitGeometry(tool);
+    return Math.max(0, clampedRadius - geometry.tipRadius) /
+      Math.tan(geometry.halfAngleRadians);
   }
   return 0;
 }
@@ -243,7 +284,9 @@ export function resolveCutterContactDiameter(
   const penetration = bounds.topZ - tipZ;
   if (!Number.isFinite(tipZ) || penetration < -POINT_EPSILON) return 0;
   if (tool.type === "flat") return diameter;
-  if (penetration <= POINT_EPSILON) return 0;
+  if (penetration <= POINT_EPSILON) {
+    return tool.type === "vbit" ? resolveVBitGeometry(tool).tipDiameter : 0;
+  }
 
   if (tool.type === "ball") {
     if (penetration >= cutterRadius) return diameter;
@@ -252,9 +295,10 @@ export function resolveCutterContactDiameter(
     );
   }
 
-  const angle = Math.max(1, Math.min(179, tool.angle ?? 90));
-  const contactRadius = penetration * Math.tan((angle * Math.PI) / 360);
-  return 2 * Math.min(cutterRadius, Math.max(0, contactRadius));
+  const geometry = resolveVBitGeometry(tool);
+  const contactRadius = geometry.tipRadius +
+    penetration * Math.tan(geometry.halfAngleRadians);
+  return 2 * Math.min(cutterRadius, Math.max(geometry.tipRadius, contactRadius));
 }
 
 /**
@@ -275,15 +319,37 @@ export function buildCutterContactBands(
     return [{ diameter: contactDiameter, z: clampCutZ(tipZ, bounds) }];
   }
 
-  const bandCount = Math.max(2, Math.min(32, Math.round(requestedBandCount)));
+  const bandCount = Math.max(2, Math.min(48, Math.round(requestedBandCount)));
   const contactRadius = contactDiameter / 2;
   const bands: CutterContactBand[] = [];
-  for (let band = bandCount; band >= 1; band -= 1) {
-    const radius = contactRadius * (band / bandCount);
-    const profileZ = tipZ + cutterProfileHeight(tool, radius);
+  const tipRadius = tool.type === "vbit"
+    ? resolveVBitGeometry(tool).tipRadius
+    : 0;
+  const hasFlatTip = tipRadius > POINT_EPSILON;
+  const profileBandCount = hasFlatTip ? bandCount - 1 : bandCount;
+  const profileSpan = Math.max(0, contactRadius - tipRadius);
+
+  for (let band = profileBandCount; band >= 1; band -= 1) {
+    const outerRatio = band / profileBandCount;
+    const innerRatio = (band - 1) / profileBandCount;
+    const outerRadius = tipRadius + profileSpan * outerRatio;
+    const innerRadius = tipRadius + profileSpan * innerRatio;
+    // Sample just inside each annular band so its full physical width is
+    // painted. The final pointed band is stamped at the exact tool-tip depth.
+    const sampleRadius = !hasFlatTip && band === 1
+      ? 0
+      : (outerRadius + innerRadius) / 2;
+    const profileZ = tipZ + resolveCutterProfileHeight(tool, sampleRadius);
     bands.push({
-      diameter: radius * 2,
+      diameter: outerRadius * 2,
       z: clampCutZ(profileZ, bounds),
+    });
+  }
+
+  if (hasFlatTip) {
+    bands.push({
+      diameter: tipRadius * 2,
+      z: clampCutZ(tipZ, bounds),
     });
   }
   return bands;
@@ -316,7 +382,7 @@ export function stockRemovalRenderKey(
   const tools = (stock.tools ?? [])
     .map(
       (tool) =>
-        `${normalizeToolId(tool.id)}:${tool.diameter}:${tool.type}:${tool.angle ?? ""}`,
+        `${normalizeToolId(tool.id)}:${tool.diameter}:${tool.type}:${tool.angle ?? ""}:${tool.tipDiameter ?? ""}`,
     )
     .join(",");
   return [

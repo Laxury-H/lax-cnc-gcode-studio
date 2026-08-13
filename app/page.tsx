@@ -31,6 +31,7 @@ import {
   programLimitViolation,
 } from "@/core/simulation/program-limits";
 import { SAMPLE_GCODE } from "@/core/simulation/sample-program";
+import { resolveVBitGeometry } from "@/core/simulation/stock-removal-coordinates";
 import type {
   Axis,
   CoordinateSystem,
@@ -3975,7 +3976,16 @@ export default function Home() {
                             value={tool.type}
                             onChange={(e) => {
                               const newTools = [...(settingsDraft.stock.tools || [])];
-                              newTools[index] = { ...tool, type: e.target.value as "flat" | "ball" | "vbit" };
+                              const type = e.target.value as "flat" | "ball" | "vbit";
+                              const nextTool = { ...tool, type };
+                              if (type === "vbit") {
+                                nextTool.angle = tool.angle ?? 90;
+                                nextTool.tipDiameter = tool.tipDiameter ?? 0.2;
+                              } else {
+                                delete nextTool.angle;
+                                delete nextTool.tipDiameter;
+                              }
+                              newTools[index] = nextTool;
                               updateDraftStock((current) => ({ ...current, tools: newTools }));
                             }}
                           >
@@ -4002,22 +4012,50 @@ export default function Home() {
                         </div>
                       </label>
                       {tool.type === "vbit" && (
-                        <label style={{ flex: 1 }}>
-                          <span>{t.toolAngle}</span>
-                          <div>
-                            <input
-                              type="number"
-                              step="1"
-                              value={tool.angle || 90}
-                              onChange={(e) => {
-                                const newTools = [...(settingsDraft.stock.tools || [])];
-                                newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
-                                updateDraftStock((current) => ({ ...current, tools: newTools }));
-                              }}
-                            />
-                            <small>°</small>
-                          </div>
-                        </label>
+                        <>
+                          <label style={{ flex: 1 }}>
+                            <span>{t.toolAngle}</span>
+                            <div>
+                              <input
+                                type="number"
+                                min="1"
+                                max="179"
+                                step="1"
+                                value={tool.angle ?? 90}
+                                onChange={(e) => {
+                                  const newTools = [...(settingsDraft.stock.tools || [])];
+                                  newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
+                                  updateDraftStock((current) => ({ ...current, tools: newTools }));
+                                }}
+                              />
+                              <small>°</small>
+                            </div>
+                          </label>
+                          <label style={{ flex: 1 }}>
+                            <span>{t.toolTipDiameter}</span>
+                            <div>
+                              <input
+                                type="number"
+                                min="0"
+                                max={Math.max(0, tool.diameter - 0.01)}
+                                step="0.01"
+                                value={tool.tipDiameter ?? 0}
+                                onChange={(e) => {
+                                  const newTools = [...(settingsDraft.stock.tools || [])];
+                                  newTools[index] = {
+                                    ...tool,
+                                    tipDiameter: Math.max(0, Number(e.target.value) || 0),
+                                  };
+                                  updateDraftStock((current) => ({ ...current, tools: newTools }));
+                                }}
+                              />
+                              <small>mm</small>
+                            </div>
+                            <small className="tool-geometry-hint">
+                              {t.toolVDepth}: {resolveVBitGeometry(tool).taperHeight.toFixed(2)} mm
+                            </small>
+                          </label>
+                        </>
                       )}
                       <button
                         type="button"
@@ -4054,6 +4092,29 @@ export default function Home() {
                     style={{ width: "100%", borderStyle: "dashed" }}
                   >
                     <Icon name="play" size={14} /> {t.addTool}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="ghost-button add-tool-button"
+                    onClick={() => {
+                      updateDraftStock((current) => ({
+                        ...current,
+                        tools: [
+                          ...(current.tools || []),
+                          {
+                            id: `${(current.tools?.length || 0) + 1}`,
+                            diameter: 12.7,
+                            type: "vbit",
+                            angle: 90,
+                            tipDiameter: 0.2,
+                          },
+                        ],
+                      }));
+                    }}
+                    style={{ width: "100%", borderStyle: "dashed" }}
+                  >
+                    <Icon name="sparkles" size={14} /> {t.addVBit}
                   </button>
                   
                   <button

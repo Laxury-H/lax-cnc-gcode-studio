@@ -229,12 +229,21 @@ test("ball and V-bit contact widths follow shallow cutter geometry", async () =>
   const {
     buildCutterContactBands,
     resolveCutterContactDiameter,
+    resolveCutterProfileHeight,
+    resolveVBitGeometry,
   } = await loadCoordinates();
   const bounds = { topZ: 0, bottomZ: -12 };
   const flat = { id: "1", diameter: 10, type: "flat" };
   const ball = { id: "2", diameter: 10, type: "ball" };
   const v60 = { id: "3", diameter: 10, type: "vbit", angle: 60 };
   const v90 = { id: "4", diameter: 10, type: "vbit", angle: 90 };
+  const tippedV90 = {
+    id: "5",
+    diameter: 10,
+    type: "vbit",
+    angle: 90,
+    tipDiameter: 1,
+  };
 
   assert.equal(resolveCutterContactDiameter(flat, -0.1, bounds), 10);
   assertClose(resolveCutterContactDiameter(ball, -1, bounds), 6);
@@ -245,16 +254,77 @@ test("ball and V-bit contact widths follow shallow cutter geometry", async () =>
   assertClose(resolveCutterContactDiameter(v90, -1, bounds), 2);
   assert.equal(resolveCutterContactDiameter(v90, -8, bounds), 10);
   assert.equal(resolveCutterContactDiameter(v90, 1, bounds), 0);
+  assert.equal(resolveCutterContactDiameter(tippedV90, 0, bounds), 1);
+  assertClose(resolveCutterContactDiameter(tippedV90, -1, bounds), 3);
+  assertClose(resolveCutterProfileHeight(tippedV90, 0.5), 0);
+  assertClose(resolveCutterProfileHeight(tippedV90, 1.5), 1);
+
+  const tippedGeometry = resolveVBitGeometry(tippedV90);
+  assert.equal(tippedGeometry.tipDiameter, 1);
+  assertClose(tippedGeometry.taperHeight, 4.5);
 
   const ballBands = buildCutterContactBands(ball, -1, bounds, 8);
   assert.equal(ballBands.length, 8);
   assertClose(ballBands[0].diameter, 6);
   assert.ok(ballBands[0].z > ballBands.at(-1).z);
+  assertClose(ballBands.at(-1).z, -1);
   assert.ok(ballBands.every((band) => band.z <= bounds.topZ));
 
   const vBitBands = buildCutterContactBands(v90, -1, bounds, 8);
   assertClose(vBitBands[0].diameter, 2);
   assert.ok(vBitBands[0].z > vBitBands.at(-1).z);
+  assertClose(vBitBands.at(-1).z, -1);
+
+  const tippedBands = buildCutterContactBands(tippedV90, -1, bounds, 8);
+  assert.equal(tippedBands.length, 8);
+  assertClose(tippedBands[0].diameter, 3);
+  assertClose(tippedBands.at(-1).diameter, 1);
+  assertClose(tippedBands.at(-1).z, -1);
+});
+
+test("cutter contact bands stay monotonic and bounded across realistic depths", async () => {
+  const {
+    buildCutterContactBands,
+    resolveCutterContactDiameter,
+    resolveVBitGeometry,
+  } = await loadCoordinates();
+  const bounds = { topZ: 0, bottomZ: -18 };
+  const tools = [
+    { id: "flat", diameter: 6, type: "flat" },
+    { id: "ball", diameter: 6, type: "ball" },
+    { id: "v30", diameter: 12.7, type: "vbit", angle: 30 },
+    { id: "v60", diameter: 12.7, type: "vbit", angle: 60, tipDiameter: 0.1 },
+    { id: "v90", diameter: 12.7, type: "vbit", angle: 90, tipDiameter: 0.2 },
+    { id: "v120", diameter: 12.7, type: "vbit", angle: 120 },
+  ];
+
+  for (const tool of tools) {
+    let previousContact = 0;
+    for (const depth of [0.01, 0.1, 0.2, 0.5, 1, 3, 8, 18]) {
+      const contact = resolveCutterContactDiameter(tool, -depth, bounds);
+      assert.ok(contact >= previousContact - 1e-9, `${tool.id} contact regressed`);
+      assert.ok(contact <= tool.diameter + 1e-9, `${tool.id} exceeded diameter`);
+      previousContact = contact;
+
+      const bands = buildCutterContactBands(tool, -depth, bounds, 24);
+      assert.ok(bands.length > 0, `${tool.id} should cut at ${depth} mm`);
+      for (let index = 0; index < bands.length; index += 1) {
+        assert.ok(bands[index].z <= bounds.topZ + 1e-9);
+        assert.ok(bands[index].z >= bounds.bottomZ - 1e-9);
+        if (index > 0) {
+          assert.ok(bands[index].diameter <= bands[index - 1].diameter + 1e-9);
+          assert.ok(bands[index].z <= bands[index - 1].z + 1e-9);
+        }
+      }
+      assertClose(bands.at(-1).z, -depth);
+    }
+  }
+
+  assert.ok(
+    resolveVBitGeometry(tools[2]).taperHeight >
+      resolveVBitGeometry(tools[5]).taperHeight,
+    "a narrower V angle must have a longer taper for the same diameter",
+  );
 });
 
 test("Solid stock removal paints cutter bands and shares the playback marker", async () => {
@@ -270,6 +340,9 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
     source,
     /segment\.machineCoordinates \|\|[\s\S]*?segment\.kind === "rapid"/,
   );
+  assert.match(source, /segment\.spindle <= 0/);
+  assert.match(source, /segment\.spindleState === "off"/);
+  assert.match(source, /activeSegment\.spindle > 0/);
   assert.match(source, /paintStockSurface\(surfaceCtx, MAP_RES\)/);
   assert.match(source, /map=\{surfaceTexture\}/);
   assert.match(source, /surfaceCtx,[\s\S]*?"darken",[\s\S]*?cutSurfaceColor/);
@@ -305,6 +378,22 @@ test("invalidates the removal texture when stock coordinates, Z datum, quality, 
     stockRemovalRenderKey(stock, 1024, { topZ: 12, bottomZ: 0 }),
     stockRemovalRenderKey(
       { ...stock, tools: [{ id: "1", diameter: 10, type: "flat" }] },
+      1024,
+      topZero,
+    ),
+    stockRemovalRenderKey(
+      {
+        ...stock,
+        tools: [
+          {
+            id: "1",
+            diameter: 6,
+            type: "vbit",
+            angle: 60,
+            tipDiameter: 0.2,
+          },
+        ],
+      },
       1024,
       topZero,
     ),
