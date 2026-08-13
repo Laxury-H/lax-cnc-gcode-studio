@@ -168,9 +168,70 @@ test("exports CAM post-processor dialects for NcStudio and Syntec", async () => 
 
   const ncstudio = exportCAM(simulation, "ncstudio", "Test Project");
   assert.match(ncstudio, /WEIHONG NCSTUDIO V15/);
-  assert.match(ncstudio, /G90 G54 G17 G40 G49 G80/);
+  assert.match(ncstudio, /G21 G90 G54 G17 G40 G49 G80/);
+  assert.doesNotMatch(ncstudio, /G2[89]\b/);
 
   const syntec = exportCAM(simulation, "syntec", "Test Project");
   assert.match(syntec, /TAIWAN SYNTEC ATC/);
-  assert.match(syntec, /G91 G28 Z0\./);
+  assert.match(syntec, /G21 G90 G54 G17 G40 G49 G80/);
+  assert.doesNotMatch(syntec, /G2[89]\b/);
+});
+
+test("post-processors preserve dwell and all three arc planes on round-trip", async () => {
+  const { DEFAULT_STOCK, parseProgram, exportCAM } = await loadParser();
+  const source = `G21 G90 G54 G17
+G00 X0 Y0 Z5
+G04 P1250
+G18
+G02 X10 Z-5 I5 K-5 F600
+G19
+G03 Y10 Z5 J5 K5 F600
+M30`;
+  const simulation = parseProgram(source, DEFAULT_STOCK, "iso");
+
+  for (const target of ["ncstudio", "syntec"]) {
+    const output = exportCAM(simulation, target, "Round trip ) G00 X999");
+    assert.match(output, /G04 P1250\b/);
+    assert.match(output, /G18\r?\nG02 .* I[-\d.]+ K[-\d.]+/);
+    assert.match(output, /G19\r?\nG03 .* J[-\d.]+ K[-\d.]+/);
+    assert.doesNotMatch(output, /ROUND TRIP \) G00 X999/);
+
+    const roundTrip = parseProgram(output, DEFAULT_STOCK, "iso");
+    const dwell = roundTrip.segments.find((segment) => segment.kind === "dwell");
+    assert.equal(dwell?.estimatedDurationMs, 1250);
+    assert.equal(
+      roundTrip.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length,
+      0,
+    );
+  }
+});
+
+test("interprets dwell P using the active controller profile", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const source = "G21 G90 G04 P250\nM30";
+  const iso = parseProgram(source, DEFAULT_STOCK, "iso");
+  const custom = parseProgram(source, DEFAULT_STOCK, "router-custom");
+
+  assert.equal(iso.segments[0]?.estimatedDurationMs, 250);
+  assert.equal(custom.segments[0]?.estimatedDurationMs, 250_000);
+});
+
+test("post-processors establish a safe start and keep expanded drilling linear", async () => {
+  const { DEFAULT_STOCK, parseProgram, exportCAM } = await loadParser();
+  const simulation = parseProgram(
+    `G21 G90 G54
+G00 X100 Y200 Z20
+G81 X120 Y220 Z-5 R3 F500
+G80
+M30`,
+    DEFAULT_STOCK,
+    "iso",
+  );
+  const output = exportCAM(simulation, "ncstudio", "Safety");
+  const firstSafetyMove = output.indexOf("G00 Z50.000");
+  const firstXYMove = output.indexOf("G00 X");
+
+  assert.ok(firstSafetyMove >= 0 && firstSafetyMove < firstXYMove);
+  assert.doesNotMatch(output, /\bG81\b/);
+  assert.match(output, /G01 .*Z-5\.000 F500\.0/);
 });

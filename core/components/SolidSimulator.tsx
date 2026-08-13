@@ -136,8 +136,8 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
           <Line
             points={cutPositions}
             color="#03171c"
-            lineWidth={2.6}
-            opacity={0.68}
+            lineWidth={1.8}
+            opacity={0.58}
             transparent
             depthTest={false}
             depthWrite={false}
@@ -148,7 +148,7 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
           <Line
             points={cutPositions}
             color="#22e6ff"
-            lineWidth={1.1}
+            lineWidth={0.75}
             opacity={0.96}
             transparent
             depthTest={false}
@@ -163,7 +163,7 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
         <Line 
           points={rapidPositions} 
           color="#ff3366" 
-          lineWidth={1.5} 
+          lineWidth={1.1}
           opacity={0.5}
           transparent 
           depthTest={false}

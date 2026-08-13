@@ -68,7 +68,8 @@ test("validated preferences hydrate, persist, and edit through a cancellable dra
 test("file import handles invalid, empty, and failed reads without a stuck busy state", async () => {
   const source = await read("app/page.tsx");
 
-  assert.match(source, /file\.size > 8 \* 1024 \* 1024/);
+  assert.match(source, /file\.size > MAX_PROGRAM_BYTES/);
+  assert.match(source, /programLimitViolation\(text\)/);
   assert.match(source, /\["nc", "txt", "tap", "gcode", "cnc"\]\.includes\(extension\)/);
   assert.match(
     source,
@@ -104,6 +105,9 @@ test("code navigation, analysis tabs, and transient feedback expose accessible s
   const source = await read("app/page.tsx");
 
   assert.match(source, /className="code-lines"[\s\S]*?role="listbox"/);
+  assert.match(source, /className="code-lines-virtual-space"/);
+  assert.match(source, /\.slice\(visibleCodeRange\.start, visibleCodeRange\.end\)/);
+  assert.match(source, /aria-setsize=\{simulation\.lines\.length\}/);
   assert.match(source, /role="option"[\s\S]*?aria-selected=\{index === currentLine\}/);
   assert.match(source, /tabIndex=\{index === focusedCodeLine \? 0 : -1\}/);
   assert.match(source, /onFocus=\{\(\) => setFocusedCodeLine\(index\)\}/);
@@ -124,7 +128,7 @@ test("primary workstation regions and simulation progress expose accessible cont
   assert.match(source, /aria-label=\{lang === "EN" \? "CNC workspace" : "Không gian làm việc CNC"\}/);
   assert.match(source, /aria-label=\{lang === "EN" \? "G-code program" : "Chương trình G-code"\}/);
   assert.match(source, /aria-label=\{lang === "EN" \? "Toolpath simulation" : "Mô phỏng đường chạy dao"\}/);
-  assert.match(source, /className=\{`simulation-state\$\{playing \? " is-running" : ""\}`\}[\s\S]*?aria-live="polite"/);
+  assert.match(source, /className=\{`simulation-state\$\{playing \? " is-running" : ""\}\$\{analysisBusy \? " is-processing" : ""\}`\}[\s\S]*?aria-live="polite"/);
   assert.match(source, /className="progress-track"[\s\S]*?role="progressbar"[\s\S]*?aria-valuenow=\{Math\.round\(totalProgress\)\}/);
   assert.match(source, /title=\{line \|\| undefined\}/);
 });

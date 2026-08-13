@@ -6,15 +6,16 @@ const rootUrl = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, rootUrl), "utf8");
 
 test("the workstation persists and applies its G54-G59 offset table", async () => {
-  const [page, preferences] = await Promise.all([
+  const [page, preferences, analysisWorker] = await Promise.all([
     read("app/page.tsx"),
     read("core/ui/workspace-preferences.ts"),
+    read("core/workers/program-analysis.worker.ts"),
   ]);
 
-  assert.match(page, /parseProgram\(code, stock, profile, workOffsets\)/);
+  assert.match(page, /useProgramAnalysis\(\{ source: code, stock, profile, workOffsets \}\)/);
   assert.match(
-    page,
-    /orientStockForProgram\([\s\S]*?nextCode,[\s\S]*?stock,[\s\S]*?profile,[\s\S]*?workOffsets,/,
+    analysisWorker,
+    /orientStockForProgram\([\s\S]*?request\.source,[\s\S]*?request\.stock,[\s\S]*?request\.profile,[\s\S]*?request\.workOffsets,/,
   );
   assert.match(page, /<details className="work-offset-settings">/);
   assert.match(page, /<table aria-label=\{t\.workOffsetsTableLabel\}>/);

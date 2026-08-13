@@ -5312,6 +5312,65 @@ button.metric-card {
   100% { opacity: 0; transform: translate(-50%, 10px); }
 }
 
+.code-lines-virtual-space {
+  position: relative;
+  min-width: 100%;
+}
+
+.code-lines-virtual-space .code-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 28px;
+}
+
+.simulation-state.is-processing {
+  border-color: rgba(34, 211, 238, 0.42);
+  color: #67e8f9;
+}
+
+.simulation-state.is-processing i {
+  animation: analysis-pulse 0.9s ease-in-out infinite alternate;
+}
+
+.cancel-analysis-button {
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 5px;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.75);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel-analysis-button:hover,
+.cancel-analysis-button:focus-visible {
+  border-color: rgba(34, 211, 238, 0.65);
+  color: #67e8f9;
+}
+
+.analysis-error {
+  max-width: 240px;
+  overflow: hidden;
+  color: #fca5a5 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes analysis-pulse {
+  from {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 /* Professional workstation polish */
 :root {
   --app-bg: #070a0d;

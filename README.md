@@ -10,7 +10,8 @@ backplot lớn, theo dõi tọa độ dao và kiểm tra chương trình trướ
 ## Tính năng chính
 
 - Import hoặc kéo thả `.nc`, `.txt`, `.tap`, `.gcode`, `.cnc`; kiểm tra định
-  dạng, giới hạn 8 MB, file rỗng và lỗi đọc trước khi thay chương trình hiện tại
+  dạng, giới hạn 8 MB/250.000 dòng, file rỗng và lỗi đọc trước khi thay chương
+  trình hiện tại. Phân tích file nặng chạy trong Web Worker, có trạng thái và hủy
 - Trình phân tích modal cho G-code ISO/Fanuc cơ bản và profile router tùy chỉnh
 - Mô phỏng chuyển động nhanh, cắt thẳng, cung tròn và chu trình khoan
 - Hai góc nhìn chính: mặt phẳng phay 2D và mô phỏng bóc vật liệu 3D Solid
@@ -37,6 +38,8 @@ backplot lớn, theo dõi tọa độ dao và kiểm tra chương trình trướ
 - Chế độ toàn màn hình dành riêng cho mô phỏng
 - So sánh hai file, sửa G-code trong ứng dụng và MiniCAM có kiểm tra dữ liệu đầu
   vào/giới hạn số lượt chạy trước khi tạo chương trình
+- Xuất CAM NcStudio/Syntec với khởi động an toàn, đúng G17/G18/G19, tâm cung
+  I/J/K theo mặt phẳng và dwell `G04 P` theo mili-giây
 
 ## UI/UX và responsive
 
@@ -83,13 +86,14 @@ nghiệm `3D Machine` có hiệu lực ngay, được lưu riêng và mặc đ�
 | Chuyển động | `G0`, `G1`, `G2`, `G3` |
 | Đơn vị | `G20`, `G21` |
 | Tọa độ | `G53`, `G54`–`G59`, `G90`, `G91`, `G90.1`, `G91.1`, `G92`–`G92.3` |
-| Mặt phẳng | `G17`, nhận diện `G18`, `G19` |
+| Mặt phẳng | `G17`, `G18`, `G19` |
 | Chu trình khoan | `G73`, `G80`–`G89` |
 | Máy/spindle | `M3`, `M4`, `M5`, `M30` và một số mã router tùy chỉnh |
 
-Cung tròn hiện được nội suy đầy đủ trên mặt phẳng `G17` (XY). Các lệnh ngoài
-phạm vi hỗ trợ vẫn được giữ trong chương trình và hiển thị dưới dạng cảnh báo
-thay vì âm thầm bỏ qua.
+Cung tròn được nội suy đầy đủ trên cả ba mặt phẳng XY/XZ/YZ. Các lệnh ngoài phạm
+vi hỗ trợ vẫn được giữ trong chương trình và hiển thị dưới dạng cảnh báo thay vì
+âm thầm bỏ qua. Riêng G84–G89 đang được mô phỏng gần đúng và có diagnostic chỉ
+rõ mức hỗ trợ.
 
 ## Điều khiển mô phỏng
 
@@ -143,15 +147,20 @@ Chạy toàn bộ cổng chất lượng bằng:
 npm run check
 ```
 
-Regression test hiện bao phủ parser, phép đo, trạng thái thử nghiệm 3D Machine,
-responsive layout/dialog, HTML render và lưu thiết lập. Các test source/layout
-này không thay thế bước kiểm tra trực quan thủ công trên viewport và thiết bị
-thật trước khi phát hành.
+Regression test hiện bao phủ parser, round-trip post-processor, ngân sách hiệu
+năng 25.000 đoạn, giới hạn import, phép đo, trạng thái thử nghiệm 3D Machine,
+responsive layout/dialog, security header, HTML render và lưu thiết lập. Các test
+source/layout này không thay thế bước kiểm tra trực quan thủ công trên viewport
+và thiết bị thật trước khi phát hành.
 
 ## Cấu trúc chính
 
-- `app/page.tsx`: parser, mô phỏng, canvas renderer và giao diện
+- `app/page.tsx`: điều phối workstation, playback và giao diện
 - `app/globals.css`: hệ thống giao diện CNC workstation và responsive
+- `core/gcode/`: parser/interpreter modal và hình học G-code
+- `core/simulation/post-processor.ts`: xuất CAM an toàn cho NcStudio/Syntec
+- `core/workers/program-analysis.worker.ts`: phân tích/orient file ngoài UI thread
+- `core/ui/use-program-analysis.ts`: vòng đời worker, hủy và giữ kết quả ổn định
 - `core/components/ui/ResponsiveDialog.tsx`: dialog dùng chung, focus trap và
   hành vi đóng/mở có trợ năng
 - `core/ui/workspace-preferences.ts`: schema, kiểm tra và serialize thiết lập

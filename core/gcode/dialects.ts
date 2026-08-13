@@ -16,7 +16,7 @@ const COORDINATE_SYSTEMS: readonly CoordinateSystem[] = [
 ];
 
 const COMMON_G_CODES = [
-  0, 1, 2, 3, 4, 17, 18, 19, 20, 21, 43, 49, 53, 54, 55, 56, 57, 58, 59,
+  0, 1, 2, 3, 4, 17, 18, 19, 20, 21, 40, 43, 49, 53, 54, 55, 56, 57, 58, 59,
   80, 81, 82, 83, 90, 91, 90.1, 91.1, 92, 92.1, 92.2, 92.3, 93, 94, 98,
   99,
 ] as const;
@@ -124,6 +124,7 @@ function baseProfile(
     rapidRate: options.rapidRate,
     toolChangeDurationMs: 10_000,
     spindleStartupDelayMs: 0,
+    dwellPUnit: "seconds",
     supportedGCodes: new Set(options.supportedGCodes ?? COMMON_G_CODES),
     supportedMCodes: new Set(options.supportedMCodes ?? COMMON_M_CODES),
     customSpindleOnMCodes: new Set(EMPTY_NUMBERS),
@@ -145,6 +146,7 @@ export const FANUC_PROFILE = createMachineProfile(GENERIC_PROFILE, {
   name: "Fanuc-style",
   rapidRate: 10_000,
   toolChangeDurationMs: 12_000,
+  dwellPUnit: "milliseconds",
 });
 
 export const GRBL_PROFILE = createMachineProfile(GENERIC_PROFILE, {

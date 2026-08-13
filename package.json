@@ -18,7 +18,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.7",
+    "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@types/three": "^0.185.3",
     "diff": "^9.0.0",
@@ -29,7 +29,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.50.0",
+    "@cloudflare/vite-plugin": "1.52.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/diff": "^7.0.2",
     "@types/node": "22.19.19",
@@ -44,8 +44,8 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
-    "vite": "8.2.0",
-    "wrangler": "4.118.0"
+    "vite": "8.2.1",
+    "wrangler": "4.122.0"
   },
   "type": "module",
   "displayName": "Lax's CNC",
@@ -63,6 +63,7 @@
       "esbuild": "0.25.12"
     },
     "postcss": "8.5.25",
+    "nanoid": "3.3.17",
     "sharp": "0.35.3"
   }
 }

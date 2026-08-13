@@ -222,11 +222,13 @@ function interpretBlock(
           "error",
           "INVALID_DWELL",
           "G4",
-          "G4 cần giá trị P không âm, tính bằng giây.",
+          `G4 cần giá trị P không âm, tính bằng ${
+            context.profile.dwellPUnit === "milliseconds" ? "mili-giây" : "giây"
+          }.`,
         ),
       );
     } else {
-      appendDwell(block, context, dwellWord.value * 1000);
+      appendDwell(block, context, dwellDurationMs(dwellWord.value, context.profile));
     }
   }
 
@@ -743,7 +745,9 @@ function interpretCannedCycle(
     depth,
     retractPlane,
     peck: qWord ? Math.abs(qWord.value * scale) : (previous?.peck ?? null),
-    dwellMs: pWord ? Math.max(0, pWord.value * 1000) : (previous?.dwellMs ?? 0),
+    dwellMs: pWord
+      ? Math.max(0, dwellDurationMs(pWord.value, context.profile))
+      : (previous?.dwellMs ?? 0),
     initialPlane,
     feed: context.state.feed,
   } satisfies CannedCycleState;
@@ -1113,6 +1117,10 @@ function appendDwell(
     estimatedDurationMs: durationMs,
     cannedCycle,
   });
+}
+
+function dwellDurationMs(value: number, profile: MachineProfile): number {
+  return profile.dwellPUnit === "milliseconds" ? value : value * 1000;
 }
 
 function finishBlock(

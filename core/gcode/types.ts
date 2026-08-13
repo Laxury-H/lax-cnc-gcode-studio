@@ -192,6 +192,8 @@ export type MachineProfile = {
   rapidRate: number;
   toolChangeDurationMs: number;
   spindleStartupDelayMs: number;
+  /** Unit used by the controller for the P word in G4 and canned-cycle dwell. */
+  dwellPUnit: "seconds" | "milliseconds";
   supportedGCodes: ReadonlySet<number>;
   supportedMCodes: ReadonlySet<number>;
   customSpindleOnMCodes: ReadonlySet<number>;

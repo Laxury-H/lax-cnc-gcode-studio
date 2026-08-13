@@ -159,7 +159,6 @@ export function parseProgram(
   return {
     lines: interpreted.lines,
     segments,
-    motions,
     diagnostics,
     parts,
     offcuts,

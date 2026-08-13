@@ -36,6 +36,22 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
+test("serves the workstation with production security headers", async () => {
+  const response = await renderHome();
+
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+  assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
+  assert.match(
+    response.headers.get("content-security-policy") ?? "",
+    /frame-ancestors 'none'/,
+  );
+  assert.match(
+    response.headers.get("permissions-policy") ?? "",
+    /camera=\(\)/,
+  );
+});
+
 test("renders the primary simulator views and hides experimental 3D Machine", async () => {
   const response = await renderHome();
   const html = await response.text();

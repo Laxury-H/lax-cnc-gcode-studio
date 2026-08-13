@@ -42,43 +42,86 @@ export function extractOffcuts(
 
   const candidates: Candidate[] = [];
 
-  // Search for Maximal Empty Rectangles (MER) >= MIN_OFFCUT_DIM
-  for (let i = 0; i < xs.length - 1; i += 1) {
-    for (let j = i + 1; j < xs.length; j += 1) {
-      const rx0 = xs[i];
-      const rx1 = xs[j];
-      const w = rx1 - rx0;
-      if (w < MIN_OFFCUT_DIM) continue;
+  const xCells = xs.length - 1;
+  const yCells = ys.length - 1;
+  const xIndex = new Map(xs.map((value, index) => [value, index]));
+  const yIndex = new Map(ys.map((value, index) => [value, index]));
+  const stride = xCells + 2;
+  const occupancyDiff = new Int32Array((yCells + 2) * stride);
 
-      for (let k = 0; k < ys.length - 1; k += 1) {
-        for (let l = k + 1; l < ys.length; l += 1) {
-          const ry0 = ys[k];
-          const ry1 = ys[l];
-          const h = ry1 - ry0;
-          if (h < MIN_OFFCUT_DIM) continue;
+  const addDifference = (x0: number, y0: number, x1: number, y1: number) => {
+    occupancyDiff[y0 * stride + x0] += 1;
+    occupancyDiff[y0 * stride + x1] -= 1;
+    occupancyDiff[y1 * stride + x0] -= 1;
+    occupancyDiff[y1 * stride + x1] += 1;
+  };
 
-          // Check if this box overlaps with any nested part
-          const candBounds = { minX: rx0, minY: ry0, maxX: rx1, maxY: ry1 };
-          let overlapsPart = false;
-          for (const p of parts) {
-            // Two rectangles overlap if their interiors intersect strictly (allow sharing edges)
-            if (bounds2DIntersect(p, candBounds)) {
-              overlapsPart = true;
-              break;
-            }
-          }
+  for (const part of parts) {
+    const px0 = Math.max(stockX0, Math.min(stockX1, part.minX));
+    const px1 = Math.max(stockX0, Math.min(stockX1, part.maxX));
+    const py0 = Math.max(stockY0, Math.min(stockY1, part.minY));
+    const py1 = Math.max(stockY0, Math.min(stockY1, part.maxY));
+    const x0 = xIndex.get(px0);
+    const x1 = xIndex.get(px1);
+    const y0 = yIndex.get(py0);
+    const y1 = yIndex.get(py1);
+    if (
+      x0 !== undefined &&
+      x1 !== undefined &&
+      y0 !== undefined &&
+      y1 !== undefined &&
+      x0 < x1 &&
+      y0 < y1
+    ) {
+      addDifference(x0, y0, x1, y1);
+    }
+  }
 
-          if (!overlapsPart) {
+  const rowBlockedPrefix = Array.from(
+    { length: yCells },
+    () => new Int32Array(xCells + 1),
+  );
+  for (let y = 0; y < yCells; y += 1) {
+    let blockedInRow = 0;
+    for (let x = 0; x < xCells; x += 1) {
+      const above = y > 0 ? occupancyDiff[(y - 1) * stride + x] : 0;
+      const left = x > 0 ? occupancyDiff[y * stride + x - 1] : 0;
+      const diagonal =
+        x > 0 && y > 0 ? occupancyDiff[(y - 1) * stride + x - 1] : 0;
+      const index = y * stride + x;
+      occupancyDiff[index] += above + left - diagonal;
+      if (occupancyDiff[index] > 0) blockedInRow += 1;
+      rowBlockedPrefix[y][x + 1] = blockedInRow;
+    }
+  }
+
+  // For each horizontal span, row prefixes make occupancy checks O(1). A
+  // single vertical scan then yields every maximal empty rectangle in that span.
+  for (let left = 0; left < xCells; left += 1) {
+    for (let right = left + 1; right <= xCells; right += 1) {
+      const width = xs[right] - xs[left];
+      if (width < MIN_OFFCUT_DIM) continue;
+      let runStart = -1;
+      for (let row = 0; row <= yCells; row += 1) {
+        const rowIsFree =
+          row < yCells &&
+          rowBlockedPrefix[row][right] - rowBlockedPrefix[row][left] === 0;
+        if (rowIsFree && runStart < 0) {
+          runStart = row;
+        } else if (!rowIsFree && runStart >= 0) {
+          const height = ys[row] - ys[runStart];
+          if (height >= MIN_OFFCUT_DIM) {
             candidates.push({
-              minX: rx0,
-              minY: ry0,
-              maxX: rx1,
-              maxY: ry1,
-              w,
-              h,
-              area: w * h,
+              minX: xs[left],
+              minY: ys[runStart],
+              maxX: xs[right],
+              maxY: ys[row],
+              w: width,
+              h: height,
+              area: width * height,
             });
           }
+          runStart = -1;
         }
       }
     }

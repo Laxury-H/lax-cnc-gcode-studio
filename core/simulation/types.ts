@@ -106,7 +106,6 @@ export type PostProcessorType = "ncstudio" | "syntec" | "standard";
 export type Simulation = {
   lines: string[];
   segments: Segment[];
-  motions: NormalizedMotion[];
   diagnostics: Diagnostic[];
   parts: Part[];
   offcuts: Offcut[];

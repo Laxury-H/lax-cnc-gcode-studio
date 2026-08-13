@@ -30,15 +30,50 @@ export function detectParts(
   let active: Part["points"] = [];
   let sourceLine = 0;
   let activeHasArc = false;
+  const activeBuckets = new Map<string, number[]>();
+
+  const bucketKey = (point: Part["points"][number]) =>
+    `${Math.floor(point.x / closeTolerance)},${Math.floor(point.y / closeTolerance)}`;
+
+  const indexActivePoint = (point: Part["points"][number], index: number) => {
+    const key = bucketKey(point);
+    const bucket = activeBuckets.get(key);
+    if (bucket) bucket.push(index);
+    else activeBuckets.set(key, [index]);
+  };
+
+  const replaceActive = (points: readonly Part["points"][number][]) => {
+    active = points.map(cloneVec3);
+    activeBuckets.clear();
+    active.forEach(indexActivePoint);
+  };
+
+  const appendActive = (points: readonly Part["points"][number][]) => {
+    for (const point of points) {
+      const clone = cloneVec3(point);
+      active.push(clone);
+      indexActivePoint(clone, active.length - 1);
+    }
+  };
 
   const captureClosedTail = () => {
     if (active.length < 4) return;
     const end = active[active.length - 1];
     let closedFrom = -1;
-    for (let index = 0; index <= active.length - 4; index += 1) {
-      if (distance2D(active[index], end) <= closeTolerance) {
-        closedFrom = index;
-        break;
+    const cellX = Math.floor(end.x / closeTolerance);
+    const cellY = Math.floor(end.y / closeTolerance);
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const candidates = activeBuckets.get(`${cellX + dx},${cellY + dy}`);
+        if (!candidates) continue;
+        for (const index of candidates) {
+          if (index > active.length - 4 || index >= closedFrom && closedFrom >= 0) {
+            continue;
+          }
+          if (distance2D(active[index], end) <= closeTolerance) {
+            closedFrom = index;
+          }
+        }
       }
     }
     if (closedFrom >= 0) {
@@ -48,6 +83,7 @@ export function detectParts(
         hasArc: activeHasArc,
       });
       active = [];
+      activeBuckets.clear();
       activeHasArc = false;
     }
   };
@@ -67,20 +103,20 @@ export function detectParts(
         : [segment.start, segment.end];
 
     if (!active.length) {
-      active = segmentPoints.map(cloneVec3);
+      replaceActive(segmentPoints);
       sourceLine = segment.lineIndex;
       activeHasArc =
         segment.kind === "arc-cw" || segment.kind === "arc-ccw";
     } else if (
       distance2D(active[active.length - 1], segmentPoints[0]) <= closeTolerance
     ) {
-      active.push(...segmentPoints.slice(1).map(cloneVec3));
+      appendActive(segmentPoints.slice(1));
       activeHasArc =
         activeHasArc ||
         segment.kind === "arc-cw" ||
         segment.kind === "arc-ccw";
     } else {
-      active = segmentPoints.map(cloneVec3);
+      replaceActive(segmentPoints);
       sourceLine = segment.lineIndex;
       activeHasArc =
         segment.kind === "arc-cw" || segment.kind === "arc-ccw";

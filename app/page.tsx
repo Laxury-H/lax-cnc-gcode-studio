@@ -19,9 +19,18 @@ import {
   exportCAM,
   generateSmartResume,
   orientStockForProgram,
-  parseProgram,
   resizeStockPreservingPinnedOrigin,
 } from "@/core/simulation/studio-program";
+import {
+  prepareProgramOffThread,
+  useProgramAnalysis,
+} from "@/core/ui/use-program-analysis";
+import {
+  MAX_PROGRAM_BYTES,
+  MAX_PROGRAM_LINES,
+  programLimitViolation,
+} from "@/core/simulation/program-limits";
+import { SAMPLE_GCODE } from "@/core/simulation/sample-program";
 import type {
   Axis,
   CoordinateSystem,
@@ -95,6 +104,8 @@ const DEFAULT_ORBIT: OrbitCamera = {
 
 const PLANE_GCODE = { XY: "G17", XZ: "G18", YZ: "G19" } as const;
 const MACHINE_VIEW_STORAGE_KEY = "lax_cnc_experimental_machine_view";
+const CODE_ROW_HEIGHT = 28;
+const CODE_OVERSCAN_ROWS = 18;
 const WORK_COORDINATE_SYSTEMS = [
   "G54",
   "G55",
@@ -155,73 +166,6 @@ function isInvalidStockField(
   }
   return key === "clearance" && value < 0;
 }
-
-
-function buildSampleProgram() {
-  const panels = [
-    [20, 20, 720, 380],
-    [20, 420, 720, 360],
-    [760, 20, 680, 380],
-    [760, 420, 680, 360],
-    [1460, 20, 600, 220],
-    [1460, 260, 285, 200],
-    [1755, 260, 305, 200],
-    [2080, 20, 340, 1120],
-    [1460, 480, 285, 260],
-    [1755, 480, 305, 260],
-    [1460, 760, 285, 380],
-    [1755, 760, 305, 380],
-  ];
-
-  const lines = [
-    "%",
-    "(Lax's CNC - TU BEP CAN A-01)",
-    "(PHOI 2440 X 1220 X 18)",
-    "G90 G21 G17",
-    "G54",
-    "M33 S18000",
-    "G600 T25",
-    "M73",
-    "G0 Z22.000",
-  ];
-
-  panels.forEach(([x, y, width, height], index) => {
-    const x2 = x + width;
-    const y2 = y + height;
-    lines.push(
-      `(P${String(index + 1).padStart(2, "0")} - ${width} X ${height})`,
-      `G0 X${x.toFixed(3)} Y${y.toFixed(3)}`,
-      "G1 Z7.000 F1000.0",
-      `G1 X${x2.toFixed(3)} Y${y.toFixed(3)} F3200.0`,
-      `G1 X${x2.toFixed(3)} Y${y2.toFixed(3)}`,
-      `G1 X${x.toFixed(3)} Y${y2.toFixed(3)}`,
-      `G1 X${x.toFixed(3)} Y${y.toFixed(3)}`,
-      "G0 Z22.000",
-    );
-  });
-
-  lines.push(
-    "(KHOAN BAN LE)",
-    "G81 X60.000 Y70.000 Z7.000 R22.000 F1000.0",
-    "X700.000 Y70.000",
-    "X60.000 Y350.000",
-    "X700.000 Y350.000",
-    "G80",
-    "M83",
-    "M5",
-    "M30",
-    "%",
-  );
-
-  return lines.join("\n");
-}
-
-const SAMPLE_GCODE = buildSampleProgram();
-
-
-
-
-
 
 
 function syntaxLine(line: string) {
@@ -827,7 +771,7 @@ function ToolpathCanvas({
       ctx.moveTo(projected[0].x, projected[0].y);
       projected.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
       ctx.strokeStyle = `rgba(${color},${alpha})`;
-      ctx.lineWidth = view === "iso" ? (active ? 2 : 1.25) : (active ? 2.2 : 1.45);
+      ctx.lineWidth = view === "iso" ? (active ? 1.5 : 0.85) : (active ? 1.65 : 1);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       if (isTravel) ctx.setLineDash([7, 5]);
@@ -1491,6 +1435,11 @@ export default function Home() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isPreparingProgram, setIsPreparingProgram] = useState(false);
+  const [codeViewport, setCodeViewport] = useState({
+    scrollTop: 0,
+    height: 600,
+  });
   const [toast, setToast] = useState<string | null>(null);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [machineSound, setMachineSound] = useState(false);
@@ -1508,6 +1457,8 @@ export default function Home() {
   const toastTimerRef = useRef<number | null>(null);
   const drawerWasOpenRef = useRef(false);
   const drawerReturnFocusRef = useRef<HTMLElement | null>(null);
+  const applyCodeRequestRef = useRef(0);
+  const prepareAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let saved: WorkspacePreferences | null = null;
@@ -1643,10 +1594,21 @@ export default function Home() {
     };
   }, [drawerOpen]);
 
-  const simulation = useMemo(
-    () => parseProgram(code, stock, profile, workOffsets),
-    [code, stock, profile, workOffsets],
-  );
+  const {
+    simulation,
+    isProcessing: isSimulationProcessing,
+    error: simulationProcessingError,
+    cancel: cancelSimulationProcessing,
+    acceptPrepared: acceptPreparedSimulation,
+  } = useProgramAnalysis({ source: code, stock, profile, workOffsets });
+  const analysisBusy = isPreparingProgram || isSimulationProcessing;
+  const cancelProgramAnalysis = useCallback(() => {
+    applyCodeRequestRef.current += 1;
+    prepareAbortRef.current?.abort();
+    prepareAbortRef.current = null;
+    setIsPreparingProgram(false);
+    cancelSimulationProcessing();
+  }, [cancelSimulationProcessing]);
 
   const errorCount = simulation.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
@@ -1696,6 +1658,35 @@ export default function Home() {
         ),
       )
     : 0;
+  const visibleCodeRange = useMemo(() => {
+    const firstVisible = Math.floor(codeViewport.scrollTop / CODE_ROW_HEIGHT);
+    const visibleRows = Math.ceil(codeViewport.height / CODE_ROW_HEIGHT);
+    const start = Math.max(0, firstVisible - CODE_OVERSCAN_ROWS);
+    const end = Math.min(
+      simulation.lines.length,
+      firstVisible + visibleRows + CODE_OVERSCAN_ROWS,
+    );
+    return { start, end };
+  }, [codeViewport.height, codeViewport.scrollTop, simulation.lines.length]);
+
+  useEffect(() => {
+    const container = codeScrollRef.current;
+    if (!container) return;
+    const updateViewport = () => {
+      setCodeViewport({
+        scrollTop: container.scrollTop,
+        height: container.clientHeight,
+      });
+    };
+    const observer = new ResizeObserver(updateViewport);
+    container.addEventListener("scroll", updateViewport, { passive: true });
+    observer.observe(container);
+    updateViewport();
+    return () => {
+      container.removeEventListener("scroll", updateViewport);
+      observer.disconnect();
+    };
+  }, []);
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -1713,6 +1704,7 @@ export default function Home() {
       if (toastTimerRef.current !== null) {
         window.clearTimeout(toastTimerRef.current);
       }
+      prepareAbortRef.current?.abort();
     },
     [],
   );
@@ -1965,32 +1957,85 @@ export default function Home() {
   }, [changeView, isMeasuring, lang, notify]);
 
   const applyCode = useCallback(
-    (nextCode: string, nextFileName?: string) => {
-      const oriented = orientStockForProgram(
-        nextCode,
-        stock,
-        profile,
-        workOffsets,
-      );
-      if (oriented.rotated) setStock(oriented.stock);
-      setCode(nextCode);
-      setDraftCode(nextCode);
-      if (nextFileName) {
-        setFileName(nextFileName);
-        setProjectName(nextFileName.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
+    async (nextCode: string, nextFileName?: string) => {
+      const violation = programLimitViolation(nextCode);
+      if (violation) {
+        notify(
+          violation === "lines"
+            ? lang === "EN"
+              ? `Program exceeds ${MAX_PROGRAM_LINES.toLocaleString()} lines. Split it before analysis.`
+              : `Chương trình vượt ${MAX_PROGRAM_LINES.toLocaleString()} dòng. Hãy chia nhỏ trước khi phân tích.`
+            : t.fileTooLarge,
+        );
+        return null;
       }
-      resetPlayback();
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-      setOrbit({ ...DEFAULT_ORBIT });
-      return oriented.rotated;
+
+      const requestId = ++applyCodeRequestRef.current;
+      prepareAbortRef.current?.abort();
+      const abortController = new AbortController();
+      prepareAbortRef.current = abortController;
+      setIsPreparingProgram(true);
+      try {
+        const prepared = await prepareProgramOffThread({
+          source: nextCode,
+          stock,
+          profile,
+          workOffsets,
+        }, abortController.signal);
+        if (requestId !== applyCodeRequestRef.current) return null;
+        const preparedFor = {
+          source: nextCode,
+          stock: prepared.stock,
+          profile,
+          workOffsets,
+        };
+        acceptPreparedSimulation(prepared, preparedFor);
+        setStock(prepared.stock);
+        setCode(nextCode);
+        setDraftCode(nextCode);
+        if (nextFileName) {
+          setFileName(nextFileName);
+          setProjectName(nextFileName.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
+        }
+        resetPlayback();
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+        setOrbit({ ...DEFAULT_ORBIT });
+        return prepared.rotated;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return null;
+        }
+        if (requestId === applyCodeRequestRef.current) {
+          notify(
+            lang === "EN"
+              ? "Could not analyze this program. The current workspace was kept."
+              : "Không thể phân tích chương trình này. Không gian làm việc hiện tại được giữ nguyên.",
+          );
+        }
+        return null;
+      } finally {
+        if (requestId === applyCodeRequestRef.current) {
+          prepareAbortRef.current = null;
+          setIsPreparingProgram(false);
+        }
+      }
     },
-    [profile, resetPlayback, stock, workOffsets],
+    [
+      acceptPreparedSimulation,
+      lang,
+      notify,
+      profile,
+      resetPlayback,
+      stock,
+      t.fileTooLarge,
+      workOffsets,
+    ],
   );
 
   const readFile = useCallback(
     async (file: File) => {
-      if (file.size > 8 * 1024 * 1024) {
+      if (file.size > MAX_PROGRAM_BYTES) {
         notify(t.fileTooLarge);
         return;
       }
@@ -2006,7 +2051,19 @@ export default function Home() {
           notify(t.emptyFileMsg);
           return;
         }
-        const rotated = applyCode(text, file.name);
+        const violation = programLimitViolation(text);
+        if (violation) {
+          notify(
+            violation === "lines"
+              ? lang === "EN"
+                ? `Program exceeds ${MAX_PROGRAM_LINES.toLocaleString()} lines. Split it before importing.`
+                : `Chương trình vượt ${MAX_PROGRAM_LINES.toLocaleString()} dòng. Hãy chia nhỏ trước khi nhập.`
+              : t.fileTooLarge,
+          );
+          return;
+        }
+        const rotated = await applyCode(text, file.name);
+        if (rotated === null) return;
         setMobilePanel("simulation");
         notify(
           rotated
@@ -2021,6 +2078,7 @@ export default function Home() {
     },
     [
       applyCode,
+      lang,
       notify,
       stock.height,
       stock.width,
@@ -2174,11 +2232,16 @@ export default function Home() {
   ]);
 
   useEffect(() => {
-    const activeLine = document.querySelector(
-      `[data-code-line="${currentLine}"]`,
-    );
-    activeLine?.scrollIntoView({ block: "nearest" });
-    if (!codeScrollRef.current?.contains(document.activeElement)) {
+    const container = codeScrollRef.current;
+    if (!container) return;
+    const lineTop = currentLine * CODE_ROW_HEIGHT;
+    const lineBottom = lineTop + CODE_ROW_HEIGHT;
+    if (lineTop < container.scrollTop) {
+      container.scrollTop = lineTop;
+    } else if (lineBottom > container.scrollTop + container.clientHeight) {
+      container.scrollTop = lineBottom - container.clientHeight;
+    }
+    if (!container.contains(document.activeElement)) {
       setFocusedCodeLine(currentLine);
     }
   }, [currentLine]);
@@ -2724,7 +2787,15 @@ export default function Home() {
             role="listbox"
             aria-label={lang === "EN" ? "G-code program lines" : "Các dòng chương trình G-code"}
           >
-            {simulation.lines.map((line, index) => (
+            <div
+              className="code-lines-virtual-space"
+              style={{ height: simulation.lines.length * CODE_ROW_HEIGHT }}
+            >
+            {simulation.lines
+              .slice(visibleCodeRange.start, visibleCodeRange.end)
+              .map((line, visibleIndex) => {
+              const index = visibleCodeRange.start + visibleIndex;
+              return (
               <button
                 type="button"
                 role="option"
@@ -2733,8 +2804,11 @@ export default function Home() {
                 tabIndex={index === focusedCodeLine ? 0 : -1}
                 className={`code-line${index === currentLine ? " is-active" : ""}`}
                 data-code-line={index}
+                aria-posinset={index + 1}
+                aria-setsize={simulation.lines.length}
                 title={line || undefined}
                 key={`${index}-${line}`}
+                style={{ transform: `translateY(${index * CODE_ROW_HEIGHT}px)` }}
                 onFocus={() => setFocusedCodeLine(index)}
                 onClick={() => seekToLine(index)}
                 onKeyDown={(event) => {
@@ -2776,7 +2850,9 @@ export default function Home() {
                 </span>
                 <code>{line ? syntaxLine(line) : " "}</code>
               </button>
-            ))}
+              );
+            })}
+            </div>
           </div>
           <div className="code-statusbar">
             <span>
@@ -2794,6 +2870,7 @@ export default function Home() {
         <section
           className="simulation-panel"
           aria-label={lang === "EN" ? "Toolpath simulation" : "Mô phỏng đường chạy dao"}
+          aria-busy={analysisBusy}
         >
           <div className="simulation-titlebar">
             <div className="simulation-heading">
@@ -2814,16 +2891,30 @@ export default function Home() {
               ) : null}
               <span>{getViewMeta(view, t).title.toUpperCase()}</span>
               <strong
-                className={`simulation-state${playing ? " is-running" : ""}`}
+                className={`simulation-state${playing ? " is-running" : ""}${analysisBusy ? " is-processing" : ""}`}
                 aria-live="polite"
               >
                 <i />
-                {playing ? "LIVE" : "READY"}
+                {analysisBusy ? (lang === "EN" ? "ANALYZING" : "ĐANG PHÂN TÍCH") : playing ? "LIVE" : "READY"}
               </strong>
               <small>
                 BLOCK {activeSegment?.lineNumber ?? 0} · {simulation.segments.length}{" "}
                 {lang === "EN" ? "moves" : "chuyển động"} · {simulation.parts.length} {lang === "EN" ? "parts" : "chi tiết"}
               </small>
+              {analysisBusy ? (
+                <button
+                  type="button"
+                  className="cancel-analysis-button"
+                  onClick={cancelProgramAnalysis}
+                >
+                  {lang === "EN" ? "Cancel" : "Hủy"}
+                </button>
+              ) : null}
+              {simulationProcessingError ? (
+                <small className="analysis-error" title={simulationProcessingError}>
+                  {lang === "EN" ? "Analysis failed; previous result kept" : "Phân tích lỗi; đang giữ kết quả trước"}
+                </small>
+              ) : null}
             </div>
             <div className="path-legend">
               <span>
@@ -4072,8 +4163,10 @@ export default function Home() {
               <button
                 type="button"
                 className="accent-button"
-                onClick={() => {
-                  const rotated = applyCode(draftCode);
+                disabled={isPreparingProgram}
+                onClick={async () => {
+                  const rotated = await applyCode(draftCode);
+                  if (rotated === null) return;
                   setEditorOpen(false);
                   notify(
                     rotated
@@ -4096,9 +4189,11 @@ export default function Home() {
           currentCode={code} 
           onClose={() => setCompareOpen(false)} 
           onApply={(newCode) => {
-            applyCode(newCode);
-            setCompareOpen(false);
-            notify("Đã áp dụng thay đổi từ File Compare.");
+            void applyCode(newCode).then((result) => {
+              if (result === null) return;
+              setCompareOpen(false);
+              notify("Đã áp dụng thay đổi từ File Compare.");
+            });
           }} 
         />
       )}
@@ -4109,9 +4204,11 @@ export default function Home() {
           onClose={() => setMinicamOpen(false)}
           onGenerate={(generatedCode) => {
             const newCode = code ? `${code}\n${generatedCode}` : generatedCode;
-            applyCode(newCode);
-            setMinicamOpen(false);
-            notify("Đã sinh G-Code và chèn vào Editor.");
+            void applyCode(newCode).then((result) => {
+              if (result === null) return;
+              setMinicamOpen(false);
+              notify("Đã sinh G-Code và chèn vào Editor.");
+            });
           }}
         />
       )}
