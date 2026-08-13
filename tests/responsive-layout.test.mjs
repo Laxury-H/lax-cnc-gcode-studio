@@ -59,6 +59,17 @@ test("the 900px breakpoint creates a real single-panel grid", async () => {
   assert.match(page, /is-mobile-\$\{mobilePanel\}/);
 });
 
+test("desktop chrome uses compact rows to preserve simulator height", async () => {
+  const css = await read("app/globals.css");
+
+  assert.match(css, /Compact desktop chrome: prioritise the simulator/);
+  assert.match(css, /@media \(min-width: 901px\)[\s\S]*?\.app-header\s*\{[\s\S]*?min-height:\s*48px;/);
+  assert.match(css, /@media \(min-width: 901px\)[\s\S]*?\.command-bar\s*\{[\s\S]*?min-height:\s*48px;/);
+  assert.match(css, /@media \(min-width: 901px\)[\s\S]*?\.metrics-strip\s*\{[\s\S]*?height:\s*66px;/);
+  assert.match(css, /@media \(min-width: 901px\)[\s\S]*?\.machine-statebar\s*\{[\s\S]*?height:\s*18px;/);
+  assert.match(css, /\.simulation-panel\s*\{[\s\S]*?grid-template-rows:\s*40px minmax\(0, 1fr\) 34px;/);
+});
+
 test("mobile navigation remains reachable and respects device safe areas", async () => {
   const css = await read("app/globals.css");
   const page = await read("app/page.tsx");

@@ -6209,3 +6209,304 @@ button:disabled {
     margin-inline: 16px;
   }
 }
+
+/* Compact desktop chrome: prioritise the simulator without hiding CNC context. */
+@media (min-width: 901px) {
+  .top-navigation-island {
+    margin: 6px 8px 0;
+    border-radius: 12px;
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .app-header {
+    min-height: 48px;
+    gap: 11px;
+    padding: 4px 12px;
+  }
+
+  .header-left,
+  .header-center,
+  .header-right {
+    gap: 10px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-badge,
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+
+  .brand-logo-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .brand-title {
+    font-size: 18px;
+  }
+
+  .project-field {
+    gap: 5px;
+  }
+
+  .project-field span {
+    font-size: 10px;
+  }
+
+  .project-field input {
+    width: 164px;
+    height: 28px;
+    padding-inline: 6px;
+    font-size: 13px;
+  }
+
+  .project-field input:focus {
+    width: 196px;
+  }
+
+  .program-chip {
+    height: 30px;
+    padding-inline: 7px;
+    border-radius: 7px;
+  }
+
+  .program-chip strong {
+    font-size: 9px;
+  }
+
+  .program-chip small,
+  .program-chip span,
+  .connection-state small {
+    font-size: 7px;
+  }
+
+  .import-button,
+  .guide-button,
+  .lang-toggle {
+    height: 30px;
+    padding-inline: 9px;
+    border-radius: 7px;
+    font-size: 11px;
+  }
+
+  .profile-select select {
+    width: min(210px, 17vw);
+    min-width: 150px;
+    height: 28px;
+    padding-inline: 9px 27px;
+    font-size: 11px;
+  }
+
+  .connection-state {
+    gap: 7px;
+    padding-left: 10px;
+  }
+
+  .connection-state b {
+    font-size: 10px;
+  }
+
+  .command-bar {
+    min-height: 48px;
+    gap: 8px;
+    padding: 5px 12px;
+  }
+
+  .playback-controls,
+  .view-switch,
+  .speed-control,
+  .canvas-tools,
+  .playback-readout {
+    height: 38px;
+    border-radius: 9px;
+  }
+
+  .playback-controls,
+  .view-switch,
+  .canvas-tools {
+    padding: 3px;
+  }
+
+  .playback-controls button,
+  .canvas-tools .icon-button {
+    width: 30px;
+    height: 30px;
+  }
+
+  .primary-control {
+    border-radius: 8px;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 5px 14px rgba(34, 220, 232, 0.2);
+  }
+
+  .view-switch button {
+    min-width: 76px;
+    padding-inline: 9px;
+    border-radius: 7px;
+    font-size: 12px;
+  }
+
+  .view-switch button kbd {
+    min-width: 16px;
+    height: 16px;
+    font-size: 9px;
+  }
+
+  .speed-control {
+    padding-inline: 8px;
+    font-size: 10px;
+  }
+
+  .speed-control select {
+    height: 28px;
+    padding-inline: 5px;
+    font-size: 11px;
+  }
+
+  .playback-readout {
+    min-width: 102px;
+    padding-inline: 10px;
+  }
+
+  .playback-readout small {
+    font-size: 6px;
+  }
+
+  .playback-readout strong,
+  .playback-readout > b {
+    font-size: 9px;
+  }
+
+  .workspace {
+    gap: 7px;
+    padding: 6px 7px 0;
+  }
+
+  .code-panel {
+    grid-template-rows: 40px minmax(0, 1fr) 32px;
+  }
+
+  .simulation-panel {
+    grid-template-rows: 40px minmax(0, 1fr) 34px;
+  }
+
+  .panel-titlebar,
+  .simulation-titlebar {
+    padding-inline: 11px 8px;
+  }
+
+  .panel-title-copy strong,
+  .simulation-heading > span {
+    font-size: 12px;
+  }
+
+  .scrubber {
+    min-height: 34px;
+    padding-inline: 10px;
+  }
+
+  .metrics-strip {
+    min-height: 66px;
+    height: 66px;
+    margin: 5px 7px 0;
+    border-radius: 8px 8px 5px 5px;
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .metric-card,
+  .position-metric,
+  .progress-metric {
+    min-width: 132px;
+    padding: 6px 11px;
+  }
+
+  .metric-heading {
+    gap: 6px;
+    font-size: 8px;
+  }
+
+  .metric-heading svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .metric-value {
+    margin-top: 4px;
+    font-size: clamp(15px, 1.2vw, 20px);
+  }
+
+  .metric-value small {
+    font-size: 7px;
+  }
+
+  .metric-detail,
+  .progress-detail {
+    margin-top: 4px;
+    font-size: 6px;
+  }
+
+  .position-metric > span,
+  .progress-metric > span {
+    font-size: 8px;
+  }
+
+  .position-metric .position-grid {
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .position-grid > span {
+    gap: 2px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-size: clamp(8px, 0.68vw, 10px);
+  }
+
+  .position-grid > span b {
+    font-size: 6px;
+  }
+
+  .progress-row {
+    gap: 7px;
+    margin-top: 5px;
+  }
+
+  .progress-track {
+    height: 12px;
+    border-radius: 4px;
+  }
+
+  .progress-row strong {
+    font-size: 11px;
+  }
+
+  .machine-statebar {
+    min-height: 18px;
+    height: 18px;
+    margin-inline: 7px;
+    border-radius: 0 0 6px 6px;
+  }
+
+  .machine-statebar > span {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+
+  .machine-statebar small {
+    font-size: 5px;
+  }
+
+  .machine-statebar b {
+    font-size: 7px;
+  }
+}
