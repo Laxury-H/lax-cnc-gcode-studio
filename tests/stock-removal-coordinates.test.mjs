@@ -344,6 +344,9 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
   assert.match(source, /segment\.spindleState === "off"/);
   assert.match(source, /activeSegment\.spindle > 0/);
   assert.match(source, /paintStockSurface\(surfaceCtx, MAP_RES\)/);
+  assert.match(source, /function PartLabel\(/);
+  assert.match(source, /new THREE\.CanvasTexture\(labelCanvas\)/);
+  assert.doesNotMatch(source, /<Text\b/);
   assert.match(source, /map=\{surfaceTexture\}/);
   assert.match(source, /surfaceCtx,[\s\S]*?"darken",[\s\S]*?cutSurfaceColor/);
   assert.match(

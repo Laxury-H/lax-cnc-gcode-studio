@@ -8,7 +8,9 @@
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "vite",
+    "prebuild": "node scripts/patch-vinext-windows-assets.mjs",
     "build": "vinext build && npm run validate:artifact",
+    "prestart": "node scripts/patch-vinext-windows-assets.mjs",
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "validate:artifact": "node scripts/validate-artifact.mjs",

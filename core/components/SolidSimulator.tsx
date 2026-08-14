@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Text, Line } from "@react-three/drei";
+import { OrbitControls, ContactShadows, Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
@@ -652,6 +652,69 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   );
 }
 
+function PartLabel({
+  id,
+  width,
+  height,
+}: {
+  id: string;
+  width: number;
+  height: number;
+}) {
+  const texture = useMemo(() => {
+    const labelCanvas = document.createElement("canvas");
+    labelCanvas.width = 512;
+    labelCanvas.height = 192;
+    const context = labelCanvas.getContext("2d");
+    if (context) {
+      context.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.lineJoin = "round";
+
+      context.font = '700 76px "Arial Narrow", Arial, sans-serif';
+      context.lineWidth = 10;
+      context.strokeStyle = "rgba(255, 255, 255, 0.72)";
+      context.strokeText(id, labelCanvas.width / 2, 64);
+      context.fillStyle = "#20150e";
+      context.fillText(id, labelCanvas.width / 2, 64);
+
+      context.font = '600 43px ui-monospace, "Cascadia Mono", monospace';
+      context.lineWidth = 7;
+      context.strokeStyle = "rgba(255, 255, 255, 0.68)";
+      const dimensions = `${Math.round(width)} × ${Math.round(height)}`;
+      context.strokeText(dimensions, labelCanvas.width / 2, 139);
+      context.fillStyle = "#34241a";
+      context.fillText(dimensions, labelCanvas.width / 2, 139);
+    }
+
+    const labelTexture = new THREE.CanvasTexture(labelCanvas);
+    labelTexture.colorSpace = THREE.SRGBColorSpace;
+    labelTexture.minFilter = THREE.LinearFilter;
+    labelTexture.magFilter = THREE.LinearFilter;
+    labelTexture.generateMipmaps = false;
+    return labelTexture;
+  }, [height, id, width]);
+
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  const labelWidth = Math.min(150, Math.max(78, width * 0.38));
+  const labelHeight = labelWidth * (192 / 512);
+  return (
+    <mesh renderOrder={20}>
+      <planeGeometry args={[labelWidth, labelHeight]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
 function PartLabelsOverlay({
   simulation,
   topZ,
@@ -666,13 +729,8 @@ function PartLabelsOverlay({
         const centerX = part.minX + part.width / 2;
         const centerY = part.minY + part.height / 2;
         return (
-          <group key={part.id} position={[centerX, centerY, topZ + 0.1]}>
-            <Text position={[0, 12, 0]} fontSize={28} color="#111111" anchorX="center" anchorY="middle" outlineWidth={0.5} outlineColor="rgba(255,255,255,0.5)">
-              {part.id}
-            </Text>
-            <Text position={[0, -12, 0]} fontSize={18} color="#222222" anchorX="center" anchorY="middle" outlineWidth={0.4} outlineColor="rgba(255,255,255,0.5)">
-              {`${Math.round(part.width)} × ${Math.round(part.height)}`}
-            </Text>
+          <group key={part.id} position={[centerX, centerY, topZ + 0.16]}>
+            <PartLabel id={part.id} width={part.width} height={part.height} />
           </group>
         );
       })}
@@ -1114,7 +1172,19 @@ export function SolidSimulator(props: SolidSimulatorProps) {
       style={{ width: "100%", height: "100%", background: "#0c1217", position: "absolute", top: 0, left: 0, zIndex: 0 }}
     >
       <div className="solid-simulator__viewport">
-        <Canvas aria-label={measurementCopy.simulatorCanvas} role="img" shadows camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}>
+        <Canvas
+          aria-label={measurementCopy.simulatorCanvas}
+          role="img"
+          shadows
+          camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}
+          fallback={(
+            <div className="simulator-error" role="alert">
+              {props.lang === "VN"
+                ? "Không thể khởi tạo WebGL. Hãy bật tăng tốc phần cứng rồi tải lại trang."
+                : "WebGL could not start. Enable hardware acceleration, then reload the page."}
+            </div>
+          )}
+        >
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
         <directionalLight 

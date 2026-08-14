@@ -2,8 +2,10 @@
 
 import {
   ChangeEvent,
+  Component,
   lazy,
   PointerEvent as ReactPointerEvent,
+  type ReactNode,
   Suspense,
   WheelEvent as ReactWheelEvent,
   useCallback,
@@ -97,6 +99,37 @@ const MachineSimulator = lazy(async () => {
   const simulatorModule = await import("@/core/components/MachineSimulator");
   return { default: simulatorModule.MachineSimulator };
 });
+
+class SimulatorErrorBoundary extends Component<
+  {
+    children: ReactNode;
+    message: string;
+    retryLabel: string;
+  },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("Không thể khởi tạo mô phỏng 3D", error);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="simulator-error" role="alert">
+        <span>{this.props.message}</span>
+        <button type="button" onClick={() => window.location.reload()}>
+          {this.props.retryLabel}
+        </button>
+      </div>
+    );
+  }
+}
 
 const DEFAULT_ORBIT: OrbitCamera = {
   yaw: Math.PI / 4,
@@ -1309,41 +1342,61 @@ function ToolpathCanvas({
         </>
       )}
       {view === "machine" ? (
-        <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng máy 3D…</div>}>
-          <MachineSimulator 
-            simulation={simulation} 
-            stock={simulatorStock}
-            cursor={cursor} 
-            segmentProgress={segmentProgress}
-            showTool={showTool}
-            showStock={showStock}
-            resetTrigger={resetTrigger}
-            onOrbitChange={onOrbit}
-            quality={quality}
-          />
-        </Suspense>
+        <SimulatorErrorBoundary
+          key="machine"
+          message={
+            lang === "VN"
+              ? "Không thể tải mô phỏng máy 3D."
+              : "The 3D machine view could not load."
+          }
+          retryLabel={lang === "VN" ? "Tải lại" : "Reload"}
+        >
+          <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng máy 3D…</div>}>
+            <MachineSimulator
+              simulation={simulation}
+              stock={simulatorStock}
+              cursor={cursor}
+              segmentProgress={segmentProgress}
+              showTool={showTool}
+              showStock={showStock}
+              resetTrigger={resetTrigger}
+              onOrbitChange={onOrbit}
+              quality={quality}
+            />
+          </Suspense>
+        </SimulatorErrorBoundary>
         ) : view === "solid" ? (
-        <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng phôi 3D…</div>}>
-          <SolidSimulator
-            lang={lang}
-            simulation={simulation}
-            stock={simulatorStock}
-            cursor={cursor}
-            segmentProgress={segmentProgress}
-            showRapids={showRapids}
-            showBounds={showBounds}
-            showTool={showTool}
-            showStock={showStock}
-            showToolpath={showToolpath}
-            showGrid={showGrid}
-            resetTrigger={resetTrigger}
-            onOrbitChange={onOrbit}
-            quality={quality}
-            isMeasuring={isMeasuring}
-            measurementSession={measurementSession}
-            onMeasurementClose={onMeasurementClose}
-          />
-        </Suspense>
+        <SimulatorErrorBoundary
+          key="solid"
+          message={
+            lang === "VN"
+              ? "Không thể tải mô phỏng phôi 3D."
+              : "The 3D solid view could not load."
+          }
+          retryLabel={lang === "VN" ? "Tải lại" : "Reload"}
+        >
+          <Suspense fallback={<div className="simulator-loading" role="status">Đang tải mô phỏng phôi 3D…</div>}>
+            <SolidSimulator
+              lang={lang}
+              simulation={simulation}
+              stock={simulatorStock}
+              cursor={cursor}
+              segmentProgress={segmentProgress}
+              showRapids={showRapids}
+              showBounds={showBounds}
+              showTool={showTool}
+              showStock={showStock}
+              showToolpath={showToolpath}
+              showGrid={showGrid}
+              resetTrigger={resetTrigger}
+              onOrbitChange={onOrbit}
+              quality={quality}
+              isMeasuring={isMeasuring}
+              measurementSession={measurementSession}
+              onMeasurementClose={onMeasurementClose}
+            />
+          </Suspense>
+        </SimulatorErrorBoundary>
       ) : (
         <canvas
           ref={canvasRef}
