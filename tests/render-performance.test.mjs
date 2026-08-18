@@ -35,21 +35,48 @@ test("render profiles spend progressively more work only when quality increases"
   assert.ok(
     low.stockTextureFrameIntervalMs > medium.stockTextureFrameIntervalMs,
   );
-  assert.ok(
-    medium.stockTextureFrameIntervalMs > high.stockTextureFrameIntervalMs,
+  assert.equal(
+    medium.stockTextureFrameIntervalMs,
+    high.stockTextureFrameIntervalMs,
   );
+  const heightmapWorkRate = (profile) =>
+    profile.heightmapLongEdge ** 2 / profile.stockTextureFrameIntervalMs;
+  assert.ok(heightmapWorkRate(low) < heightmapWorkRate(medium));
+  assert.ok(heightmapWorkRate(medium) < heightmapWorkRate(high));
   assert.deepEqual(low.dpr, [0.75, 1]);
   assert.deepEqual(medium.dpr, [0.85, 1.5]);
-  assert.deepEqual(high.dpr, [1, 2]);
+  assert.deepEqual(high.dpr, [2, 2]);
   assert.ok(low.shadowMapSize < medium.shadowMapSize);
   assert.ok(medium.shadowMapSize < high.shadowMapSize);
-  assert.ok(low.contactShadowResolution < high.contactShadowResolution);
-  assert.ok(
-    low.contactShadowFrameIntervalMs > medium.contactShadowFrameIntervalMs,
-  );
-  assert.ok(
-    medium.contactShadowFrameIntervalMs > high.contactShadowFrameIntervalMs,
-  );
+  assert.equal(high.shadowMapSize, 4096);
+  assert.ok(low.heightmapLongEdge < medium.heightmapLongEdge);
+  assert.ok(medium.heightmapLongEdge < high.heightmapLongEdge);
+  assert.equal(high.heightmapLongEdge, 4096);
+  assert.equal(high.stockMeshLongEdge, 1024);
+  assert.equal(high.maxAnisotropy, 16);
+});
+
+test("stock render grids keep equal physical density on rectangular material", async () => {
+  const { resolveStockRenderGrid } = await loadPerformancePolicy();
+
+  assert.deepEqual(resolveStockRenderGrid(2440, 1220, "high", 8192), {
+    textureWidth: 4096,
+    textureHeight: 2048,
+    segmentsX: 1024,
+    segmentsY: 512,
+  });
+  assert.deepEqual(resolveStockRenderGrid(1220, 2440, "high", 8192), {
+    textureWidth: 2048,
+    textureHeight: 4096,
+    segmentsX: 512,
+    segmentsY: 1024,
+  });
+  assert.deepEqual(resolveStockRenderGrid(2440, 1220, "high", 2048), {
+    textureWidth: 2048,
+    textureHeight: 1024,
+    segmentsX: 1024,
+    segmentsY: 512,
+  });
 });
 
 test("frame throttling catches up after its time budget without losing resets", async () => {
@@ -61,8 +88,8 @@ test("frame throttling catches up after its time budget without losing resets", 
   assert.equal(shouldRenderFrame(100, 90, 50), true);
 });
 
-test("3D views use the local high-performance GPU path and bounded shadow passes", async () => {
-  const [solid, machine, adaptive, budgetedShadows, page] = await Promise.all([
+test("3D views use the local high-performance GPU path without decorative effects", async () => {
+  const [solid, machine, adaptive, page] = await Promise.all([
     readFile(
       path.resolve(__dirname, "../core/components/SolidSimulator.tsx"),
       "utf8",
@@ -75,10 +102,6 @@ test("3D views use the local high-performance GPU path and bounded shadow passes
       path.resolve(__dirname, "../core/components/AdaptiveSimulationDpr.tsx"),
       "utf8",
     ),
-    readFile(
-      path.resolve(__dirname, "../core/components/BudgetedContactShadows.tsx"),
-      "utf8",
-    ),
     readFile(path.resolve(__dirname, "../app/page.tsx"), "utf8"),
   ]);
 
@@ -88,14 +111,16 @@ test("3D views use the local high-performance GPU path and bounded shadow passes
   assert.doesNotMatch(machine, /<Environment|preset="city"/);
   assert.match(solid, /<AdaptiveSimulationDpr/);
   assert.match(machine, /<AdaptiveSimulationDpr/);
-  assert.match(solid, /<BudgetedContactShadows/);
-  assert.match(machine, /<BudgetedContactShadows/);
-  assert.match(budgetedShadows, /memo\(function BudgetedContactShadows/);
-  assert.match(budgetedShadows, /<ContactShadows[\s\S]*?frames=\{1\}/);
-  assert.match(budgetedShadows, /frameIntervalMs/);
+  assert.doesNotMatch(solid, /MachiningEffects|ContactShadows/);
+  assert.doesNotMatch(machine, /MachiningEffects|ContactShadows/);
   assert.match(adaptive, /shadowMap\.autoUpdate = false/);
   assert.match(adaptive, /shadowMap\.needsUpdate = true/);
+  assert.match(adaptive, /quality === "high" \? null/);
   assert.match(solid, /stockTextureFrameIntervalMs/);
+  assert.match(solid, /resolveStockRenderGrid/);
+  assert.match(solid, /alphaToCoverage=\{quality !== "low"\}/);
+  assert.match(solid, /surfaceTex\.anisotropy = textureAnisotropy/);
+  assert.match(solid, /THREE\.LinearMipmapLinearFilter/);
   assert.match(page, /playbackFrameIntervalMs/);
   assert.match(page, /canvasFrameIntervalMs/);
   assert.match(page, /requestIdleCallback\(warmSimulatorChunks/);

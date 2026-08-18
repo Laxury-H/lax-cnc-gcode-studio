@@ -30,12 +30,15 @@ export function AdaptiveSimulationDpr({
   const applyFactor = useCallback(
     (factor: number) => {
       const deviceDpr = window.devicePixelRatio || 1;
-      const maximum = Math.min(deviceDpr, profile.dpr[1]);
+      const maximum =
+        quality === "high"
+          ? profile.dpr[1]
+          : Math.min(deviceDpr, profile.dpr[1]);
       const minimum = Math.min(maximum, profile.dpr[0]);
       const safeFactor = Math.max(0, Math.min(1, factor));
       setDpr(minimum + (maximum - minimum) * safeFactor);
     },
-    [profile, setDpr],
+    [profile, quality, setDpr],
   );
 
   useEffect(() => applyFactor(1), [applyFactor]);
@@ -71,7 +74,7 @@ export function AdaptiveSimulationDpr({
     }
   });
 
-  return (
+  return quality === "high" ? null : (
     <PerformanceMonitor
       factor={1}
       flipflops={4}

@@ -16,7 +16,7 @@ backplot lớn, theo dõi tọa độ dao và kiểm tra chương trình trướ
 - Mô phỏng chuyển động nhanh, cắt thẳng, cung tròn và chu trình khoan
 - Hai góc nhìn chính: mặt phẳng phay 2D và mô phỏng bóc vật liệu 3D Solid
 - Heightmap bóc vật liệu lũy tiến hiển thị rõ cả rãnh khắc nông, ramp, cung tròn
-  và cắt xuyên; mặt cắt, vết dao và mạt cắt thay đổi theo dao phẳng/dao cầu/dao V
+  và cắt xuyên; mặt cắt và vết dao thay đổi theo dao phẳng/dao cầu/dao V
 - Mô hình động học `3D Machine` được giữ ở `Thiết lập > Tính năng thử nghiệm`,
   mặc định ẩn và dùng chung phôi đã bóc vật liệu với `3D Solid`; tính năng này
   chỉ minh họa chuyển động, chưa xác nhận va chạm, giới hạn hành trình hoặc đồ gá
@@ -128,14 +128,17 @@ hoặc khi một dialog/drawer đang chặn vùng làm việc.
 Server chỉ phát HTML, JavaScript và asset tĩnh. G-code không được gửi lên server
 để mô phỏng: parser chạy trong Web Worker, còn canvas 2D và mô phỏng 3D WebGL sử
 dụng CPU/GPU/RAM của chính máy người dùng. WebGL yêu cầu trình duyệt bật tăng tốc
-phần cứng; tùy chọn chất lượng đặt giới hạn tối đa, sau đó độ phân giải 3D tiếp
-tục tự giảm hoặc tăng theo FPS thực tế của thiết bị.
+phần cứng. `Low` và `Medium` cân bằng độ phân giải theo FPS thực tế; `High/MAX`
+khóa tỷ lệ dựng 2× và không tự hạ chất lượng.
 
 Để playback không khóa giao diện, nhịp di chuyển dao được tách khỏi nhịp cập
 nhật heightmap bóc phôi. Texture chỉ cập nhật theo ngân sách của từng mức chất
-lượng, contact shadow được bake một lần, còn shadow map, DPR và độ mịn dao được
-giới hạn theo profile `low` / `medium` / `high`. Chế độ `medium` là mặc định phù
-hợp cho đa số laptop; file lớn hoặc GPU tích hợp nên dùng `low`. Chunk 3D Solid
+lượng; chế độ `High/MAX` dùng heightmap cạnh dài 4096 px, mesh cạnh dài 1024
+đoạn, anisotropic filtering tối đa 16×, shadow map 4096 px và DPR 2×. Phôi chữ
+nhật dùng texture/mesh đúng tỷ lệ để mật độ điểm theo hai trục đồng đều, còn mép
+cắt xuyên dùng alpha-to-coverage để giảm răng cưa. Các lớp mạt cắt, vòng sáng và
+contact shadow trang trí đã được loại bỏ. Chế độ `medium` là mặc định phù hợp cho
+đa số laptop; file lớn hoặc GPU tích hợp nên dùng `low`. Chunk 3D Solid
 được tải trước khi trình duyệt rảnh để lần mở đầu tiên nhanh hơn, nhưng tự bỏ qua
 trên kết nối đã bật chế độ tiết kiệm dữ liệu.
 

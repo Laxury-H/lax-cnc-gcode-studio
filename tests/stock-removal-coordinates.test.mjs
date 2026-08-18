@@ -343,7 +343,10 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
   assert.match(source, /segment\.spindle <= 0/);
   assert.match(source, /segment\.spindleState === "off"/);
   assert.match(source, /activeSegment\.spindle > 0/);
-  assert.match(source, /paintStockSurface\(surfaceCtx, MAP_RES\)/);
+  assert.match(
+    source,
+    /paintStockSurface\(surfaceCtx, textureWidth, textureHeight\)/,
+  );
   assert.match(source, /function PartLabel\(/);
   assert.match(source, /new THREE\.CanvasTexture\(labelCanvas\)/);
   assert.doesNotMatch(source, /<Text\b/);
@@ -353,11 +356,14 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
     source,
     /cutPositions\.push\(p1\.x, p1\.y, surfaceZ, p2\.x, p2\.y, surfaceZ\)/,
   );
-  assert.match(source, /color="#03171c"[\s\S]*?lineWidth=\{1\.8\}/);
-  assert.match(source, /color="#22e6ff"[\s\S]*?lineWidth=\{0\.75\}/);
-  assert.match(source, /depthTest=\{false\}[\s\S]*?renderOrder=\{31\}/);
-  assert.match(source, /<planeGeometry args=\{\[stock\.width, stock\.height, geomRes, geomRes\]\}/);
+  assert.match(source, /color="#6ba9bc"[\s\S]*?lineWidth=\{0\.85\}/);
+  assert.match(source, /depthTest=\{false\}[\s\S]*?renderOrder=\{30\}/);
+  assert.match(
+    source,
+    /<planeGeometry args=\{\[stock\.width, stock\.height, segmentsX, segmentsY\]\}/,
+  );
   assert.match(source, /alphaMap=\{texture\}/);
+  assert.match(source, /alphaToCoverage=\{quality !== "low"\}/);
   assert.doesNotMatch(source, /onBeforeCompile=/);
   assert.doesNotMatch(source, /function pointOnSegment\(/);
 });

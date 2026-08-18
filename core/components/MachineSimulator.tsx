@@ -7,14 +7,11 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { StockMesh } from "./SolidSimulator";
 import { resolveStockZBounds } from "../measurement/measurement-utils";
 import {
-  resolveCutterContactDiameter,
   resolveSegmentTool,
 } from "../simulation/stock-removal-coordinates";
 import { pointOnSegment } from "../utils/gcode-utils";
-import { MachiningEffects } from "./MachiningEffects";
 import { CutterModel } from "./CutterModel";
 import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
-import { BudgetedContactShadows } from "./BudgetedContactShadows";
 import { renderPerformanceProfile } from "../simulation/render-performance";
 
 interface MachineSimulatorProps {
@@ -127,21 +124,6 @@ export function MachineKinematics({
     diameter: stock.toolDiameter || 6,
     type: "flat" as const,
   };
-  const toolDiameter = activeTool.diameter;
-  const contactDiameter = resolveCutterContactDiameter(
-    activeTool,
-    currentPos.z,
-    zBounds,
-  );
-  const isRemovingMaterial = Boolean(
-    curSeg &&
-      !curSeg.machineCoordinates &&
-      curSeg.kind !== "rapid" &&
-      curSeg.kind !== "dwell" &&
-      curSeg.spindleState !== "off" &&
-      curSeg.spindle > 0 &&
-      isCuttingDepth,
-  );
 
   return (
     <group>
@@ -167,14 +149,6 @@ export function MachineKinematics({
           <StockMesh simulation={simulation} stock={stock} cursor={cursor} segmentProgress={segmentProgress} playing={playing} quality={quality} />
         </group>
       )}
-
-      <MachiningEffects
-        position={[machinePosition.x, machinePosition.y, machinePosition.z]}
-        active={isRemovingMaterial}
-        toolDiameter={toolDiameter}
-        contactDiameter={contactDiameter}
-        quality={quality}
-      />
 
       {/* 2. Gantry (Moves in Y) */}
       <group ref={gantryRef}>
@@ -314,24 +288,6 @@ export function MachineSimulator({
         quality={quality}
       />
 
-      {quality !== "low" && (
-        <BudgetedContactShadows
-          resolution={performanceProfile.contactShadowResolution}
-          x={stockCenterX}
-          y={stockCenterY}
-          z={-26}
-          opacity={0.6}
-          scale={4000}
-          blur={2}
-          far={200}
-          playing={playing ?? false}
-          refreshKey={
-            playing ? null : `${cursor}:${segmentProgress ?? 1}`
-          }
-          frameIntervalMs={performanceProfile.contactShadowFrameIntervalMs}
-        />
-      )}
-      
       {quality === "high" && (
         <>
           <hemisphereLight args={["#dcecff", "#12181d", 0.4]} />

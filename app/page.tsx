@@ -2805,9 +2805,13 @@ export default function Home() {
               setQuality(event.target.value as SimulationQuality)
             }
             title={
-              lang === "EN"
-                ? "Adaptive simulation quality using this device's GPU"
-                : "Chất lượng tự thích ứng theo GPU của thiết bị này"
+              quality === "high"
+                ? lang === "EN"
+                  ? "Maximum local graphics: 4K stock map, 2× render scale"
+                  : "Đồ họa máy người dùng ở mức tối đa: phôi 4K, tỷ lệ dựng 2×"
+                : lang === "EN"
+                  ? "Balanced simulation quality using this device's GPU"
+                  : "Chất lượng mô phỏng cân bằng theo GPU của thiết bị này"
             }
           >
             <option value="low">{t.perfLow}</option>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
@@ -24,7 +24,6 @@ import {
   buildCutterContactBands,
   cutSurfaceColor,
   depthIntensity,
-  resolveCutterContactDiameter,
   resolveSegmentTool,
   resolveSolidOverlayPosition,
   resolveToolpathOverlayZ,
@@ -42,12 +41,11 @@ import {
   SmartMeasurementOverlay,
   type MeasurementUnit,
 } from "./SmartMeasurementTool";
-import { MachiningEffects } from "./MachiningEffects";
 import { CutterModel, resolveCutterModelLength } from "./CutterModel";
 import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
-import { BudgetedContactShadows } from "./BudgetedContactShadows";
 import {
   renderPerformanceProfile,
+  resolveStockRenderGrid,
   shouldRenderFrame,
 } from "../simulation/render-performance";
 
@@ -141,32 +139,18 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
   return (
     <group>
       {showToolpath !== false && cutPositions.length > 0 && (
-        <>
-          <Line
-            points={cutPositions}
-            color="#03171c"
-            lineWidth={1.8}
-            opacity={0.58}
-            transparent
-            depthTest={false}
-            depthWrite={false}
-            renderOrder={30}
-            toneMapped={false}
-            segments
-          />
-          <Line
-            points={cutPositions}
-            color="#22e6ff"
-            lineWidth={0.75}
-            opacity={0.96}
-            transparent
-            depthTest={false}
-            depthWrite={false}
-            renderOrder={31}
-            toneMapped={false}
-            segments
-          />
-        </>
+        <Line
+          points={cutPositions}
+          color="#6ba9bc"
+          lineWidth={0.85}
+          opacity={0.78}
+          transparent
+          depthTest={false}
+          depthWrite={false}
+          renderOrder={30}
+          toneMapped={false}
+          segments
+        />
       )}
       {showToolpath !== false && showRapids && rapidPositions.length > 0 && (
         <Line 
@@ -247,8 +231,6 @@ function ToolMeshOverlay({
   segmentProgress,
   stock,
   showTool,
-  topZ,
-  bottomZ,
   quality,
 }: {
   simulation: Simulation;
@@ -256,8 +238,6 @@ function ToolMeshOverlay({
   segmentProgress: number;
   stock: StockSettings;
   showTool: boolean;
-  topZ: number;
-  bottomZ: number;
   quality: "low" | "medium" | "high";
 }) {
   if (!showTool) return null;
@@ -271,41 +251,17 @@ function ToolMeshOverlay({
     diameter: stock.toolDiameter || 6,
     type: "flat" as const,
   };
-  const toolDiameter = activeTool.diameter;
-  const contactDiameter = resolveCutterContactDiameter(activeTool, pos.z, {
-    topZ,
-    bottomZ,
-  });
-  const isRemovingMaterial = Boolean(
-    activeSegment &&
-      !activeSegment.machineCoordinates &&
-      activeSegment.kind !== "rapid" &&
-      activeSegment.kind !== "dwell" &&
-      activeSegment.spindleState !== "off" &&
-      activeSegment.spindle > 0 &&
-      pos.z < topZ - 0.000001,
-  );
-  
   return (
-    <group>
-      <group position={[pos.x, pos.y, pos.z]}>
-        <SpinningCutter
-          tool={activeTool}
-          fluteLength={fluteLength}
-          spinning={Boolean(
-            activeSegment &&
-              activeSegment.spindleState !== "off" &&
-              activeSegment.spindle > 0,
-          )}
-          segments={performanceProfile.cutterSegments}
-        />
-      </group>
-      <MachiningEffects
-        position={[pos.x, pos.y, pos.z]}
-        active={isRemovingMaterial}
-        toolDiameter={toolDiameter}
-        contactDiameter={contactDiameter}
-        quality={quality}
+    <group position={[pos.x, pos.y, pos.z]}>
+      <SpinningCutter
+        tool={activeTool}
+        fluteLength={fluteLength}
+        spinning={Boolean(
+          activeSegment &&
+            activeSegment.spindleState !== "off" &&
+            activeSegment.spindle > 0,
+        )}
+        segments={performanceProfile.cutterSegments}
       />
     </group>
   );
@@ -324,21 +280,22 @@ const SURFACE_EPSILON = 0.000001;
 
 function paintStockSurface(
   ctx: CanvasRenderingContext2D,
-  resolution: number,
+  width: number,
+  height: number,
 ) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = STOCK_COLOR;
-  ctx.fillRect(0, 0, resolution, resolution);
+  ctx.fillRect(0, 0, width, height);
 
-  const grainSpacing = Math.max(4, Math.round(resolution / 150));
-  for (let y = grainSpacing; y < resolution; y += grainSpacing) {
+  const grainSpacing = Math.max(4, Math.round(Math.max(width, height) / 180));
+  for (let y = grainSpacing; y < height; y += grainSpacing) {
     const phase = y / grainSpacing;
     ctx.strokeStyle =
       phase % 3 === 0 ? "rgba(79, 43, 20, 0.14)" : "rgba(255, 226, 174, 0.08)";
     ctx.lineWidth = phase % 5 === 0 ? 1.4 : 0.75;
     ctx.beginPath();
-    for (let x = 0; x <= resolution; x += 24) {
+    for (let x = 0; x <= width; x += 24) {
       const wave = Math.sin(x * 0.018 + phase * 0.71) * grainSpacing * 0.42;
       if (x === 0) ctx.moveTo(x, y + wave);
       else ctx.lineTo(x, y + wave);
@@ -362,18 +319,39 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
     key: string;
   } | null>(null);
 
-  const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
-  const geomRes = quality === "high" ? 512 : quality === "medium" ? 256 : 128;
   const performanceProfile = renderPerformanceProfile(quality);
+  const maxTextureSize = useThree((state) => state.gl.capabilities.maxTextureSize);
+  const supportedAnisotropy = useThree((state) =>
+    state.gl.capabilities.getMaxAnisotropy(),
+  );
+  const {
+    textureWidth,
+    textureHeight,
+    segmentsX,
+    segmentsY,
+  } = useMemo(
+    () =>
+      resolveStockRenderGrid(
+        stock.width,
+        stock.height,
+        quality,
+        maxTextureSize,
+      ),
+    [maxTextureSize, quality, stock.height, stock.width],
+  );
+  const textureAnisotropy = Math.min(
+    performanceProfile.maxAnisotropy,
+    supportedAnisotropy,
+  );
 
   const { canvas, texture, surfaceCanvas, surfaceTexture } = useMemo(() => {
     const el = document.createElement("canvas");
-    el.width = MAP_RES;
-    el.height = MAP_RES;
+    el.width = textureWidth;
+    el.height = textureHeight;
     const ctx = el.getContext("2d");
     if (ctx) {
       ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, MAP_RES, MAP_RES);
+      ctx.fillRect(0, 0, textureWidth, textureHeight);
     }
     const tex = new THREE.CanvasTexture(el);
     tex.minFilter = THREE.LinearFilter;
@@ -381,22 +359,26 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
     tex.generateMipmaps = false;
 
     const surfaceEl = document.createElement("canvas");
-    surfaceEl.width = MAP_RES;
-    surfaceEl.height = MAP_RES;
+    surfaceEl.width = textureWidth;
+    surfaceEl.height = textureHeight;
     const surfaceCtx = surfaceEl.getContext("2d");
-    if (surfaceCtx) paintStockSurface(surfaceCtx, MAP_RES);
+    if (surfaceCtx) paintStockSurface(surfaceCtx, textureWidth, textureHeight);
     const surfaceTex = new THREE.CanvasTexture(surfaceEl);
     surfaceTex.colorSpace = THREE.SRGBColorSpace;
-    surfaceTex.minFilter = THREE.LinearFilter;
+    surfaceTex.minFilter =
+      quality === "low"
+        ? THREE.LinearFilter
+        : THREE.LinearMipmapLinearFilter;
     surfaceTex.magFilter = THREE.LinearFilter;
-    surfaceTex.generateMipmaps = false;
+    surfaceTex.generateMipmaps = quality !== "low";
+    surfaceTex.anisotropy = textureAnisotropy;
     return {
       canvas: el,
       texture: tex,
       surfaceCanvas: surfaceEl,
       surfaceTexture: surfaceTex,
     };
-  }, [MAP_RES]);
+  }, [quality, textureAnisotropy, textureHeight, textureWidth]);
 
   useEffect(() => {
     canvasRef.current = canvas;
@@ -420,7 +402,11 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
     if (!ctx || !surfaceCtx) return;
 
     const zBounds = resolveStockZBounds(simulation, stock);
-    const renderKey = stockRemovalRenderKey(stock, MAP_RES, zBounds);
+    const renderKey = `${stockRemovalRenderKey(
+      stock,
+      Math.max(textureWidth, textureHeight),
+      zBounds,
+    )}:${textureWidth}x${textureHeight}`;
     const previousSource = renderSourceRef.current;
     const sourceChanged =
       previousSource?.canvas !== el ||
@@ -457,15 +443,15 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, MAP_RES, MAP_RES);
-      paintStockSurface(surfaceCtx, MAP_RES);
+      ctx.fillRect(0, 0, textureWidth, textureHeight);
+      paintStockSurface(surfaceCtx, textureWidth, textureHeight);
       startCursor = 0;
       startProgress = 0;
       hasChanges = true;
     }
 
-    const scaleX = MAP_RES / Math.max(1e-6, stock.width);
-    const scaleY = MAP_RES / Math.max(1e-6, stock.height);
+    const scaleX = textureWidth / Math.max(1e-6, stock.width);
+    const scaleY = textureHeight / Math.max(1e-6, stock.height);
     const profileBandCount = quality === "high" ? 32 : quality === "medium" ? 20 : 10;
 
     const drawLine = (
@@ -520,7 +506,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
             0,
             -scaleY,
             -stock.originX * scaleX,
-            MAP_RES + stock.originY * scaleY,
+            textureHeight + stock.originY * scaleY,
           );
           target.lineCap = "round";
           target.lineJoin = "round";
@@ -579,7 +565,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
             0,
             -scaleY,
             -stock.originX * scaleX,
-            MAP_RES + stock.originY * scaleY,
+            textureHeight + stock.originY * scaleY,
           );
           surfaceCtx.strokeStyle = "rgba(105, 64, 35, 0.16)";
           surfaceCtx.lineWidth = Math.max(0.18, Math.min(1.1, tool.diameter * 0.1));
@@ -644,7 +630,8 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
     segmentProgress,
     playing,
     stock,
-    MAP_RES,
+    textureHeight,
+    textureWidth,
     quality,
     performanceProfile,
   ]);
@@ -674,7 +661,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
       </mesh>
 
       <mesh position={[0, 0, stock.thickness / 2]} castShadow receiveShadow>
-        <planeGeometry args={[stock.width, stock.height, geomRes, geomRes]} />
+        <planeGeometry args={[stock.width, stock.height, segmentsX, segmentsY]} />
         <meshStandardMaterial
           color="#ffffff"
           map={surfaceTexture}
@@ -687,6 +674,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
           bumpScale={Math.max(0.35, stock.thickness * 0.42)}
           alphaMap={texture}
           alphaTest={0.012}
+          alphaToCoverage={quality !== "low"}
         />
       </mesh>
     </group>
@@ -1314,8 +1302,6 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               segmentProgress={props.segmentProgress ?? 1} 
               stock={props.stock} 
               showTool={props.showTool ?? true}
-              topZ={topZ}
-              bottomZ={bottomZ}
               quality={props.quality ?? "medium"}
             />
           </group>
@@ -1332,22 +1318,6 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             }
           }}
         />
-        {quality !== "low" && (
-          <BudgetedContactShadows
-            resolution={performanceProfile.contactShadowResolution}
-            scale={Math.max(props.stock.width, props.stock.height) * 1.5}
-            y={-0.1}
-            blur={2.5}
-            opacity={0.6}
-            playing={props.playing ?? false}
-            refreshKey={
-              props.playing
-                ? null
-                : `${props.cursor}:${props.segmentProgress ?? 1}`
-            }
-            frameIntervalMs={performanceProfile.contactShadowFrameIntervalMs}
-          />
-        )}
         </Canvas>
       </div>
       {props.isMeasuring ? (
