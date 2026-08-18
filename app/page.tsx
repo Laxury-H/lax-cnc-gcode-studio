@@ -28,6 +28,10 @@ import {
   useProgramAnalysis,
 } from "@/core/ui/use-program-analysis";
 import {
+  renderPerformanceProfile,
+  shouldRenderFrame,
+} from "@/core/simulation/render-performance";
+import {
   MAX_PROGRAM_BYTES,
   MAX_PROGRAM_LINES,
   programLimitViolation,
@@ -90,13 +94,40 @@ import {
   motionLabel 
 } from "@/core/utils/gcode-utils";
 
+let solidSimulatorModulePromise: Promise<
+  typeof import("@/core/components/SolidSimulator")
+> | null = null;
+let machineSimulatorModulePromise: Promise<
+  typeof import("@/core/components/MachineSimulator")
+> | null = null;
+
+function loadSolidSimulatorModule() {
+  solidSimulatorModulePromise ??= import(
+    "@/core/components/SolidSimulator"
+  ).catch((error) => {
+    solidSimulatorModulePromise = null;
+    throw error;
+  });
+  return solidSimulatorModulePromise;
+}
+
+function loadMachineSimulatorModule() {
+  machineSimulatorModulePromise ??= import(
+    "@/core/components/MachineSimulator"
+  ).catch((error) => {
+    machineSimulatorModulePromise = null;
+    throw error;
+  });
+  return machineSimulatorModulePromise;
+}
+
 const SolidSimulator = lazy(async () => {
-  const simulatorModule = await import("@/core/components/SolidSimulator");
+  const simulatorModule = await loadSolidSimulatorModule();
   return { default: simulatorModule.SolidSimulator };
 });
 
 const MachineSimulator = lazy(async () => {
-  const simulatorModule = await import("@/core/components/MachineSimulator");
+  const simulatorModule = await loadMachineSimulatorModule();
   return { default: simulatorModule.MachineSimulator };
 });
 
@@ -268,6 +299,7 @@ function ToolpathCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const lastCanvasFrameRef = useRef(Number.NEGATIVE_INFINITY);
   const dragRef = useRef<{
     x: number;
     y: number;
@@ -322,6 +354,8 @@ function ToolpathCanvas({
     const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
     const pixelWidth = Math.round(size.width * dpr);
     const pixelHeight = Math.round(size.height * dpr);
+    const canvasResized =
+      canvas.width !== pixelWidth || canvas.height !== pixelHeight;
     if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
     if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
     if (canvas.style.width !== `${size.width}px`) {
@@ -330,6 +364,20 @@ function ToolpathCanvas({
     if (canvas.style.height !== `${size.height}px`) {
       canvas.style.height = `${size.height}px`;
     }
+    const frameTimestamp = performance.now();
+    const frameInterval = renderPerformanceProfile(quality).canvasFrameIntervalMs;
+    if (
+      playing &&
+      !canvasResized &&
+      !shouldRenderFrame(
+        lastCanvasFrameRef.current,
+        frameTimestamp,
+        frameInterval,
+      )
+    ) {
+      return;
+    }
+    lastCanvasFrameRef.current = frameTimestamp;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1087,6 +1135,7 @@ function ToolpathCanvas({
     showGrid,
     size,
     quality,
+    playing,
   ]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -1357,6 +1406,7 @@ function ToolpathCanvas({
               stock={simulatorStock}
               cursor={cursor}
               segmentProgress={segmentProgress}
+              playing={playing}
               showTool={showTool}
               showStock={showStock}
               resetTrigger={resetTrigger}
@@ -1382,6 +1432,7 @@ function ToolpathCanvas({
               stock={simulatorStock}
               cursor={cursor}
               segmentProgress={segmentProgress}
+              playing={playing}
               showRapids={showRapids}
               showBounds={showBounds}
               showTool={showTool}
@@ -1513,6 +1564,34 @@ export default function Home() {
   const drawerReturnFocusRef = useRef<HTMLElement | null>(null);
   const applyCodeRequestRef = useRef(0);
   const prepareAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (connection?.saveData) return;
+
+    const warmSimulatorChunks = () => {
+      void loadSolidSimulatorModule().catch(() => undefined);
+      if (machineViewEnabled) {
+        void loadMachineSimulatorModule().catch(() => undefined);
+      }
+    };
+
+    const idleWindow = window as Window & {
+      requestIdleCallback?: Window["requestIdleCallback"];
+      cancelIdleCallback?: Window["cancelIdleCallback"];
+    };
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      const idleCallback = idleWindow.requestIdleCallback(warmSimulatorChunks, {
+        timeout: 4_000,
+      });
+      return () => idleWindow.cancelIdleCallback?.(idleCallback);
+    }
+
+    const timeout = window.setTimeout(warmSimulatorChunks, 1_500);
+    return () => window.clearTimeout(timeout);
+  }, [machineViewEnabled]);
 
   useEffect(() => {
     let saved: WorkspacePreferences | null = null;
@@ -2216,11 +2295,12 @@ export default function Home() {
     if (!playing || !simulation.segments.length) return;
     let animationFrame = 0;
     let previousTime = performance.now();
-    const targetInterval = quality === "low" ? 33 : 16;
+    const targetInterval =
+      renderPerformanceProfile(quality).playbackFrameIntervalMs;
 
     const tick = (now: number) => {
       const delta = Math.min(80, now - previousTime);
-      if (quality === "low" && delta < targetInterval) {
+      if (delta < targetInterval) {
         animationFrame = window.requestAnimationFrame(tick);
         return;
       }
@@ -2724,7 +2804,11 @@ export default function Home() {
             onChange={(event) =>
               setQuality(event.target.value as SimulationQuality)
             }
-            title="Chế độ hiệu năng mô phỏng cho máy Yếu / Trung bình / Cao"
+            title={
+              lang === "EN"
+                ? "Adaptive simulation quality using this device's GPU"
+                : "Chất lượng tự thích ứng theo GPU của thiết bị này"
+            }
           >
             <option value="low">{t.perfLow}</option>
             <option value="medium">{t.perfMedium}</option>

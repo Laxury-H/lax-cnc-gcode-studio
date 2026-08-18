@@ -123,6 +123,27 @@ rõ mức hỗ trợ.
 Phím tắt toàn cục không kích hoạt khi đang nhập trong input, textarea, select
 hoặc khi một dialog/drawer đang chặn vùng làm việc.
 
+## Hiệu năng mô phỏng và triển khai
+
+Server chỉ phát HTML, JavaScript và asset tĩnh. G-code không được gửi lên server
+để mô phỏng: parser chạy trong Web Worker, còn canvas 2D và mô phỏng 3D WebGL sử
+dụng CPU/GPU/RAM của chính máy người dùng. WebGL yêu cầu trình duyệt bật tăng tốc
+phần cứng; tùy chọn chất lượng đặt giới hạn tối đa, sau đó độ phân giải 3D tiếp
+tục tự giảm hoặc tăng theo FPS thực tế của thiết bị.
+
+Để playback không khóa giao diện, nhịp di chuyển dao được tách khỏi nhịp cập
+nhật heightmap bóc phôi. Texture chỉ cập nhật theo ngân sách của từng mức chất
+lượng, contact shadow được bake một lần, còn shadow map, DPR và độ mịn dao được
+giới hạn theo profile `low` / `medium` / `high`. Chế độ `medium` là mặc định phù
+hợp cho đa số laptop; file lớn hoặc GPU tích hợp nên dùng `low`. Chunk 3D Solid
+được tải trước khi trình duyệt rảnh để lần mở đầu tiên nhanh hơn, nhưng tự bỏ qua
+trên kết nối đã bật chế độ tiết kiệm dữ liệu.
+
+Khi triển khai, nên bật Brotli/Gzip và HTTP/2 hoặc HTTP/3, đặt cache dài hạn
+`immutable` cho `/assets/*`, và đặt CDN gần người dùng. Các thiết lập này chỉ
+giảm thời gian tải ban đầu; FPS sau khi tải phụ thuộc chủ yếu vào thiết bị người
+dùng, không phụ thuộc cấu hình CPU của server.
+
 ## Chạy cục bộ
 
 Yêu cầu Node.js `>=22.13.0`.

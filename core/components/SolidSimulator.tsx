@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Line } from "@react-three/drei";
+import { OrbitControls, Line } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
@@ -44,6 +44,12 @@ import {
 } from "./SmartMeasurementTool";
 import { MachiningEffects } from "./MachiningEffects";
 import { CutterModel, resolveCutterModelLength } from "./CutterModel";
+import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
+import { BudgetedContactShadows } from "./BudgetedContactShadows";
+import {
+  renderPerformanceProfile,
+  shouldRenderFrame,
+} from "../simulation/render-performance";
 
 const MAX_MEASUREMENT_HISTORY = 6;
 function addToMeasurementHistory(
@@ -62,6 +68,7 @@ interface SolidSimulatorProps {
   stock: StockSettings;
   cursor: number;
   segmentProgress?: number;
+  playing?: boolean;
   showRapids?: boolean;
   showBounds?: boolean;
   showToolpath?: boolean;
@@ -78,7 +85,7 @@ interface SolidSimulatorProps {
 
 type StockMeshProps = Pick<
   SolidSimulatorProps,
-  "simulation" | "stock" | "cursor" | "segmentProgress" | "quality"
+  "simulation" | "stock" | "cursor" | "segmentProgress" | "playing" | "quality"
 >;
 
 function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number}, t: number) {
@@ -195,10 +202,12 @@ function SpinningCutter({
   tool,
   fluteLength,
   spinning,
+  segments,
 }: {
   tool: ToolProfile;
   fluteLength: number;
   spinning: boolean;
+  segments: number;
 }) {
   const cutterRef = useRef<THREE.Group>(null);
   const radius = tool.diameter / 2;
@@ -217,7 +226,7 @@ function SpinningCutter({
           tool={tool}
           minimumLength={fluteLength}
           color={spinning ? "#d8e5e8" : "#9aa6aa"}
-          segments={32}
+          segments={segments}
         />
         <mesh position={[0, cutterLength * 0.55, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[radius * 0.72, Math.max(0.12, radius * 0.1), 8, 32]} />
@@ -253,6 +262,7 @@ function ToolMeshOverlay({
 }) {
   if (!showTool) return null;
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
+  const performanceProfile = renderPerformanceProfile(quality);
   const pos = activeSegment ? pointOnSegment(activeSegment, segmentProgress) : { x: stock.originX, y: stock.originY, z: stock.safeZ };
   
   const fluteLength = Math.max(38, stock.thickness * 2.2);
@@ -287,6 +297,7 @@ function ToolMeshOverlay({
               activeSegment.spindleState !== "off" &&
               activeSegment.spindle > 0,
           )}
+          segments={performanceProfile.cutterSegments}
         />
       </group>
       <MachiningEffects
@@ -336,7 +347,7 @@ function paintStockSurface(
   }
 }
 
-export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, quality = "medium" }: StockMeshProps) {
+export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, playing = false, quality = "medium" }: StockMeshProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
   const surfaceCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -344,6 +355,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
   
   const lastCursorRef = useRef<number>(0);
   const lastProgressRef = useRef<number>(0);
+  const lastTextureFrameRef = useRef(Number.NEGATIVE_INFINITY);
   const renderSourceRef = useRef<{
     canvas: HTMLCanvasElement;
     simulation: Simulation;
@@ -352,6 +364,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
 
   const MAP_RES = quality === "high" ? 2048 : quality === "medium" ? 1024 : 512;
   const geomRes = quality === "high" ? 512 : quality === "medium" ? 256 : 128;
+  const performanceProfile = renderPerformanceProfile(quality);
 
   const { canvas, texture, surfaceCanvas, surfaceTexture } = useMemo(() => {
     const el = document.createElement("canvas");
@@ -402,7 +415,7 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     const surfaceEl = surfaceCanvasRef.current;
     const surfaceTex = surfaceTextureRef.current;
     if (!el || !tex || !surfaceEl || !surfaceTex) return;
-    const ctx = el.getContext("2d", { willReadFrequently: true });
+    const ctx = el.getContext("2d");
     const surfaceCtx = surfaceEl.getContext("2d");
     if (!ctx || !surfaceCtx) return;
 
@@ -413,6 +426,24 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
       previousSource?.canvas !== el ||
       previousSource.simulation !== simulation ||
       previousSource.key !== renderKey;
+
+    const textureTimestamp = performance.now();
+    const playbackReversed =
+      cursor < lastCursorRef.current ||
+      (cursor === lastCursorRef.current &&
+        segmentProgress < lastProgressRef.current);
+    if (
+      playing &&
+      !sourceChanged &&
+      !playbackReversed &&
+      !shouldRenderFrame(
+        lastTextureFrameRef.current,
+        textureTimestamp,
+        performanceProfile.stockTextureFrameIntervalMs,
+      )
+    ) {
+      return;
+    }
 
     let startCursor = sourceChanged ? 0 : lastCursorRef.current;
     let startProgress = sourceChanged ? 0 : lastProgressRef.current;
@@ -601,12 +632,22 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, qual
     if (hasChanges) {
       tex.needsUpdate = true;
       surfaceTex.needsUpdate = true;
+      lastTextureFrameRef.current = textureTimestamp;
     }
 
     lastCursorRef.current = cursor;
     lastProgressRef.current = segmentProgress;
     renderSourceRef.current = { canvas: el, simulation, key: renderKey };
-  }, [simulation, cursor, segmentProgress, stock, MAP_RES, quality]);
+  }, [
+    simulation,
+    cursor,
+    segmentProgress,
+    playing,
+    stock,
+    MAP_RES,
+    quality,
+    performanceProfile,
+  ]);
 
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
@@ -740,6 +781,15 @@ function PartLabelsOverlay({
 
 export function SolidSimulator(props: SolidSimulatorProps) {
   const measurementCopy = getMeasurementCopy(props.lang);
+  const quality = props.quality ?? "medium";
+  const performanceProfile = renderPerformanceProfile(quality);
+  const glOptions = useMemo(
+    () => ({
+      antialias: quality !== "low",
+      powerPreference: "high-performance" as const,
+    }),
+    [quality],
+  );
   const onMeasurementClose = props.onMeasurementClose;
   const { topZ, bottomZ } = resolveStockZBounds(
     props.simulation,
@@ -1175,7 +1225,9 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         <Canvas
           aria-label={measurementCopy.simulatorCanvas}
           role="img"
-          shadows
+          shadows={quality !== "low"}
+          dpr={performanceProfile.dpr}
+          gl={glOptions}
           camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}
           fallback={(
             <div className="simulator-error" role="alert">
@@ -1185,14 +1237,20 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             </div>
           )}
         >
+        <AdaptiveSimulationDpr
+          quality={quality}
+          playing={props.playing ?? false}
+          cursor={props.cursor}
+          segmentProgress={props.segmentProgress ?? 1}
+        />
         <color attach="background" args={["#0c1217"]} />
         <ambientLight intensity={0.45} />
         <directionalLight 
           position={[props.stock.width / 2, props.stock.width * 0.8, props.stock.height * 0.8]} 
           intensity={1.5} 
-          castShadow 
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
+          castShadow={quality !== "low"}
+          shadow-mapSize-width={performanceProfile.shadowMapSize}
+          shadow-mapSize-height={performanceProfile.shadowMapSize}
           shadow-bias={-0.0005}
         >
           <orthographicCamera attach="shadow-camera" args={[-props.stock.width, props.stock.width, props.stock.height, -props.stock.height, 0.1, props.stock.width * 3]} />
@@ -1274,7 +1332,22 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             }
           }}
         />
-        <ContactShadows resolution={1024} scale={Math.max(props.stock.width, props.stock.height) * 1.5} position={[0, -0.1, 0]} blur={2.5} opacity={0.6} />
+        {quality !== "low" && (
+          <BudgetedContactShadows
+            resolution={performanceProfile.contactShadowResolution}
+            scale={Math.max(props.stock.width, props.stock.height) * 1.5}
+            y={-0.1}
+            blur={2.5}
+            opacity={0.6}
+            playing={props.playing ?? false}
+            refreshKey={
+              props.playing
+                ? null
+                : `${props.cursor}:${props.segmentProgress ?? 1}`
+            }
+            frameIntervalMs={performanceProfile.contactShadowFrameIntervalMs}
+          />
+        )}
         </Canvas>
       </div>
       {props.isMeasuring ? (

@@ -24,6 +24,12 @@ const CHIP_COUNTS = {
   high: 42,
 } as const;
 
+const RING_SEGMENTS = {
+  low: 16,
+  medium: 24,
+  high: 32,
+} as const;
+
 /**
  * Small deterministic chip cloud shown only while the cutter intersects the
  * stock. It deliberately avoids random state so playback, scrubbing and tests
@@ -107,7 +113,7 @@ export function MachiningEffects({
           args={[
             Math.max(0.1, engagementDiameter * 0.42),
             Math.max(0.2, engagementDiameter * 0.78),
-            32,
+            RING_SEGMENTS[quality],
           ]}
         />
         <meshBasicMaterial

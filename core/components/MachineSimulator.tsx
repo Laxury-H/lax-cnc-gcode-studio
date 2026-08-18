@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Environment, Box, Cylinder } from "@react-three/drei";
+import { OrbitControls, Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import type { Simulation, StockSettings, Vec3 } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -13,12 +13,16 @@ import {
 import { pointOnSegment } from "../utils/gcode-utils";
 import { MachiningEffects } from "./MachiningEffects";
 import { CutterModel } from "./CutterModel";
+import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
+import { BudgetedContactShadows } from "./BudgetedContactShadows";
+import { renderPerformanceProfile } from "../simulation/render-performance";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
   stock: StockSettings;
   cursor: number;
   segmentProgress?: number;
+  playing?: boolean;
   showTool?: boolean;
   showStock?: boolean;
   resetTrigger?: number;
@@ -66,7 +70,9 @@ export function MachineKinematics({
   showTool = true,
   showStock = true,
   quality = "medium",
+  playing = false,
 }: Omit<MachineSimulatorProps, "resetTrigger" | "onOrbitChange">) {
+  const performanceProfile = renderPerformanceProfile(quality);
   const gantryRef = useRef<THREE.Group>(null);
   const carriageRef = useRef<THREE.Group>(null);
   const zAxisRef = useRef<THREE.Group>(null);
@@ -158,7 +164,7 @@ export function MachineKinematics({
       {/* Stock (Heightmap via StockMesh) */}
       {showStock && (
         <group position={[stock.width/2 + stockOffsetX, stock.height/2 + stockOffsetY, stock.thickness/2]} rotation={[Math.PI / 2, 0, 0]}>
-          <StockMesh simulation={simulation} stock={stock} cursor={cursor} segmentProgress={segmentProgress} quality={quality} />
+          <StockMesh simulation={simulation} stock={stock} cursor={cursor} segmentProgress={segmentProgress} playing={playing} quality={quality} />
         </group>
       )}
 
@@ -223,7 +229,7 @@ export function MachineKinematics({
                     tool={activeTool}
                     minimumLength={40}
                     color={isCuttingDepth ? "#e74c3c" : "#95a5a6"}
-                    segments={24}
+                    segments={performanceProfile.cutterSegments}
                   />
                 </group>
               )}
@@ -240,6 +246,7 @@ export function MachineSimulator({
   stock,
   cursor,
   segmentProgress,
+  playing,
   showTool,
   showStock,
   resetTrigger,
@@ -247,6 +254,14 @@ export function MachineSimulator({
   quality = "medium",
 }: MachineSimulatorProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const performanceProfile = renderPerformanceProfile(quality);
+  const glOptions = useMemo(
+    () => ({
+      antialias: quality !== "low",
+      powerPreference: "high-performance" as const,
+    }),
+    [quality],
+  );
   const stockCenterX = stock.originX + stock.width / 2;
   const stockCenterY = stock.originY + stock.height / 2;
 
@@ -259,9 +274,17 @@ export function MachineSimulator({
   return (
     <Canvas
       shadows={quality !== "low"}
+      dpr={performanceProfile.dpr}
+      gl={glOptions}
       camera={{ position: [stockCenterX, stockCenterY - stock.height * 1.5, Math.max(stock.width, stock.height)], fov: 45, up: [0, 0, 1], far: 20000 }}
       style={{ width: "100%", height: "100%", background: "#05080a" }}
     >
+      <AdaptiveSimulationDpr
+        quality={quality}
+        playing={playing ?? false}
+        cursor={cursor}
+        segmentProgress={segmentProgress ?? 1}
+      />
       <color attach="background" args={["#05080a"]} />
       
       <ambientLight intensity={0.6} />
@@ -269,7 +292,10 @@ export function MachineSimulator({
         position={[stockCenterX, stockCenterY, 3000]}
         intensity={1.5}
         castShadow={quality !== "low"}
-        shadow-mapSize={quality === "high" ? [2048, 2048] : [1024, 1024]}
+        shadow-mapSize={[
+          performanceProfile.shadowMapSize,
+          performanceProfile.shadowMapSize,
+        ]}
         shadow-camera-left={-2000}
         shadow-camera-right={2000}
         shadow-camera-top={2000}
@@ -282,16 +308,40 @@ export function MachineSimulator({
         stock={stock}
         cursor={cursor}
         segmentProgress={segmentProgress}
+        playing={playing}
         showTool={showTool}
         showStock={showStock}
         quality={quality}
       />
 
       {quality !== "low" && (
-        <ContactShadows position={[stockCenterX, stockCenterY, -26]} opacity={0.6} scale={4000} blur={2} far={200} />
+        <BudgetedContactShadows
+          resolution={performanceProfile.contactShadowResolution}
+          x={stockCenterX}
+          y={stockCenterY}
+          z={-26}
+          opacity={0.6}
+          scale={4000}
+          blur={2}
+          far={200}
+          playing={playing ?? false}
+          refreshKey={
+            playing ? null : `${cursor}:${segmentProgress ?? 1}`
+          }
+          frameIntervalMs={performanceProfile.contactShadowFrameIntervalMs}
+        />
       )}
       
-      {quality === "high" && <Environment preset="city" environmentIntensity={0.2} />}
+      {quality === "high" && (
+        <>
+          <hemisphereLight args={["#dcecff", "#12181d", 0.4]} />
+          <pointLight
+            position={[stockCenterX - stock.width, stockCenterY, 900]}
+            intensity={0.35}
+            distance={6000}
+          />
+        </>
+      )}
 
       <OrbitControls
         ref={controlsRef}
