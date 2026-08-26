@@ -12,7 +12,10 @@ import {
 import { pointOnSegment } from "../utils/gcode-utils";
 import { CutterModel } from "./CutterModel";
 import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
-import { renderPerformanceProfile } from "../simulation/render-performance";
+import {
+  renderPerformanceProfile,
+  resolveSimulationFrameloop,
+} from "../simulation/render-performance";
 
 interface MachineSimulatorProps {
   simulation: Simulation;
@@ -102,6 +105,7 @@ export function MachineKinematics({
     
     // Spindle Rotation Animation
     if (
+      playing &&
       spindleRef.current &&
       curSeg &&
       curSeg.spindleState !== "off" &&
@@ -247,6 +251,7 @@ export function MachineSimulator({
 
   return (
     <Canvas
+      frameloop={resolveSimulationFrameloop(playing ?? false)}
       shadows={quality !== "low"}
       dpr={performanceProfile.dpr}
       gl={glOptions}

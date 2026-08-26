@@ -45,6 +45,7 @@ import { CutterModel, resolveCutterModelLength } from "./CutterModel";
 import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
 import {
   renderPerformanceProfile,
+  resolveSimulationFrameloop,
   resolveStockRenderGrid,
   shouldRenderFrame,
 } from "../simulation/render-performance";
@@ -232,6 +233,7 @@ function ToolMeshOverlay({
   stock,
   showTool,
   quality,
+  playing,
 }: {
   simulation: Simulation;
   cursor: number;
@@ -239,6 +241,7 @@ function ToolMeshOverlay({
   stock: StockSettings;
   showTool: boolean;
   quality: "low" | "medium" | "high";
+  playing: boolean;
 }) {
   if (!showTool) return null;
   const activeSegment = simulation.segments[Math.min(cursor, simulation.segments.length - 1)];
@@ -257,7 +260,8 @@ function ToolMeshOverlay({
         tool={activeTool}
         fluteLength={fluteLength}
         spinning={Boolean(
-          activeSegment &&
+          playing &&
+            activeSegment &&
             activeSegment.spindleState !== "off" &&
             activeSegment.spindle > 0,
         )}
@@ -1213,6 +1217,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
         <Canvas
           aria-label={measurementCopy.simulatorCanvas}
           role="img"
+          frameloop={resolveSimulationFrameloop(props.playing ?? false)}
           shadows={quality !== "low"}
           dpr={performanceProfile.dpr}
           gl={glOptions}
@@ -1303,6 +1308,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               stock={props.stock} 
               showTool={props.showTool ?? true}
               quality={props.quality ?? "medium"}
+              playing={props.playing ?? false}
             />
           </group>
         </group>

@@ -1,4 +1,5 @@
 export type RenderQuality = "low" | "medium" | "high";
+export type SimulationFrameloop = "always" | "demand";
 
 export type RenderPerformanceProfile = {
   playbackFrameIntervalMs: number;
@@ -59,6 +60,12 @@ export function renderPerformanceProfile(
   quality: RenderQuality,
 ): RenderPerformanceProfile {
   return PROFILES[quality];
+}
+
+export function resolveSimulationFrameloop(
+  playing: boolean,
+): SimulationFrameloop {
+  return playing ? "always" : "demand";
 }
 
 function alignedSize(value: number, alignment: number, minimum: number): number {

@@ -134,7 +134,7 @@ test("primary workstation regions and simulation progress expose accessible cont
 });
 
 test("the canvas observes its real container and supports two-pointer zoom and pan", async () => {
-  const source = await read("app/page.tsx");
+  const source = await read("core/components/ToolpathCanvas.tsx");
 
   assert.match(source, /new ResizeObserver/);
   assert.match(source, /width: Math\.max\(1, Math\.round\(rect\.width\)\)/);

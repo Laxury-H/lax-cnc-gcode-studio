@@ -33,7 +33,7 @@ test("the workstation persists and applies its G54-G59 offset table", async () =
 
 test("both canvas renderers resolve the selected stock Z datum", async () => {
   const [page, solid] = await Promise.all([
-    read("app/page.tsx"),
+    read("core/components/ToolpathCanvas.tsx"),
     read("core/components/SolidSimulator.tsx"),
   ]);
 
@@ -53,7 +53,12 @@ test("both canvas renderers resolve the selected stock Z datum", async () => {
 });
 
 test("playback DRO follows the cursor WCS, G53 machine frame, and active units", async () => {
-  const page = await read("app/page.tsx");
+  const page = (
+    await Promise.all([
+      read("app/page.tsx"),
+      read("core/components/ToolpathCanvas.tsx"),
+    ])
+  ).join("\n");
 
   assert.match(
     page,

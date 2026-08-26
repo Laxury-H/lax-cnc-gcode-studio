@@ -88,8 +88,15 @@ test("frame throttling catches up after its time budget without losing resets", 
   assert.equal(shouldRenderFrame(100, 90, 50), true);
 });
 
+test("3D canvases render continuously only while playback is active", async () => {
+  const { resolveSimulationFrameloop } = await loadPerformancePolicy();
+
+  assert.equal(resolveSimulationFrameloop(false), "demand");
+  assert.equal(resolveSimulationFrameloop(true), "always");
+});
+
 test("3D views use the local high-performance GPU path without decorative effects", async () => {
-  const [solid, machine, adaptive, page] = await Promise.all([
+  const [solid, machine, adaptive, measurement, toolpath, page] = await Promise.all([
     readFile(
       path.resolve(__dirname, "../core/components/SolidSimulator.tsx"),
       "utf8",
@@ -100,6 +107,14 @@ test("3D views use the local high-performance GPU path without decorative effect
     ),
     readFile(
       path.resolve(__dirname, "../core/components/AdaptiveSimulationDpr.tsx"),
+      "utf8",
+    ),
+    readFile(
+      path.resolve(__dirname, "../core/components/SmartMeasurementTool.tsx"),
+      "utf8",
+    ),
+    readFile(
+      path.resolve(__dirname, "../core/components/ToolpathCanvas.tsx"),
       "utf8",
     ),
     readFile(path.resolve(__dirname, "../app/page.tsx"), "utf8"),
@@ -121,9 +136,14 @@ test("3D views use the local high-performance GPU path without decorative effect
   assert.match(solid, /alphaToCoverage=\{quality !== "low"\}/);
   assert.match(solid, /surfaceTex\.anisotropy = textureAnisotropy/);
   assert.match(solid, /THREE\.LinearMipmapLinearFilter/);
+  assert.match(solid, /frameloop=\{resolveSimulationFrameloop\(props\.playing \?\? false\)\}/);
+  assert.match(machine, /frameloop=\{resolveSimulationFrameloop\(playing \?\? false\)\}/);
+  assert.match(measurement, /const \{ camera, gl, invalidate \} = useThree\(\)/);
+  assert.match(measurement, /pointerRef\.current = \{[\s\S]*?invalidate\(\)/);
   assert.match(page, /playbackFrameIntervalMs/);
-  assert.match(page, /canvasFrameIntervalMs/);
+  assert.match(toolpath, /canvasFrameIntervalMs/);
   assert.match(page, /requestIdleCallback\(warmSimulatorChunks/);
   assert.match(page, /connection\?\.saveData/);
   assert.match(page, /loadSolidSimulatorModule\(\)/);
+  assert.match(toolpath, /function loadSolidSimulatorModule\(\)/);
 });

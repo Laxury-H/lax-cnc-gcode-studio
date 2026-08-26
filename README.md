@@ -140,7 +140,9 @@ cắt xuyên dùng alpha-to-coverage để giảm răng cưa. Các lớp mạt c
 contact shadow trang trí đã được loại bỏ. Chế độ `medium` là mặc định phù hợp cho
 đa số laptop; file lớn hoặc GPU tích hợp nên dùng `low`. Chunk 3D Solid
 được tải trước khi trình duyệt rảnh để lần mở đầu tiên nhanh hơn, nhưng tự bỏ qua
-trên kết nối đã bật chế độ tiết kiệm dữ liệu.
+trên kết nối đã bật chế độ tiết kiệm dữ liệu. Khi playback dừng, hai viewport 3D
+chuyển sang render theo nhu cầu và chỉ quay lại vòng lặp liên tục khi máy đang
+chạy, nhờ đó không duy trì tải GPU chỉ để hiển thị một khung hình tĩnh.
 
 Khi triển khai, nên bật Brotli/Gzip và HTTP/2 hoặc HTTP/3, đặt cache dài hạn
 `immutable` cho `/assets/*`, và đặt CDN gần người dùng. Các thiết lập này chỉ

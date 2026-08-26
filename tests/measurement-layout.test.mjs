@@ -9,13 +9,13 @@ async function read(relativePath) {
 }
 
 test("measurement mode reserves a dedicated dock beside the 3D viewport", async () => {
-  const [page, simulator, css] = await Promise.all([
-    read("app/page.tsx"),
+  const [canvas, simulator, css] = await Promise.all([
+    read("core/components/ToolpathCanvas.tsx"),
     read("core/components/SolidSimulator.tsx"),
     read("app/globals.css"),
   ]);
 
-  assert.match(page, /isMeasuring && view === "solid"[\s\S]*has-measurement-dock/);
+  assert.match(canvas, /isMeasuring && view === "solid"[\s\S]*has-measurement-dock/);
   assert.match(simulator, /className="solid-simulator__viewport"/);
   assert.match(simulator, /className="measurement-dock"/);
   assert.match(
@@ -64,12 +64,12 @@ test("measurement mode gives every HUD a safe area and stacks the dock on narrow
 });
 
 test("simulator viewport omits the redundant view-identification card", async () => {
-  const [page, css] = await Promise.all([
-    read("app/page.tsx"),
+  const [canvas, css] = await Promise.all([
+    read("core/components/ToolpathCanvas.tsx"),
     read("app/globals.css"),
   ]);
 
-  assert.doesNotMatch(page, /className="plane-badge"/);
+  assert.doesNotMatch(canvas, /className="plane-badge"/);
   assert.doesNotMatch(css, /\.plane-badge/);
 });
 

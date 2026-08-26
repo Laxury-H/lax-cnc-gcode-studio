@@ -118,7 +118,7 @@ export function SmartMeasurementOverlay({
   const activePointersRef = useRef(new Set<number>());
   const onSelectRef = useRef(onSelect);
   const onHoverChangeRef = useRef(onHoverChange);
-  const { camera, gl } = useThree();
+  const { camera, gl, invalidate } = useThree();
 
   useLayoutEffect(() => {
     onSelectRef.current = onSelect;
@@ -315,6 +315,7 @@ export function SmartMeasurementOverlay({
         inside: true,
         dirty: true,
       };
+      invalidate();
     };
     const handlePointerEnter = (event: PointerEvent) => updatePointer(event);
     const handlePointerMove = (event: PointerEvent) => {
@@ -330,6 +331,7 @@ export function SmartMeasurementOverlay({
     const handlePointerLeave = () => {
       pointerRef.current.inside = false;
       hideHover();
+      invalidate();
     };
     const handlePointerDown = (event: PointerEvent) => {
       updatePointer(event);
@@ -384,6 +386,7 @@ export function SmartMeasurementOverlay({
       if (selection) {
         showSelection(selection);
         onSelectRef.current(selection);
+        invalidate();
       }
     };
     const handlePointerUp = (event: PointerEvent) => finishPointer(event, false);
@@ -413,11 +416,12 @@ export function SmartMeasurementOverlay({
       activePointers.clear();
       hideHover();
     };
-  }, [gl.domElement, hideHover, resolveSelection, result, showSelection, start]);
+  }, [gl.domElement, hideHover, invalidate, resolveSelection, result, showSelection, start]);
 
   useEffect(() => {
     pointerRef.current.dirty = true;
-  }, [resolveSelection, showSelection]);
+    invalidate();
+  }, [invalidate, resolveSelection, showSelection]);
 
   useFrame(() => {
     if (result && !start) {
