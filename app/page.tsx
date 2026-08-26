@@ -1278,11 +1278,6 @@ function ToolpathCanvas({
         </span>
         <code>{currentSegment?.raw.trim() || "—"}</code>
       </div>
-      <div className="plane-badge" aria-hidden="true">
-        <strong>{getViewMeta(view, t).short}</strong>
-        <span>{getViewMeta(view, t).title}</span>
-        <small>{getViewMeta(view, t).description}</small>
-      </div>
       <div
         className="canvas-telemetry"
         aria-label={`${activeCoordinateLabel}: tọa độ dao X ${currentPosition.x.toFixed(3)}, Y ${currentPosition.y.toFixed(3)}, Z ${currentPosition.z.toFixed(3)} ${activeUnits}`}

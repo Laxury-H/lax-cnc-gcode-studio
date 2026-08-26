@@ -39,7 +39,7 @@ test("measurement mode gives every HUD a safe area and stacks the dock on narrow
     read("app/globals.css"),
   ]);
 
-  for (const selector of ["plane-badge", "orientation-widget", "backplot-controls"]) {
+  for (const selector of ["orientation-widget", "backplot-controls"]) {
     assert.match(
       css,
       new RegExp(
@@ -61,6 +61,16 @@ test("measurement mode gives every HUD a safe area and stacks the dock on narrow
     /grid-template-rows:\s*minmax\(160px, 1fr\) clamp\(176px, 42%, 260px\)/,
   );
   assert.doesNotMatch(tool, /measurement-canvas-hint/);
+});
+
+test("simulator viewport omits the redundant view-identification card", async () => {
+  const [page, css] = await Promise.all([
+    read("app/page.tsx"),
+    read("app/globals.css"),
+  ]);
+
+  assert.doesNotMatch(page, /className="plane-badge"/);
+  assert.doesNotMatch(css, /\.plane-badge/);
 });
 
 test("snap telemetry stays in the dock and optional dimensions stay collapsed", async () => {
