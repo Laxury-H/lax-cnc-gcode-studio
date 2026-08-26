@@ -46,6 +46,7 @@ import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
 import {
   renderPerformanceProfile,
   resolveSimulationFrameloop,
+  resolveSimulationShadowMapSize,
   resolveStockRenderGrid,
   shouldRenderFrame,
 } from "../simulation/render-performance";
@@ -91,26 +92,75 @@ function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
 }
 
-function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, surfaceZ }: { simulation: Simulation, showRapids: boolean, showToolpath?: boolean, showBounds: boolean, surfaceZ: number }) {
-  const { cutPositions, rapidPositions, boundsPositions } = useMemo(() => {
-    const cutPositions: number[] = [];
+function ToolpathOverlay({
+  simulation,
+  cursor,
+  segmentProgress,
+  showRapids,
+  showToolpath,
+  showBounds,
+  surfaceZ,
+}: {
+  simulation: Simulation;
+  cursor: number;
+  segmentProgress: number;
+  showRapids: boolean;
+  showToolpath?: boolean;
+  showBounds: boolean;
+  surfaceZ: number;
+}) {
+  const {
+    completedCutPositions,
+    futureCutPositions,
+    activeCutPositions,
+    rapidPositions,
+    boundsPositions,
+  } = useMemo(() => {
+    const completedCutPositions: number[] = [];
+    const futureCutPositions: number[] = [];
+    const activeCutPositions: number[] = [];
     const rapidPositions: number[] = [];
-    
-    simulation.segments.forEach(seg => {
+
+    const appendSegments = (
+      target: number[],
+      points: readonly { x: number; y: number; z: number }[],
+      projectedZ?: number,
+    ) => {
+      for (let index = 1; index < points.length; index += 1) {
+        const from = points[index - 1];
+        const to = points[index];
+        target.push(
+          from.x,
+          from.y,
+          projectedZ ?? from.z,
+          to.x,
+          to.y,
+          projectedZ ?? to.z,
+        );
+      }
+    };
+
+    simulation.segments.forEach((seg, index) => {
       const isTravel = seg.machineCoordinates || seg.kind === "rapid";
       if (isTravel && !showRapids) return;
-      
-      const pts = seg.points;
-      for (let i = 1; i < pts.length; i++) {
-        const p1 = pts[i - 1];
-        const p2 = pts[i];
-        if (isTravel) {
-          rapidPositions.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-        } else {
-          // Keep the cutter at its real programmed Z, but project the visual
-          // guide onto the stock face so deep cuts are not hidden by the mesh.
-          cutPositions.push(p1.x, p1.y, surfaceZ, p2.x, p2.y, surfaceZ);
-        }
+
+      if (isTravel) {
+        appendSegments(rapidPositions, seg.points);
+        return;
+      }
+
+      // Project visual guides onto the stock face so deep cuts remain legible.
+      // The material-removal heightmap still uses the real programmed Z.
+      if (index < cursor) {
+        appendSegments(completedCutPositions, seg.points, surfaceZ);
+      } else if (index > cursor) {
+        appendSegments(futureCutPositions, seg.points, surfaceZ);
+      } else {
+        const completed = sliceToolpathPoints(seg.points, 0, segmentProgress);
+        const future = sliceToolpathPoints(seg.points, segmentProgress, 1);
+        appendSegments(completedCutPositions, completed, surfaceZ);
+        appendSegments(activeCutPositions, completed, surfaceZ);
+        appendSegments(futureCutPositions, future, surfaceZ);
       }
     });
 
@@ -134,17 +184,23 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
       boundsPositions = pts.flat();
     }
 
-    return { cutPositions, rapidPositions, boundsPositions };
-  }, [simulation, showRapids, showBounds, surfaceZ]);
+    return {
+      completedCutPositions,
+      futureCutPositions,
+      activeCutPositions,
+      rapidPositions,
+      boundsPositions,
+    };
+  }, [cursor, segmentProgress, showBounds, showRapids, simulation, surfaceZ]);
 
   return (
     <group>
-      {showToolpath !== false && cutPositions.length > 0 && (
+      {showToolpath !== false && completedCutPositions.length > 0 && (
         <Line
-          points={cutPositions}
-          color="#6ba9bc"
-          lineWidth={0.85}
-          opacity={0.78}
+          points={completedCutPositions}
+          color="#47e0a8"
+          lineWidth={1.45}
+          opacity={0.92}
           transparent
           depthTest={false}
           depthWrite={false}
@@ -153,12 +209,40 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
           segments
         />
       )}
+      {showToolpath !== false && futureCutPositions.length > 0 && (
+        <Line
+          points={futureCutPositions}
+          color="#b8d3da"
+          lineWidth={0.8}
+          opacity={0.28}
+          transparent
+          depthTest={false}
+          depthWrite={false}
+          renderOrder={29}
+          toneMapped={false}
+          segments
+        />
+      )}
+      {showToolpath !== false && activeCutPositions.length > 0 && (
+        <Line
+          points={activeCutPositions}
+          color="#fff0a6"
+          lineWidth={2.15}
+          opacity={1}
+          transparent
+          depthTest={false}
+          depthWrite={false}
+          renderOrder={31}
+          toneMapped={false}
+          segments
+        />
+      )}
       {showToolpath !== false && showRapids && rapidPositions.length > 0 && (
         <Line 
           points={rapidPositions} 
-          color="#ff3366" 
-          lineWidth={1.1}
-          opacity={0.5}
+          color="#ffad55"
+          lineWidth={1.2}
+          opacity={0.68}
           transparent 
           depthTest={false}
           depthWrite={false}
@@ -172,9 +256,9 @@ function ToolpathOverlay({ simulation, showRapids, showToolpath, showBounds, sur
       {showBounds && boundsPositions.length > 0 && (
         <Line 
           points={boundsPositions} 
-          color="#81a7bd" 
-          lineWidth={1} 
-          opacity={0.4} 
+          color="#90a9b7"
+          lineWidth={0.85}
+          opacity={0.3}
           transparent 
           segments 
         />
@@ -279,7 +363,6 @@ function getDepthColor(
   return `rgb(${intensity}, ${intensity}, ${intensity})`;
 }
 
-const STOCK_COLOR = "#cd9a5b"; // Realistic plywood surface color
 const SURFACE_EPSILON = 0.000001;
 
 function paintStockSurface(
@@ -289,21 +372,74 @@ function paintStockSurface(
 ) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = STOCK_COLOR;
+  const base = ctx.createLinearGradient(0, 0, 0, height);
+  base.addColorStop(0, "#d8ae79");
+  base.addColorStop(0.5, "#c7935d");
+  base.addColorStop(1, "#b77d49");
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, width, height);
 
-  const grainSpacing = Math.max(4, Math.round(Math.max(width, height) / 180));
+  const grainSpacing = Math.max(5, Math.round(height / 150));
+  const sampleStep = Math.max(18, Math.round(width / 150));
   for (let y = grainSpacing; y < height; y += grainSpacing) {
     const phase = y / grainSpacing;
     ctx.strokeStyle =
-      phase % 3 === 0 ? "rgba(79, 43, 20, 0.14)" : "rgba(255, 226, 174, 0.08)";
-    ctx.lineWidth = phase % 5 === 0 ? 1.4 : 0.75;
+      phase % 3 === 0 ? "rgba(72, 39, 19, 0.18)" : "rgba(255, 229, 184, 0.12)";
+    ctx.lineWidth = phase % 5 === 0 ? 1.5 : 0.8;
     ctx.beginPath();
-    for (let x = 0; x <= width; x += 24) {
-      const wave = Math.sin(x * 0.018 + phase * 0.71) * grainSpacing * 0.42;
+    for (let x = 0; x <= width; x += sampleStep) {
+      const wave =
+        Math.sin(x * 0.014 + phase * 0.71) * grainSpacing * 0.34 +
+        Math.sin(x * 0.004 + phase * 1.7) * grainSpacing * 0.24;
       if (x === 0) ctx.moveTo(x, y + wave);
       else ctx.lineTo(x, y + wave);
     }
+    ctx.stroke();
+  }
+
+  const knotCount = Math.max(1, Math.min(5, Math.round((width * height) / 1_500_000)));
+  for (let index = 0; index < knotCount; index += 1) {
+    const x = width * (0.18 + ((index * 0.37) % 0.68));
+    const y = height * (0.22 + ((index * 0.29) % 0.56));
+    const radiusX = Math.max(10, width * (0.007 + (index % 2) * 0.002));
+    const radiusY = Math.max(5, radiusX * 0.42);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, radiusY / radiusX);
+    const knot = ctx.createRadialGradient(0, 0, 0, 0, 0, radiusX);
+    knot.addColorStop(0, "rgba(83, 45, 23, 0.36)");
+    knot.addColorStop(0.42, "rgba(115, 66, 34, 0.2)");
+    knot.addColorStop(1, "rgba(99, 55, 27, 0)");
+    ctx.fillStyle = knot;
+    ctx.beginPath();
+    ctx.arc(0, 0, radiusX, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.fillStyle = "rgba(255, 245, 222, 0.035)";
+  ctx.fillRect(0, 0, width, height);
+}
+
+function paintPlywoodEdge(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+) {
+  ctx.fillStyle = "#a96f3f";
+  ctx.fillRect(0, 0, width, height);
+  const layerHeight = Math.max(3, Math.round(height / 14));
+  for (let y = 0; y < height; y += layerHeight) {
+    const layer = Math.floor(y / layerHeight);
+    ctx.fillStyle = layer % 2 === 0 ? "rgba(237, 191, 129, 0.68)" : "rgba(91, 51, 27, 0.45)";
+    ctx.fillRect(0, y, width, Math.max(1, layerHeight - 1));
+  }
+  ctx.strokeStyle = "rgba(58, 31, 17, 0.32)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x < width; x += 18) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 5, height);
     ctx.stroke();
   }
 }
@@ -340,15 +476,16 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
         stock.height,
         quality,
         maxTextureSize,
+        playing,
       ),
-    [maxTextureSize, quality, stock.height, stock.width],
+    [maxTextureSize, playing, quality, stock.height, stock.width],
   );
   const textureAnisotropy = Math.min(
-    performanceProfile.maxAnisotropy,
+    playing ? 1 : performanceProfile.maxAnisotropy,
     supportedAnisotropy,
   );
 
-  const { canvas, texture, surfaceCanvas, surfaceTexture } = useMemo(() => {
+  const { canvas, texture, surfaceCanvas, surfaceTexture, edgeTexture } = useMemo(() => {
     const el = document.createElement("canvas");
     el.width = textureWidth;
     el.height = textureHeight;
@@ -370,19 +507,32 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
     const surfaceTex = new THREE.CanvasTexture(surfaceEl);
     surfaceTex.colorSpace = THREE.SRGBColorSpace;
     surfaceTex.minFilter =
-      quality === "low"
+      quality === "low" || playing
         ? THREE.LinearFilter
         : THREE.LinearMipmapLinearFilter;
     surfaceTex.magFilter = THREE.LinearFilter;
-    surfaceTex.generateMipmaps = quality !== "low";
+    surfaceTex.generateMipmaps = quality !== "low" && !playing;
     surfaceTex.anisotropy = textureAnisotropy;
+
+    const edgeEl = document.createElement("canvas");
+    edgeEl.width = 256;
+    edgeEl.height = 128;
+    const edgeCtx = edgeEl.getContext("2d");
+    if (edgeCtx) paintPlywoodEdge(edgeCtx, edgeEl.width, edgeEl.height);
+    const edgeTex = new THREE.CanvasTexture(edgeEl);
+    edgeTex.colorSpace = THREE.SRGBColorSpace;
+    edgeTex.minFilter = THREE.LinearMipmapLinearFilter;
+    edgeTex.magFilter = THREE.LinearFilter;
+    edgeTex.generateMipmaps = true;
+    edgeTex.anisotropy = Math.max(1, textureAnisotropy);
     return {
       canvas: el,
       texture: tex,
       surfaceCanvas: surfaceEl,
       surfaceTexture: surfaceTex,
+      edgeTexture: edgeTex,
     };
-  }, [quality, textureAnisotropy, textureHeight, textureWidth]);
+  }, [playing, quality, textureAnisotropy, textureHeight, textureWidth]);
 
   useEffect(() => {
     canvasRef.current = canvas;
@@ -392,8 +542,9 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
     return () => {
       texture.dispose();
       surfaceTexture.dispose();
+      edgeTexture.dispose();
     };
-  }, [canvas, surfaceCanvas, surfaceTexture, texture]);
+  }, [canvas, edgeTexture, surfaceCanvas, surfaceTexture, texture]);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -456,7 +607,12 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
 
     const scaleX = textureWidth / Math.max(1e-6, stock.width);
     const scaleY = textureHeight / Math.max(1e-6, stock.height);
-    const profileBandCount = quality === "high" ? 32 : quality === "medium" ? 20 : 10;
+    const detailQuality = playing
+      ? quality === "high"
+        ? "medium"
+        : "low"
+      : quality;
+    const profileBandCount = detailQuality === "high" ? 32 : detailQuality === "medium" ? 20 : 10;
 
     const drawLine = (
       from: { x: number; y: number; z: number },
@@ -467,9 +623,9 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
       // incorrectly make the whole ramp one depth.
       const depthQuantum = tool.type === "flat"
         ? 0.25
-        : quality === "high"
+        : detailQuality === "high"
           ? 0.05
-          : quality === "medium"
+          : detailQuality === "medium"
             ? 0.1
             : 0.18;
       const depthSteps = Math.min(
@@ -648,8 +804,9 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
           <meshStandardMaterial
             key={idx}
             attach={`material-${idx}`}
-            color={STOCK_COLOR}
-            roughness={0.9}
+            color="#ffffff"
+            map={edgeTexture}
+            roughness={0.86}
             metalness={0.02}
           />
         ))}
@@ -689,45 +846,59 @@ function PartLabel({
   id,
   width,
   height,
+  quality,
 }: {
   id: string;
   width: number;
   height: number;
+  quality: "low" | "medium" | "high";
 }) {
+  const supportedAnisotropy = useThree((state) =>
+    state.gl.capabilities.getMaxAnisotropy(),
+  );
   const texture = useMemo(() => {
     const labelCanvas = document.createElement("canvas");
-    labelCanvas.width = 512;
-    labelCanvas.height = 192;
+    labelCanvas.width = quality === "high" ? 768 : quality === "medium" ? 640 : 384;
+    labelCanvas.height = Math.round(labelCanvas.width * (192 / 512));
     const context = labelCanvas.getContext("2d");
     if (context) {
       context.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+      context.scale(labelCanvas.width / 512, labelCanvas.height / 192);
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.lineJoin = "round";
 
-      context.font = '700 76px "Arial Narrow", Arial, sans-serif';
-      context.lineWidth = 10;
-      context.strokeStyle = "rgba(255, 255, 255, 0.72)";
-      context.strokeText(id, labelCanvas.width / 2, 64);
-      context.fillStyle = "#20150e";
-      context.fillText(id, labelCanvas.width / 2, 64);
+      context.fillStyle = "rgba(20, 25, 25, 0.86)";
+      context.strokeStyle = "rgba(255, 236, 194, 0.9)";
+      context.lineWidth = 3;
+      context.beginPath();
+      context.roundRect(28, 14, 456, 164, 18);
+      context.fill();
+      context.stroke();
 
-      context.font = '600 43px ui-monospace, "Cascadia Mono", monospace';
-      context.lineWidth = 7;
-      context.strokeStyle = "rgba(255, 255, 255, 0.68)";
+      context.font = '800 72px "Arial Narrow", Arial, sans-serif';
+      context.fillStyle = "#fffaf0";
+      context.fillText(id, 256, 65);
+
+      context.font = '700 40px ui-monospace, "Cascadia Mono", monospace';
       const dimensions = `${Math.round(width)} × ${Math.round(height)}`;
-      context.strokeText(dimensions, labelCanvas.width / 2, 139);
-      context.fillStyle = "#34241a";
-      context.fillText(dimensions, labelCanvas.width / 2, 139);
+      context.fillStyle = "#ffc878";
+      context.fillText(dimensions, 256, 139);
     }
 
     const labelTexture = new THREE.CanvasTexture(labelCanvas);
     labelTexture.colorSpace = THREE.SRGBColorSpace;
-    labelTexture.minFilter = THREE.LinearFilter;
+    labelTexture.minFilter = quality === "low"
+      ? THREE.LinearFilter
+      : THREE.LinearMipmapLinearFilter;
     labelTexture.magFilter = THREE.LinearFilter;
-    labelTexture.generateMipmaps = false;
+    labelTexture.generateMipmaps = quality !== "low";
+    labelTexture.anisotropy = Math.min(
+      quality === "high" ? 12 : quality === "medium" ? 6 : 1,
+      supportedAnisotropy,
+    );
     return labelTexture;
-  }, [height, id, width]);
+  }, [height, id, quality, supportedAnisotropy, width]);
 
   useEffect(() => () => texture.dispose(), [texture]);
 
@@ -751,9 +922,11 @@ function PartLabel({
 function PartLabelsOverlay({
   simulation,
   topZ,
+  quality,
 }: {
   simulation: Simulation;
   topZ: number;
+  quality: "low" | "medium" | "high";
 }) {
   if (!simulation.parts || simulation.parts.length === 0) return null;
   return (
@@ -763,7 +936,12 @@ function PartLabelsOverlay({
         const centerY = part.minY + part.height / 2;
         return (
           <group key={part.id} position={[centerX, centerY, topZ + 0.16]}>
-            <PartLabel id={part.id} width={part.width} height={part.height} />
+            <PartLabel
+              id={part.id}
+              width={part.width}
+              height={part.height}
+              quality={quality}
+            />
           </group>
         );
       })}
@@ -775,6 +953,11 @@ export function SolidSimulator(props: SolidSimulatorProps) {
   const measurementCopy = getMeasurementCopy(props.lang);
   const quality = props.quality ?? "medium";
   const performanceProfile = renderPerformanceProfile(quality);
+  const shadowMapSize = resolveSimulationShadowMapSize(
+    quality,
+    props.playing ?? false,
+  );
+  const sceneExtent = Math.max(props.stock.width, props.stock.height);
   const glOptions = useMemo(
     () => ({
       antialias: quality !== "low",
@@ -1221,6 +1404,12 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           shadows={quality !== "low"}
           dpr={performanceProfile.dpr}
           gl={glOptions}
+          onCreated={({ gl }) => {
+            gl.outputColorSpace = THREE.SRGBColorSpace;
+            gl.toneMapping = THREE.ACESFilmicToneMapping;
+            gl.toneMappingExposure = 1.08;
+            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          }}
           camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}
           fallback={(
             <div className="simulator-error" role="alert">
@@ -1236,19 +1425,33 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           cursor={props.cursor}
           segmentProgress={props.segmentProgress ?? 1}
         />
-        <color attach="background" args={["#0c1217"]} />
-        <ambientLight intensity={0.45} />
+        <color attach="background" args={["#091014"]} />
+        <hemisphereLight args={["#d8edf2", "#111718", 0.72]} />
+        <ambientLight intensity={0.3} />
         <directionalLight 
           position={[props.stock.width / 2, props.stock.width * 0.8, props.stock.height * 0.8]} 
-          intensity={1.5} 
+          intensity={2.1}
           castShadow={quality !== "low"}
-          shadow-mapSize-width={performanceProfile.shadowMapSize}
-          shadow-mapSize-height={performanceProfile.shadowMapSize}
+          shadow-mapSize-width={shadowMapSize}
+          shadow-mapSize-height={shadowMapSize}
           shadow-bias={-0.0005}
         >
           <orthographicCamera attach="shadow-camera" args={[-props.stock.width, props.stock.width, props.stock.height, -props.stock.height, 0.1, props.stock.width * 3]} />
         </directionalLight>
         
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -0.7, 0]}
+          receiveShadow
+        >
+          <planeGeometry args={[sceneExtent * 4, sceneExtent * 4]} />
+          <meshStandardMaterial
+            color="#10181c"
+            roughness={0.96}
+            metalness={0.08}
+          />
+        </mesh>
+
         {/* Machine Bed Grid */}
         {props.showGrid !== false && (
           <gridHelper 
@@ -1258,7 +1461,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               "#444444", 
               "#222222"
             ]} 
-            position={[0, 0, 0]} 
+            position={[0, -0.62, 0]}
           />
         )}
 
@@ -1272,9 +1475,15 @@ export function SolidSimulator(props: SolidSimulatorProps) {
             rotation={[-Math.PI / 2, 0, 0]} 
             position={overlayPosition}
           >
-            <PartLabelsOverlay simulation={props.simulation} topZ={topZ} />
+            <PartLabelsOverlay
+              simulation={props.simulation}
+              topZ={topZ}
+              quality={quality}
+            />
             <ToolpathOverlay 
-              simulation={props.simulation} 
+              simulation={props.simulation}
+              cursor={props.cursor}
+              segmentProgress={props.segmentProgress ?? 1}
               showRapids={props.showRapids ?? true} 
               showToolpath={props.showToolpath ?? true}
               showBounds={props.showBounds ?? true} 

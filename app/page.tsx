@@ -1514,8 +1514,8 @@ export default function Home() {
             title={
               quality === "high"
                 ? lang === "EN"
-                  ? "Maximum local graphics: 4K stock map, 2× render scale"
-                  : "Đồ họa máy người dùng ở mức tối đa: phôi 4K, tỷ lệ dựng 2×"
+                  ? "Maximum local graphics: optimized 2K stock map in motion, crisp 4K when stopped"
+                  : "Đồ họa tối đa: phôi 2K tối ưu khi chạy, tự dựng lại 4K sắc nét khi dừng"
                 : lang === "EN"
                   ? "Balanced simulation quality using this device's GPU"
                   : "Chất lượng mô phỏng cân bằng theo GPU của thiết bị này"

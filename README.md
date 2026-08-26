@@ -133,12 +133,14 @@ khóa tỷ lệ dựng 2× và không tự hạ chất lượng.
 
 Để playback không khóa giao diện, nhịp di chuyển dao được tách khỏi nhịp cập
 nhật heightmap bóc phôi. Texture chỉ cập nhật theo ngân sách của từng mức chất
-lượng; chế độ `High/MAX` dùng heightmap cạnh dài 4096 px, mesh cạnh dài 1024
-đoạn, anisotropic filtering tối đa 16×, shadow map 4096 px và DPR 2×. Phôi chữ
-nhật dùng texture/mesh đúng tỷ lệ để mật độ điểm theo hai trục đồng đều, còn mép
-cắt xuyên dùng alpha-to-coverage để giảm răng cưa. Các lớp mạt cắt, vòng sáng và
-contact shadow trang trí đã được loại bỏ. Chế độ `medium` là mặc định phù hợp cho
-đa số laptop; file lớn hoặc GPU tích hợp nên dùng `low`. Chunk 3D Solid
+chất lượng. Trong lúc chạy, `High/MAX` dùng heightmap cạnh dài 2048 px, mesh cạnh
+dài 512 đoạn và shadow map 2048 px để tránh nghẽn CPU/GPU khi dao vừa chạm phôi;
+khi dừng, bề mặt tự dựng lại ở heightmap 4096 px, mesh 1024 đoạn, anisotropic
+filtering tối đa 16× và shadow map 4096 px. DPR vẫn khóa ở 2×. Phôi chữ nhật dùng
+texture/mesh đúng tỷ lệ để mật độ điểm theo hai trục đồng đều, còn mép cắt xuyên
+dùng alpha-to-coverage để giảm răng cưa. Các lớp mạt cắt, vòng sáng và contact
+shadow trang trí đã được loại bỏ. Chế độ `medium` là mặc định phù hợp cho đa số
+laptop; file lớn hoặc GPU tích hợp nên dùng `low`. Chunk 3D Solid
 được tải trước khi trình duyệt rảnh để lần mở đầu tiên nhanh hơn, nhưng tự bỏ qua
 trên kết nối đã bật chế độ tiết kiệm dữ liệu. Khi playback dừng, hai viewport 3D
 chuyển sang render theo nhu cầu và chỉ quay lại vòng lặp liên tục khi máy đang

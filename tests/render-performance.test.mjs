@@ -53,6 +53,10 @@ test("render profiles spend progressively more work only when quality increases"
   assert.ok(medium.heightmapLongEdge < high.heightmapLongEdge);
   assert.equal(high.heightmapLongEdge, 4096);
   assert.equal(high.stockMeshLongEdge, 1024);
+  assert.equal(medium.playbackHeightmapLongEdge, 1024);
+  assert.equal(high.playbackHeightmapLongEdge, 2048);
+  assert.equal(high.playbackStockMeshLongEdge, 512);
+  assert.equal(high.playbackShadowMapSize, 2048);
   assert.equal(high.maxAnisotropy, 16);
 });
 
@@ -77,6 +81,18 @@ test("stock render grids keep equal physical density on rectangular material", a
     segmentsX: 1024,
     segmentsY: 512,
   });
+  assert.deepEqual(resolveStockRenderGrid(2440, 1220, "high", 8192, true), {
+    textureWidth: 2048,
+    textureHeight: 1024,
+    segmentsX: 512,
+    segmentsY: 256,
+  });
+  assert.deepEqual(resolveStockRenderGrid(2440, 1220, "medium", 8192, true), {
+    textureWidth: 1024,
+    textureHeight: 512,
+    segmentsX: 256,
+    segmentsY: 128,
+  });
 });
 
 test("frame throttling catches up after its time budget without losing resets", async () => {
@@ -89,10 +105,15 @@ test("frame throttling catches up after its time budget without losing resets", 
 });
 
 test("3D canvases render continuously only while playback is active", async () => {
-  const { resolveSimulationFrameloop } = await loadPerformancePolicy();
+  const {
+    resolveSimulationFrameloop,
+    resolveSimulationShadowMapSize,
+  } = await loadPerformancePolicy();
 
   assert.equal(resolveSimulationFrameloop(false), "demand");
   assert.equal(resolveSimulationFrameloop(true), "always");
+  assert.equal(resolveSimulationShadowMapSize("high", false), 4096);
+  assert.equal(resolveSimulationShadowMapSize("high", true), 2048);
 });
 
 test("3D views use the local high-performance GPU path without decorative effects", async () => {

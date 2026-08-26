@@ -15,6 +15,7 @@ import { AdaptiveSimulationDpr } from "./AdaptiveSimulationDpr";
 import {
   renderPerformanceProfile,
   resolveSimulationFrameloop,
+  resolveSimulationShadowMapSize,
 } from "../simulation/render-performance";
 
 interface MachineSimulatorProps {
@@ -233,6 +234,10 @@ export function MachineSimulator({
 }: MachineSimulatorProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const performanceProfile = renderPerformanceProfile(quality);
+  const shadowMapSize = resolveSimulationShadowMapSize(
+    quality,
+    playing ?? false,
+  );
   const glOptions = useMemo(
     () => ({
       antialias: quality !== "low",
@@ -255,6 +260,12 @@ export function MachineSimulator({
       shadows={quality !== "low"}
       dpr={performanceProfile.dpr}
       gl={glOptions}
+      onCreated={({ gl }) => {
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.04;
+        gl.shadowMap.type = THREE.PCFSoftShadowMap;
+      }}
       camera={{ position: [stockCenterX, stockCenterY - stock.height * 1.5, Math.max(stock.width, stock.height)], fov: 45, up: [0, 0, 1], far: 20000 }}
       style={{ width: "100%", height: "100%", background: "#05080a" }}
     >
@@ -272,8 +283,8 @@ export function MachineSimulator({
         intensity={1.5}
         castShadow={quality !== "low"}
         shadow-mapSize={[
-          performanceProfile.shadowMapSize,
-          performanceProfile.shadowMapSize,
+          shadowMapSize,
+          shadowMapSize,
         ]}
         shadow-camera-left={-2000}
         shadow-camera-right={2000}

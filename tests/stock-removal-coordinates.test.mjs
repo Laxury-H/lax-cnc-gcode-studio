@@ -352,11 +352,16 @@ test("Solid stock removal paints cutter bands and shares the playback marker", a
   assert.doesNotMatch(source, /<Text\b/);
   assert.match(source, /map=\{surfaceTexture\}/);
   assert.match(source, /surfaceCtx,[\s\S]*?"darken",[\s\S]*?cutSurfaceColor/);
+  assert.match(source, /completedCutPositions/);
+  assert.match(source, /futureCutPositions/);
+  assert.match(source, /activeCutPositions/);
   assert.match(
     source,
-    /cutPositions\.push\(p1\.x, p1\.y, surfaceZ, p2\.x, p2\.y, surfaceZ\)/,
+    /appendSegments\(completedCutPositions, completed, surfaceZ\)/,
   );
-  assert.match(source, /color="#6ba9bc"[\s\S]*?lineWidth=\{0\.85\}/);
+  assert.match(source, /appendSegments\(futureCutPositions, future, surfaceZ\)/);
+  assert.match(source, /color="#47e0a8"[\s\S]*?lineWidth=\{1\.45\}/);
+  assert.match(source, /color="#fff0a6"[\s\S]*?lineWidth=\{2\.15\}/);
   assert.match(source, /depthTest=\{false\}[\s\S]*?renderOrder=\{30\}/);
   assert.match(
     source,

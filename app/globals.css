@@ -5329,22 +5329,25 @@ button.metric-card {
   }
 }
 
-/* Professional workstation polish */
+/* High-contrast workstation palette. The viewport overlays stay opaque so
+   labels remain readable over both pale stock and dark machine geometry. */
 :root {
-  --app-bg: #070a0d;
-  --header: #0d1217;
-  --panel: #111820;
-  --raised: #17212a;
+  --app-bg: #070b0e;
+  --header: #11181d;
+  --panel: #121a1f;
+  --raised: #19242b;
   --raised-2: #1b2731;
-  --panel-deep: #091015;
-  --border: #27343e;
-  --border-soft: #1b2730;
-  --text: #edf3f6;
-  --muted: #91a0aa;
-  --muted-2: #6f7f89;
-  --cyan: #22dce8;
-  --cyan-strong: #48eef5;
+  --panel-deep: #0b1216;
+  --border: #3b4b54;
+  --border-soft: #293840;
+  --text: #f2f6f7;
+  --muted: #a7b4ba;
+  --muted-2: #87969e;
+  --cyan: #55dff0;
+  --cyan-strong: #67e8f4;
   --cyan-soft: rgba(34, 220, 232, 0.1);
+  --cut-path: #47e0a8;
+  --rapid-path: #ffad55;
   --success: #4add91;
   --warning: #ffad33;
   --danger: #ff6670;
@@ -5362,6 +5365,9 @@ body {
   background:
     radial-gradient(circle at 50% -20%, rgba(34, 220, 232, 0.07), transparent 35%),
     var(--app-bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 .cnc-app {
@@ -5373,10 +5379,10 @@ body {
 .top-navigation-island {
   margin: 10px 10px 0;
   overflow: hidden;
-  border-color: rgba(120, 150, 164, 0.16);
+  border-color: rgba(112, 137, 149, 0.34);
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(18, 24, 30, 0.96), rgba(11, 15, 19, 0.94));
+    linear-gradient(180deg, #151d23, #0f161b);
   box-shadow:
     0 16px 42px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.045);
@@ -5544,7 +5550,7 @@ button:disabled {
 
 .code-panel,
 .simulation-panel {
-  border-color: rgba(80, 105, 118, 0.5);
+  border-color: rgba(102, 128, 140, 0.54);
   border-radius: var(--radius-panel);
   background: var(--panel);
   box-shadow:
@@ -5571,8 +5577,9 @@ button:disabled {
 
 .panel-title-copy strong,
 .simulation-heading > span {
-  color: #f3f7f9;
+  color: #ffffff;
   font-size: 13px;
+  font-weight: 760;
   letter-spacing: 0.055em;
 }
 
@@ -5583,8 +5590,8 @@ button:disabled {
 
 .panel-titlebar .program-count,
 .simulation-heading small {
-  color: #83929c;
-  font-size: 8px;
+  color: #a7b5bc;
+  font-size: 9px;
 }
 
 .panel-titlebar button {
@@ -5611,22 +5618,22 @@ button:disabled {
 
 .code-line.is-active {
   background:
-    linear-gradient(90deg, rgba(34, 220, 232, 0.17), rgba(34, 220, 232, 0.035)),
+    linear-gradient(90deg, rgba(71, 224, 168, 0.19), rgba(71, 224, 168, 0.035)),
     #12232a;
   box-shadow:
-    inset 3px 0 0 var(--cyan-strong),
-    inset 0 1px 0 rgba(34, 220, 232, 0.16),
-    inset 0 -1px 0 rgba(34, 220, 232, 0.11);
+    inset 3px 0 0 var(--cut-path),
+    inset 0 1px 0 rgba(71, 224, 168, 0.16),
+    inset 0 -1px 0 rgba(71, 224, 168, 0.11);
 }
 
 .line-number {
-  color: #768893;
-  font-size: 10px;
+  color: #90a1aa;
+  font-size: 10.5px;
 }
 
 .code-line code {
-  color: #dfe7eb;
-  font-size: clamp(10.5px, 0.82vw, 12px);
+  color: #edf3f5;
+  font-size: clamp(11.5px, 0.84vw, 12.5px);
   line-height: 27px;
 }
 
@@ -5649,22 +5656,38 @@ button:disabled {
 
 .path-legend {
   gap: 13px;
-  color: #aab8c0;
-  font-size: 9px;
+  color: #d9e2e6;
+  font-size: 10px;
+  font-weight: 650;
 }
 
 .legend-line {
-  width: 22px;
-  border-top-width: 1px;
+  width: 25px;
+  border-top-width: 3px;
+}
+
+.legend-line.cut {
+  border-color: var(--cut-path);
+}
+
+.legend-line.rapid {
+  border-color: var(--rapid-path);
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #1b2226;
+  background: #fff0a6;
+  box-shadow: none;
 }
 
 .canvas-frame {
   background:
-    radial-gradient(circle at 50% 46%, rgba(37, 72, 84, 0.09), transparent 58%),
-    linear-gradient(rgba(34, 220, 232, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 220, 232, 0.022) 1px, transparent 1px),
-    #081015;
-  background-size: auto, 24px 24px, 24px 24px, auto;
+    linear-gradient(rgba(112, 154, 169, 0.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(112, 154, 169, 0.032) 1px, transparent 1px),
+    radial-gradient(circle at 50% 42%, #14252c 0%, #091116 64%, #060b0e 100%);
+  background-size: 28px 28px, 28px 28px, auto;
 }
 
 .canvas-frame::after {
@@ -5678,12 +5701,13 @@ button:disabled {
 .canvas-telemetry,
 .orientation-widget,
 .backplot-controls {
-  border-color: rgba(80, 108, 121, 0.66);
-  background: rgba(7, 14, 18, 0.84);
+  border-color: rgba(112, 142, 155, 0.72);
+  background: rgba(8, 15, 19, 0.96);
   box-shadow:
     0 12px 30px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(12px) saturate(125%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .active-command-hud {
@@ -5694,20 +5718,22 @@ button:disabled {
 }
 
 .active-command-hud .command-mode b {
-  font-size: 11px;
+  color: #ffffff;
+  font-size: 12px;
 }
 
 .active-command-hud .command-mode small,
 .canvas-telemetry small,
 .scrubber-clock small,
 .scrubber-progress small {
-  color: #768791;
-  font-size: 7px;
+  color: #a0afb6;
+  font-size: 8px;
+  font-weight: 650;
 }
 
 .active-command-hud code {
-  color: #d7e1e5;
-  font-size: 10px;
+  color: #f0f5f6;
+  font-size: 11px;
 }
 
 .orientation-widget,
@@ -5726,13 +5752,15 @@ button:disabled {
 }
 
 .canvas-telemetry strong {
-  font-size: 10px;
+  color: #f2f7f8;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
 .canvas-telemetry .telemetry-axis strong {
-  color: var(--cyan-strong);
-  font-size: 12px;
+  color: #70e7f2;
+  font-size: 14px;
+  font-weight: 760;
 }
 
 .backplot-controls {
@@ -5741,15 +5769,18 @@ button:disabled {
 }
 
 .backplot-controls button {
-  border-color: rgba(71, 96, 108, 0.58);
-  background: rgba(10, 19, 24, 0.82);
-  color: #8ee8e8;
+  border-color: rgba(100, 132, 146, 0.7);
+  background: #0d171c;
+  color: #d3e0e4;
+  font-size: 10px;
+  font-weight: 650;
 }
 
 .backplot-controls button:hover,
 .backplot-controls button.is-active {
-  background: rgba(34, 220, 232, 0.12);
-  color: #dffeff;
+  border-color: rgba(71, 224, 168, 0.64);
+  background: rgba(71, 224, 168, 0.13);
+  color: #bfffe6;
 }
 
 .scrubber {
@@ -5825,7 +5856,7 @@ button:disabled {
 .metric-heading,
 .position-metric > span,
 .progress-metric > span {
-  color: #93a2ab;
+  color: #a5b4bb;
   font-size: 10px;
 }
 
@@ -5843,7 +5874,7 @@ button:disabled {
 
 .metric-detail,
 .progress-detail {
-  color: #788993;
+  color: #a5b4bb;
   font-size: 8px;
 }
 
@@ -5862,7 +5893,7 @@ button:disabled {
 
 .progress-track i {
   border-radius: 3px;
-  background: linear-gradient(90deg, #0faebe, var(--cyan-strong));
+  background: linear-gradient(90deg, #2ab984, var(--cut-path));
 }
 
 .machine-statebar {
@@ -5873,12 +5904,12 @@ button:disabled {
 }
 
 .machine-statebar small {
-  color: #657681;
-  font-size: 7px;
+  color: #a5b4bb;
+  font-size: 8px;
 }
 
 .machine-statebar b {
-  color: #b9c6cc;
+  color: #f5f8f9;
 }
 
 .toast {
