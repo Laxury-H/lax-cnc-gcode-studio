@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let modulePromise;
 let gcodeUtilsPromise;
+let sampleHarnessPromise;
 
 function loadCoordinates() {
   modulePromise ??= build({
@@ -44,6 +45,34 @@ function loadGcodeUtils() {
     return import(url);
   });
   return gcodeUtilsPromise;
+}
+
+function loadSampleHarness() {
+  sampleHarnessPromise ??= build({
+    stdin: {
+      contents: [
+        'export { DEFAULT_STOCK, parseProgram } from "./core/simulation/studio-program.ts";',
+        'export { SAMPLE_GCODE } from "./core/simulation/sample-program.ts";',
+        'export { resolveStockZBounds } from "./core/measurement/measurement-utils.ts";',
+        'export {',
+        '  mapCncPointToSolidWorld,',
+        '  mapCncPointToStockTexture,',
+        '  resolveCutterStockContact,',
+        '} from "./core/simulation/stock-removal-coordinates.ts";',
+      ].join("\n"),
+      resolveDir: path.resolve(__dirname, ".."),
+      sourcefile: "sample-contact-harness.ts",
+    },
+    bundle: true,
+    write: false,
+    format: "esm",
+    target: "es2022",
+  }).then((result) => {
+    const compiled = result.outputFiles[0].text;
+    const url = `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`;
+    return import(url);
+  });
+  return sampleHarnessPromise;
 }
 
 function assertClose(actual, expected, epsilon = 1e-6) {
@@ -99,6 +128,97 @@ test("maps every stock origin to the same displacement texture bounds", async ()
       { x: resolution, y: 0 },
     );
   }
+});
+
+test("locks cutter engagement to the same stock frame for every quick origin", async () => {
+  const { resolveCutterStockContact } = await loadCoordinates();
+  const origins = [
+    [0, 0],
+    [0, -50],
+    [-50, -50],
+    [-50, -25],
+    [-100, 0],
+  ];
+
+  for (const [originX, originY] of origins) {
+    const configured = { ...stock, originX, originY };
+    const center = {
+      x: originX + configured.width / 2,
+      y: originY + configured.height / 2,
+      z: -2,
+    };
+    assert.deepEqual(
+      resolveCutterStockContact(center, configured, {
+        topZ: 0,
+        bottomZ: -12,
+      }),
+      { insideXY: true, penetration: 2, engaged: true },
+    );
+    assert.equal(
+      resolveCutterStockContact(
+        { ...center, x: originX + configured.width + 0.01 },
+        configured,
+        { topZ: 0, bottomZ: -12 },
+      ).engaged,
+      false,
+    );
+  }
+});
+
+test("sample program drives the visible tip and removal texture into the same board", async () => {
+  const {
+    DEFAULT_STOCK,
+    SAMPLE_GCODE,
+    mapCncPointToSolidWorld,
+    mapCncPointToStockTexture,
+    parseProgram,
+    resolveCutterStockContact,
+    resolveStockZBounds,
+  } = await loadSampleHarness();
+  const simulation = parseProgram(
+    SAMPLE_GCODE,
+    DEFAULT_STOCK,
+    "router-custom",
+  );
+  const bounds = resolveStockZBounds(simulation, DEFAULT_STOCK);
+  const cuttingSegments = simulation.segments.filter(
+    (segment) =>
+      !segment.machineCoordinates &&
+      segment.kind !== "rapid" &&
+      segment.kind !== "dwell",
+  );
+  const removableSegments = cuttingSegments.filter(
+    (segment) => segment.spindleState !== "off" && segment.spindle > 0,
+  );
+  const firstPlunge = cuttingSegments.find(
+    (segment) => segment.end.z < bounds.topZ,
+  );
+
+  assert.ok(firstPlunge);
+  assert.equal(removableSegments.length, cuttingSegments.length);
+  assert.deepEqual(bounds, { topZ: 18, bottomZ: 0 });
+  const contact = resolveCutterStockContact(
+    firstPlunge.end,
+    DEFAULT_STOCK,
+    bounds,
+  );
+  assert.equal(contact.engaged, true);
+  assert.equal(contact.penetration, 11);
+
+  const texturePoint = mapCncPointToStockTexture(
+    firstPlunge.end,
+    DEFAULT_STOCK,
+    2048,
+  );
+  assert.ok(texturePoint.x > 0 && texturePoint.x < 2048);
+  assert.ok(texturePoint.y > 0 && texturePoint.y < 2048);
+
+  const solidPoint = mapCncPointToSolidWorld(
+    firstPlunge.end,
+    DEFAULT_STOCK,
+    bounds,
+  );
+  assert.ok(solidPoint.y > 0 && solidPoint.y < DEFAULT_STOCK.thickness);
 });
 
 test("lifts the 3D toolpath guide above either stock Z datum", async () => {

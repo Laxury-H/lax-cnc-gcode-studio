@@ -19,7 +19,7 @@
   --success: #50d890;
   --warning: #ff9f1a;
   --danger: #ff5f68;
-  --wood: #c9a879;
+  --wood: #a97849;
   --cyan-glow: 0 0 18px rgba(38, 217, 232, 0.2);
   --mono: var(--font-jetbrains-mono), "SFMono-Regular", "Cascadia Code", "Liberation Mono", Menlo, Consolas, monospace;
   --condensed: var(--font-inter), "Arial Narrow", "Roboto Condensed", "Helvetica Neue", Arial, sans-serif;
@@ -5763,6 +5763,16 @@ button:disabled {
   font-weight: 760;
 }
 
+.canvas-telemetry .telemetry-state.is-cutting {
+  color: #bfffe6;
+  background: rgba(31, 117, 83, 0.24);
+}
+
+.canvas-telemetry .telemetry-state.is-cutting i {
+  background: var(--cut-path);
+  box-shadow: 0 0 0 3px rgba(71, 224, 168, 0.14);
+}
+
 .backplot-controls {
   overflow: hidden;
   border-radius: 8px;
@@ -6841,5 +6851,3 @@ button:disabled {
   display: block;
   margin-top: 2px;
 }
-
-

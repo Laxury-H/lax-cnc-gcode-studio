@@ -92,7 +92,7 @@ function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
 }
 
-function ToolpathOverlay({
+export function ToolpathOverlay({
   simulation,
   cursor,
   segmentProgress,
@@ -373,9 +373,9 @@ function paintStockSurface(
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = "source-over";
   const base = ctx.createLinearGradient(0, 0, 0, height);
-  base.addColorStop(0, "#d8ae79");
-  base.addColorStop(0.5, "#c7935d");
-  base.addColorStop(1, "#b77d49");
+  base.addColorStop(0, "#bd8957");
+  base.addColorStop(0.5, "#a66f42");
+  base.addColorStop(1, "#89502f");
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, width, height);
 
@@ -417,7 +417,7 @@ function paintStockSurface(
     ctx.restore();
   }
 
-  ctx.fillStyle = "rgba(255, 245, 222, 0.035)";
+  ctx.fillStyle = "rgba(255, 239, 210, 0.018)";
   ctx.fillRect(0, 0, width, height);
 }
 
@@ -426,12 +426,14 @@ function paintPlywoodEdge(
   width: number,
   height: number,
 ) {
-  ctx.fillStyle = "#a96f3f";
+  ctx.fillStyle = "#8d5430";
   ctx.fillRect(0, 0, width, height);
   const layerHeight = Math.max(3, Math.round(height / 14));
   for (let y = 0; y < height; y += layerHeight) {
     const layer = Math.floor(y / layerHeight);
-    ctx.fillStyle = layer % 2 === 0 ? "rgba(237, 191, 129, 0.68)" : "rgba(91, 51, 27, 0.45)";
+    ctx.fillStyle = layer % 2 === 0
+      ? "rgba(205, 151, 91, 0.62)"
+      : "rgba(68, 38, 23, 0.54)";
     ctx.fillRect(0, y, width, Math.max(1, layerHeight - 1));
   }
   ctx.strokeStyle = "rgba(58, 31, 17, 0.32)";
@@ -826,13 +828,13 @@ export function StockMesh({ simulation, stock, cursor, segmentProgress = 1, play
         <meshStandardMaterial
           color="#ffffff"
           map={surfaceTexture}
-          roughness={0.76}
+          roughness={0.88}
           metalness={0.015}
           displacementMap={texture}
           displacementScale={stock.thickness}
           displacementBias={-stock.thickness}
           bumpMap={texture}
-          bumpScale={Math.max(0.35, stock.thickness * 0.42)}
+          bumpScale={Math.max(0.2, Math.min(1.6, stock.thickness * 0.09))}
           alphaMap={texture}
           alphaTest={0.012}
           alphaToCoverage={quality !== "low"}
@@ -919,7 +921,7 @@ function PartLabel({
   );
 }
 
-function PartLabelsOverlay({
+export function PartLabelsOverlay({
   simulation,
   topZ,
   quality,
@@ -1407,7 +1409,7 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           onCreated={({ gl }) => {
             gl.outputColorSpace = THREE.SRGBColorSpace;
             gl.toneMapping = THREE.ACESFilmicToneMapping;
-            gl.toneMappingExposure = 1.08;
+            gl.toneMappingExposure = 0.86;
             gl.shadowMap.type = THREE.PCFSoftShadowMap;
           }}
           camera={{ position: [0, Math.max(props.stock.width, props.stock.height) * 1.2, Math.max(props.stock.width, props.stock.height) * 1.0], fov: 45, near: 1, far: Math.max(props.stock.width, props.stock.height) * 10 }}
@@ -1426,11 +1428,11 @@ export function SolidSimulator(props: SolidSimulatorProps) {
           segmentProgress={props.segmentProgress ?? 1}
         />
         <color attach="background" args={["#091014"]} />
-        <hemisphereLight args={["#d8edf2", "#111718", 0.72]} />
-        <ambientLight intensity={0.3} />
+        <hemisphereLight args={["#c6dbe0", "#111718", 0.5]} />
+        <ambientLight intensity={0.18} />
         <directionalLight 
           position={[props.stock.width / 2, props.stock.width * 0.8, props.stock.height * 0.8]} 
-          intensity={2.1}
+          intensity={1.55}
           castShadow={quality !== "low"}
           shadow-mapSize-width={shadowMapSize}
           shadow-mapSize-height={shadowMapSize}

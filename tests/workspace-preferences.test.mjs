@@ -69,6 +69,39 @@ test("workspace preferences round-trip through the versioned schema", async () =
   assert.deepEqual(parseWorkspacePreferences(serialized), validPreferences);
 });
 
+test("advanced cutter profiles survive workspace persistence", async () => {
+  const { parseWorkspacePreferences, serializeWorkspacePreferences } =
+    await loadPreferencesModule();
+  const advancedPreferences = {
+    ...validPreferences,
+    stock: {
+      ...validPreferences.stock,
+      tools: [
+        {
+          id: "10",
+          name: "Face 32",
+          diameter: 32,
+          type: "facemill",
+          fluteLength: 8,
+          stickOut: 45,
+          holderDiameter: 20,
+        },
+        {
+          id: "11",
+          diameter: 12,
+          type: "chamfer",
+          angle: 90,
+          tipDiameter: 1,
+        },
+        { id: "12", diameter: 10, type: "bullnose", cornerRadius: 2 },
+      ],
+    },
+  };
+
+  const serialized = serializeWorkspacePreferences(advancedPreferences);
+  assert.deepEqual(parseWorkspacePreferences(serialized), advancedPreferences);
+});
+
 test("stock settings and nested tools are cloned deeply", async () => {
   const {
     cloneStockSettings,
@@ -208,6 +241,26 @@ test("parser validates zZero and every nested tool", async () => {
     parseWorkspacePreferences(
       withStock({
         tools: [{ id: "1", diameter: 6, type: "flat", tipDiameter: 0.2 }],
+      }),
+    ),
+    null,
+  );
+  assert.equal(
+    parseWorkspacePreferences(
+      withStock({
+        tools: [
+          { id: "1", diameter: 10, type: "bullnose", cornerRadius: 5.1 },
+        ],
+      }),
+    ),
+    null,
+  );
+  assert.equal(
+    parseWorkspacePreferences(
+      withStock({
+        tools: [
+          { id: "1", diameter: 10, type: "facemill", cornerRadius: 1 },
+        ],
       }),
     ),
     null,

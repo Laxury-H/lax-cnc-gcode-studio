@@ -42,6 +42,7 @@ import type {
   PostProcessorType,
   StockSettings,
   StudioMachineProfile as MachineProfile,
+  ToolProfile,
 } from "@/core/simulation/types";
 import {
   Lang,
@@ -2870,14 +2871,28 @@ export default function Home() {
                                 value={tool.type}
                                 onChange={(e) => {
                                   const newTools = [...(settingsDraft.stock.tools || [])];
-                                  const type = e.target.value as "flat" | "ball" | "vbit";
-                                  const nextTool = { ...tool, type };
-                                  if (type === "vbit") {
+                                  const type = e.target.value as ToolProfile["type"];
+                                  const nextTool: ToolProfile = {
+                                    id: tool.id,
+                                    diameter: tool.diameter,
+                                    type,
+                                    ...(tool.name ? { name: tool.name } : {}),
+                                    ...(tool.fluteLength
+                                      ? { fluteLength: tool.fluteLength }
+                                      : {}),
+                                    ...(tool.stickOut ? { stickOut: tool.stickOut } : {}),
+                                    ...(tool.holderDiameter
+                                      ? { holderDiameter: tool.holderDiameter }
+                                      : {}),
+                                  };
+                                  if (type === "vbit" || type === "chamfer") {
                                     nextTool.angle = tool.angle ?? 90;
                                     nextTool.tipDiameter = tool.tipDiameter ?? 0.2;
-                                  } else {
-                                    delete nextTool.angle;
-                                    delete nextTool.tipDiameter;
+                                  } else if (type === "bullnose") {
+                                    nextTool.cornerRadius = Math.min(
+                                      tool.cornerRadius ?? 1,
+                                      tool.diameter / 2,
+                                    );
                                   }
                                   newTools[index] = nextTool;
                                   updateDraftStock((current) => ({ ...current, tools: newTools }));
@@ -2886,6 +2901,15 @@ export default function Home() {
                                 <option value="flat">{t.typeFlat}</option>
                                 <option value="ball">{t.typeBall}</option>
                                 <option value="vbit">{t.typeVBit}</option>
+                                <option value="bullnose">
+                                  {lang === "EN" ? "Bull nose" : "Bo góc (Bull nose)"}
+                                </option>
+                                <option value="chamfer">
+                                  {lang === "EN" ? "Chamfer" : "Dao vát mép"}
+                                </option>
+                                <option value="facemill">
+                                  {lang === "EN" ? "Face mill" : "Dao phay mặt"}
+                                </option>
                               </select>
                             </div>
                           </label>
@@ -2898,14 +2922,35 @@ export default function Home() {
                                 value={tool.diameter}
                                 onChange={(e) => {
                                   const newTools = [...(settingsDraft.stock.tools || [])];
-                                  newTools[index] = { ...tool, diameter: Number(e.target.value) || 0 };
+                                  const diameter = Number(e.target.value) || 0;
+                                  newTools[index] = {
+                                    ...tool,
+                                    diameter,
+                                    ...(tool.type === "bullnose"
+                                      ? {
+                                          cornerRadius: Math.min(
+                                            tool.cornerRadius ?? 1,
+                                            diameter / 2,
+                                          ),
+                                        }
+                                      : {}),
+                                    ...(tool.type === "vbit" ||
+                                    tool.type === "chamfer"
+                                      ? {
+                                          tipDiameter: Math.min(
+                                            tool.tipDiameter ?? 0,
+                                            Math.max(0, diameter - 0.01),
+                                          ),
+                                        }
+                                      : {}),
+                                  };
                                   updateDraftStock((current) => ({ ...current, tools: newTools }));
                                 }}
                               />
                               <small>mm</small>
                             </div>
                           </label>
-                          {tool.type === "vbit" && (
+                          {(tool.type === "vbit" || tool.type === "chamfer") && (
                             <>
                               <label style={{ flex: 1 }}>
                                 <span>{t.toolAngle}</span>
@@ -2950,6 +2995,42 @@ export default function Home() {
                                 </small>
                               </label>
                             </>
+                          )}
+                          {tool.type === "bullnose" && (
+                            <label style={{ flex: 1 }}>
+                              <span>
+                                {lang === "EN" ? "Corner radius" : "Bán kính bo"}
+                              </span>
+                              <div>
+                                <input
+                                  type="number"
+                                  min="0.01"
+                                  max={tool.diameter / 2}
+                                  step="0.01"
+                                  value={tool.cornerRadius ?? 1}
+                                  onChange={(event) => {
+                                    const newTools = [
+                                      ...(settingsDraft.stock.tools || []),
+                                    ];
+                                    newTools[index] = {
+                                      ...tool,
+                                      cornerRadius: Math.min(
+                                        tool.diameter / 2,
+                                        Math.max(
+                                          0.01,
+                                          Number(event.target.value) || 1,
+                                        ),
+                                      ),
+                                    };
+                                    updateDraftStock((current) => ({
+                                      ...current,
+                                      tools: newTools,
+                                    }));
+                                  }}
+                                />
+                                <small>mm</small>
+                              </div>
+                            </label>
                           )}
                           <button
                             type="button"

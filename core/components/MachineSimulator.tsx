@@ -4,10 +4,16 @@ import { OrbitControls, Box, Cylinder } from "@react-three/drei";
 import * as THREE from "three";
 import type { Simulation, StockSettings, Vec3 } from "../simulation/types";
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { StockMesh } from "./SolidSimulator";
+import {
+  PartLabelsOverlay,
+  StockMesh,
+  ToolpathOverlay,
+} from "./SolidSimulator";
 import { resolveStockZBounds } from "../measurement/measurement-utils";
 import {
   resolveSegmentTool,
+  resolveCutterStockContact,
+  resolveToolpathOverlayZ,
 } from "../simulation/stock-removal-coordinates";
 import { pointOnSegment } from "../utils/gcode-utils";
 import { CutterModel } from "./CutterModel";
@@ -26,6 +32,9 @@ interface MachineSimulatorProps {
   playing?: boolean;
   showTool?: boolean;
   showStock?: boolean;
+  showRapids?: boolean;
+  showToolpath?: boolean;
+  showBounds?: boolean;
   resetTrigger?: number;
   onOrbitChange?: (orbit: { yaw: number; pitch: number }) => void;
   quality?: "low" | "medium" | "high";
@@ -70,6 +79,9 @@ export function MachineKinematics({
   segmentProgress = 1,
   showTool = true,
   showStock = true,
+  showRapids = true,
+  showToolpath = true,
+  showBounds = true,
   quality = "medium",
   playing = false,
 }: Omit<MachineSimulatorProps, "resetTrigger" | "onOrbitChange">) {
@@ -96,7 +108,11 @@ export function MachineKinematics({
   const zBounds = resolveStockZBounds(simulation, stock);
   const machinePosition = mapCncPointToMachineWorld(currentPos, zBounds);
   const limitState = resolveMachineLimitState(currentPos, stock);
-  const isCuttingDepth = currentPos.z < zBounds.topZ - 0.000001;
+  const stockContact = resolveCutterStockContact(currentPos, stock, zBounds);
+  const isCuttingDepth =
+    stockContact.engaged &&
+    curSeg?.spindleState !== "off" &&
+    (curSeg?.spindle ?? 0) > 0;
 
   useFrame(() => {
     // Kinematic chain mapping
@@ -154,6 +170,26 @@ export function MachineKinematics({
           <StockMesh simulation={simulation} stock={stock} cursor={cursor} segmentProgress={segmentProgress} playing={playing} quality={quality} />
         </group>
       )}
+
+      {/* CNC overlays share the same datum translation as the cutter tip. */}
+      <group position={[0, 0, -zBounds.bottomZ]}>
+        {showStock && (
+          <PartLabelsOverlay
+            simulation={simulation}
+            topZ={zBounds.topZ}
+            quality={quality}
+          />
+        )}
+        <ToolpathOverlay
+          simulation={simulation}
+          cursor={cursor}
+          segmentProgress={segmentProgress}
+          showRapids={showRapids}
+          showToolpath={showToolpath}
+          showBounds={showBounds}
+          surfaceZ={resolveToolpathOverlayZ(stock, zBounds)}
+        />
+      </group>
 
       {/* 2. Gantry (Moves in Y) */}
       <group ref={gantryRef}>
@@ -228,6 +264,9 @@ export function MachineSimulator({
   playing,
   showTool,
   showStock,
+  showRapids,
+  showToolpath,
+  showBounds,
   resetTrigger,
   onOrbitChange,
   quality = "medium",
@@ -263,7 +302,7 @@ export function MachineSimulator({
       onCreated={({ gl }) => {
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.04;
+        gl.toneMappingExposure = 0.9;
         gl.shadowMap.type = THREE.PCFSoftShadowMap;
       }}
       camera={{ position: [stockCenterX, stockCenterY - stock.height * 1.5, Math.max(stock.width, stock.height)], fov: 45, up: [0, 0, 1], far: 20000 }}
@@ -277,10 +316,10 @@ export function MachineSimulator({
       />
       <color attach="background" args={["#05080a"]} />
       
-      <ambientLight intensity={0.6} />
+      <ambientLight intensity={0.42} />
       <directionalLight
         position={[stockCenterX, stockCenterY, 3000]}
-        intensity={1.5}
+        intensity={1.3}
         castShadow={quality !== "low"}
         shadow-mapSize={[
           shadowMapSize,
@@ -301,15 +340,18 @@ export function MachineSimulator({
         playing={playing}
         showTool={showTool}
         showStock={showStock}
+        showRapids={showRapids}
+        showToolpath={showToolpath}
+        showBounds={showBounds}
         quality={quality}
       />
 
       {quality === "high" && (
         <>
-          <hemisphereLight args={["#dcecff", "#12181d", 0.4]} />
+          <hemisphereLight args={["#c9dce3", "#12181d", 0.32]} />
           <pointLight
             position={[stockCenterX - stock.width, stockCenterY, 900]}
-            intensity={0.35}
+            intensity={0.25}
             distance={6000}
           />
         </>

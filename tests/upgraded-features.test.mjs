@@ -50,6 +50,33 @@ test("advanced tool profiles (bullnose, chamfer, facemill) calculate correct con
   assert.ok(MATERIAL_CUTTING_PRESETS.some((p) => p.material === "aluminum"));
 });
 
+test("advanced cutter meshes keep the physical tip at the shared local origin", async () => {
+  const { resolveCutterModelLength } = await loadModule(
+    "../core/components/CutterModel.tsx",
+  );
+
+  assert.equal(
+    resolveCutterModelLength(
+      { id: "12", type: "bullnose", diameter: 10, cornerRadius: 2 },
+      40,
+    ),
+    40,
+  );
+  assert.equal(
+    resolveCutterModelLength(
+      { id: "10", type: "facemill", diameter: 32, stickOut: 55 },
+      40,
+    ),
+    55,
+  );
+  assert.ok(
+    resolveCutterModelLength(
+      { id: "11", type: "chamfer", diameter: 12, angle: 30 },
+      10,
+    ) > 20,
+  );
+});
+
 test("G-code syntax highlighter parses and tokenizes words properly", async () => {
   const { highlightGcodeLine } = await loadModule("../core/components/GcodeEditor.tsx");
 

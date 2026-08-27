@@ -113,10 +113,14 @@ test("3D Machine applies the shared stock datum and origin-aware helpers", async
   assert.match(source, /resolveMachineLimitState\(currentPos, stock\)/);
   assert.match(source, /pointOnSegment\(curSeg, segmentProgress\)/);
   assert.match(source, /resolveSegmentTool\(stock, activeSegment\?\.tool\)/);
+  assert.match(source, /resolveCutterStockContact\(currentPos, stock, zBounds\)/);
   assert.match(source, /stock\.originX \+ stock\.width \/ 2/);
   assert.match(source, /stock\.originY \+ stock\.height \/ 2/);
   assert.doesNotMatch(source, /MachiningEffects|ContactShadows/);
   assert.match(source, /curSeg\.spindle > 0/);
   assert.match(source, /curSeg\.spindleState !== "off"/);
   assert.match(source, /<CutterModel/);
+  assert.match(source, /<PartLabelsOverlay/);
+  assert.match(source, /<ToolpathOverlay/);
+  assert.match(source, /position=\{\[0, 0, -zBounds\.bottomZ\]\}/);
 });

@@ -13,6 +13,12 @@ export type CutterContactBand = {
   z: number;
 };
 
+export type CutterStockContact = {
+  insideXY: boolean;
+  penetration: number;
+  engaged: boolean;
+};
+
 export type VBitGeometry = {
   diameter: number;
   radius: number;
@@ -166,6 +172,37 @@ export function mapCncPointToStockTexture(
     y:
       resolution -
       ((point.y - stock.originY) / height) * resolution,
+  };
+}
+
+/**
+ * Resolves physical tip engagement in the same CNC frame used by the stock
+ * texture, Solid view, and Machine view. Keeping this calculation shared
+ * prevents a cutter that looks centered from removing material elsewhere.
+ */
+export function resolveCutterStockContact(
+  point: Pick<Vec3, "x" | "y" | "z">,
+  stock: Pick<
+    StockSettings,
+    "originX" | "originY" | "width" | "height"
+  >,
+  bounds: StockZBounds,
+): CutterStockContact {
+  const epsilon = 1e-6;
+  const minimumX = Math.min(stock.originX, stock.originX + stock.width);
+  const maximumX = Math.max(stock.originX, stock.originX + stock.width);
+  const minimumY = Math.min(stock.originY, stock.originY + stock.height);
+  const maximumY = Math.max(stock.originY, stock.originY + stock.height);
+  const insideXY =
+    point.x >= minimumX - epsilon &&
+    point.x <= maximumX + epsilon &&
+    point.y >= minimumY - epsilon &&
+    point.y <= maximumY + epsilon;
+  const penetration = Math.max(0, bounds.topZ - point.z);
+  return {
+    insideXY,
+    penetration,
+    engaged: insideXY && penetration > epsilon,
   };
 }
 
@@ -402,7 +439,14 @@ export function stockRemovalRenderKey(
   const tools = (stock.tools ?? [])
     .map(
       (tool) =>
-        `${normalizeToolId(tool.id)}:${tool.diameter}:${tool.type}:${tool.angle ?? ""}:${tool.tipDiameter ?? ""}`,
+        [
+          normalizeToolId(tool.id),
+          tool.diameter,
+          tool.type,
+          tool.angle ?? "",
+          tool.tipDiameter ?? "",
+          tool.cornerRadius ?? "",
+        ].join(":"),
     )
     .join(",");
   return [
@@ -447,8 +491,8 @@ export function cutSurfaceColor(
   // Render the groove as a shadowed exposed wall. Keeping every cut colour
   // below the stock albedo lets the canvas use a monotonic darken blend, so a
   // later shallow pass cannot visually refill a deeper pocket.
-  const shallow = [178, 124, 73] as const;
-  const deep = [68, 39, 22] as const;
+  const shallow = [139, 86, 48] as const;
+  const deep = [48, 29, 18] as const;
   const channel = (index: number) =>
     Math.round(shallow[index] + (deep[index] - shallow[index]) * shade);
   return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
@@ -511,4 +555,3 @@ export const MATERIAL_CUTTING_PRESETS: readonly import("./types").CuttingPreset[
     maxStepdown: 2.0,
   },
 ];
-

@@ -25,6 +25,7 @@ import type { Segment, Simulation, StockSettings, Vec3 } from "@/core/simulation
 import { resolveStockZBounds } from "@/core/measurement/measurement-utils";
 import {
   cutSurfaceColor,
+  resolveCutterStockContact,
   resolveSegmentTool,
 } from "@/core/simulation/stock-removal-coordinates";
 import { renderPerformanceProfile, shouldRenderFrame } from "@/core/simulation/render-performance";
@@ -439,12 +440,12 @@ function ToolpathCanvas({
         );
       });
       if (orbit.pitch >= 0) {
-        drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.25);
+        drawPolygon(boardCorners, "#a47445", "#bf8b57", 1.25);
       } else {
-        drawPolygon(stockBottom.map(project), "#9e774a", "rgba(80,50,20,.45)", 1.25);
+        drawPolygon(stockBottom.map(project), "#805b37", "rgba(62,38,22,.58)", 1.25);
       }
     } else if (shouldDrawStock) {
-      drawPolygon(boardCorners, "#b9905d", "#d1a56b", 1.2);
+      drawPolygon(boardCorners, "#a47445", "#bf8b57", 1.2);
     }
 
     if (shouldDrawStock) {
@@ -1129,6 +1130,23 @@ function ToolpathCanvas({
     ? pointOnSegmentInTelemetryCoordinates(currentSegment, segmentProgress)
     : { x: stock.originX, y: stock.originY, z: stock.safeZ };
   const currentPosition = pointInProgramUnits(currentPositionMm, activeUnits);
+  const currentTip = currentSegment
+    ? pointOnSegment(currentSegment, segmentProgress)
+    : { x: stock.originX, y: stock.originY, z: stock.safeZ };
+  const currentContact = resolveCutterStockContact(
+    currentTip,
+    stock,
+    resolveStockZBounds(simulation, stock),
+  );
+  const removingMaterial = Boolean(
+    currentSegment &&
+      !currentSegment.machineCoordinates &&
+      currentSegment.kind !== "rapid" &&
+      currentSegment.kind !== "dwell" &&
+      currentSegment.spindleState !== "off" &&
+      currentSegment.spindle > 0 &&
+      currentContact.engaged,
+  );
   const activeCoordinateSystem =
     currentSegment?.coordinateSystem ?? simulation.finalState.coordinateSystem;
   const activeCoordinateLabel = currentSegment?.machineCoordinates
@@ -1166,9 +1184,28 @@ function ToolpathCanvas({
         className="canvas-telemetry"
         aria-label={`${activeCoordinateLabel}: tọa độ dao X ${currentPosition.x.toFixed(3)}, Y ${currentPosition.y.toFixed(3)}, Z ${currentPosition.z.toFixed(3)} ${activeUnits}`}
       >
-        <span className={`telemetry-state${playing ? " is-running" : ""}`}>
+        <span
+          className={`telemetry-state${playing ? " is-running" : ""}${
+            removingMaterial ? " is-cutting" : ""
+          }`}
+          title={
+            removingMaterial
+              ? lang === "EN"
+                ? `Cutting stock · ${currentContact.penetration.toFixed(2)} mm engagement`
+                : `Đang cắt phôi · ăn sâu ${currentContact.penetration.toFixed(2)} mm`
+              : lang === "EN"
+                ? "Air move or cutter outside stock"
+                : "Chạy không tải hoặc dao ngoài phôi"
+          }
+        >
           <i />
-          {playing ? "RUN" : t.ready} · {activeCoordinateLabel}
+          {removingMaterial
+            ? lang === "EN"
+              ? "CUT"
+              : "CẮT"
+            : playing
+              ? "RUN"
+              : t.ready} · {activeCoordinateLabel}
         </span>
         {(["x", "y", "z"] as const).map((axis) => (
           <span className={`telemetry-axis is-${axis}`} key={axis}>
@@ -1288,6 +1325,9 @@ function ToolpathCanvas({
               playing={playing}
               showTool={showTool}
               showStock={showStock}
+              showRapids={showRapids}
+              showToolpath={showToolpath}
+              showBounds={showBounds}
               resetTrigger={resetTrigger}
               onOrbitChange={onOrbit}
               quality={quality}

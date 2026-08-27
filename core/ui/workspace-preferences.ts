@@ -38,7 +38,14 @@ const Z_ZERO_VALUES = new Set<NonNullable<StockSettings["zZero"]>>([
   "top",
   "bottom",
 ]);
-const TOOL_TYPES = new Set<ToolProfile["type"]>(["flat", "ball", "vbit"]);
+const TOOL_TYPES = new Set<ToolProfile["type"]>([
+  "flat",
+  "ball",
+  "vbit",
+  "bullnose",
+  "chamfer",
+  "facemill",
+]);
 const COORDINATE_SYSTEMS = [
   "G54",
   "G55",
@@ -107,12 +114,21 @@ function parseTool(value: unknown): ToolProfile | null {
   if (typeof value.type !== "string" || !TOOL_TYPES.has(value.type as ToolProfile["type"])) {
     return null;
   }
+  const type = value.type as ToolProfile["type"];
 
   const diameter = boundedNumber(value.diameter, {
     min: 0,
     max: 1_000,
   });
   if (diameter === null) return null;
+
+  let name: string | undefined;
+  if (value.name !== undefined) {
+    if (typeof value.name !== "string") return null;
+    const parsedName = value.name.trim();
+    if (!parsedName || parsedName.length > 128) return null;
+    name = parsedName;
+  }
 
   let angle: number | undefined;
   if (value.angle !== undefined) {
@@ -121,7 +137,12 @@ function parseTool(value: unknown): ToolProfile | null {
       max: 180,
       maxInclusive: false,
     });
-    if (parsedAngle === null) return null;
+    if (
+      parsedAngle === null ||
+      (type !== "vbit" && type !== "chamfer")
+    ) {
+      return null;
+    }
     angle = parsedAngle;
   }
 
@@ -133,16 +154,47 @@ function parseTool(value: unknown): ToolProfile | null {
       max: diameter,
       maxInclusive: false,
     });
-    if (parsedTipDiameter === null || value.type !== "vbit") return null;
+    if (
+      parsedTipDiameter === null ||
+      (type !== "vbit" && type !== "chamfer")
+    ) {
+      return null;
+    }
     tipDiameter = parsedTipDiameter;
+  }
+
+  let cornerRadius: number | undefined;
+  if (value.cornerRadius !== undefined) {
+    const parsedCornerRadius = boundedNumber(value.cornerRadius, {
+      min: 0,
+      max: diameter / 2,
+    });
+    if (parsedCornerRadius === null || type !== "bullnose") return null;
+    cornerRadius = parsedCornerRadius;
+  }
+
+  const parseOptionalLength = (valueToParse: unknown): number | null | undefined =>
+    valueToParse === undefined
+      ? undefined
+      : boundedNumber(valueToParse, { min: 0, max: 10_000 });
+  const fluteLength = parseOptionalLength(value.fluteLength);
+  const stickOut = parseOptionalLength(value.stickOut);
+  const holderDiameter = parseOptionalLength(value.holderDiameter);
+  if (fluteLength === null || stickOut === null || holderDiameter === null) {
+    return null;
   }
 
   return {
     id,
     diameter,
-    type: value.type as ToolProfile["type"],
+    type,
+    ...(name === undefined ? {} : { name }),
     ...(angle === undefined ? {} : { angle }),
     ...(tipDiameter === undefined ? {} : { tipDiameter }),
+    ...(cornerRadius === undefined ? {} : { cornerRadius }),
+    ...(fluteLength === undefined ? {} : { fluteLength }),
+    ...(stickOut === undefined ? {} : { stickOut }),
+    ...(holderDiameter === undefined ? {} : { holderDiameter }),
   };
 }
 
