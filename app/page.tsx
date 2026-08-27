@@ -238,6 +238,7 @@ export default function Home() {
   const [resumeSafeZ, setResumeSafeZ] = useState(50);
   const [exportType, setExportType] = useState<PostProcessorType>("ncstudio");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"stock" | "tools" | "safety" | "preferences">("stock");
   const [settingsDraft, setSettingsDraft] = useState<WorkspacePreferences>(
     createDefaultWorkspacePreferences,
   );
@@ -2505,545 +2506,810 @@ export default function Home() {
                 <Icon name="close" />
               </button>
             </div>
-            <div className="modal-body">
-              <section
-                className="simulation-preferences"
-                aria-labelledby="simulation-preferences-title"
-              >
-                <div className="simulation-preferences__heading">
-                  <Icon name="settings" size={18} />
+            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {/* Live Config Summary HUD */}
+              <div className="settings-hud-summary">
+                <div className="settings-hud-card">
+                  <span className="settings-hud-card-icon">
+                    <Icon name="panel" size={16} />
+                  </span>
                   <div>
-                    <strong id="simulation-preferences-title">
-                      {t.preferenceTitle}
-                    </strong>
-                    <small>{t.preferenceDescription}</small>
-                  </div>
-                </div>
-                <div className="simulation-preferences__grid">
-                  <label>
-                    <span>{t.profileLabel}</span>
-                    <select
-                      value={settingsDraft.profile}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          profile: event.target.value as MachineProfile,
-                        }))
-                      }
-                    >
-                      <option value="router-custom">{t.routerCustom}</option>
-                      <option value="iso">{t.isoBasic}</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>{t.speedControl}</span>
-                    <select
-                      value={settingsDraft.speed}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          speed: Number(event.target.value),
-                        }))
-                      }
-                    >
-                      {[0.5, 1, 2, 5, 10, 20].map((option) => (
-                        <option value={option} key={option}>
-                          {option}×
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>{t.configLabel}</span>
-                    <select
-                      value={settingsDraft.quality}
-                      onChange={(event) =>
-                        setSettingsDraft((current) => ({
-                          ...current,
-                          quality: event.target.value as SimulationQuality,
-                        }))
-                      }
-                    >
-                      <option value="low">{t.perfLow}</option>
-                      <option value="medium">{t.perfMedium}</option>
-                      <option value="high">{t.perfHigh}</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="simulation-preferences__toggles">
-                  {([
-                    ["showRapids", t.showRapidPreference],
-                    ["machineSound", t.machineSoundLabel],
-                    ["finishSound", t.finishSoundLabel],
-                  ] as const).map(([key, label]) => (
-                    <label className="settings-option" key={key}>
-                      <input
-                        type="checkbox"
-                        checked={settingsDraft[key]}
-                        onChange={(event) =>
-                          setSettingsDraft((current) => ({
-                            ...current,
-                            [key]: event.target.checked,
-                          }))
-                        }
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </section>
-
-              <div className="settings-grid">
-                {([
-                  ["width", t.lblWidth, "mm"],
-                  ["height", t.lblHeight, "mm"],
-                  ["thickness", t.lblThickness, "mm"],
-                  ["toolDiameter", t.lblToolDia, "mm"],
-                  ["originX", t.lblOriginX, "mm"],
-                  ["originY", t.lblOriginY, "mm"],
-                  ["safeZ", t.lblSafeZ, "mm"],
-                  ["clearance", t.lblClearance, "mm"],
-                  ["rapidFeed", t.lblRapidFeed, "mm/min"],
-                ] as const).map(([key, label, unit]) => (
-                <label key={key}>
-                  <span>{label}</span>
-                  <div>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={settingsDraft.stock[key]}
-                      min={
-                        key === "clearance"
-                          ? 0
-                          : key === "width" ||
-                              key === "height" ||
-                              key === "thickness" ||
-                              key === "toolDiameter" ||
-                              key === "rapidFeed"
-                            ? 0.001
-                            : undefined
-                      }
-                      max={key === "rapidFeed" ? 1000000 : 100000}
-                      aria-invalid={isInvalidStockField(
-                        key,
-                        settingsDraft.stock[key],
-                      )}
-                      onChange={(event) =>
-                        updateDraftStock((current) => {
-                          const value = Number(event.target.value) || 0;
-                          if (key === "width") {
-                            return resizeStockPreservingPinnedOrigin(
-                              current,
-                              value,
-                              current.height,
-                            );
-                          }
-                          if (key === "height") {
-                            return resizeStockPreservingPinnedOrigin(
-                              current,
-                              current.width,
-                              value,
-                            );
-                          }
-                          return { ...current, [key]: value };
-                        })
-                      }
-                    />
-                      <small>{unit}</small>
+                    <div className="settings-hud-card-label">{lang === "EN" ? "Stock Size" : "Kích thước phôi"}</div>
+                    <div className="settings-hud-card-value">
+                      {settingsDraft.stock.width} × {settingsDraft.stock.height} × {settingsDraft.stock.thickness} mm
                     </div>
-                  </label>
-                ))}
-                <label>
-                  <span>{t.stockZReference}</span>
+                  </div>
+                </div>
+                <div className="settings-hud-card">
+                  <span className="settings-hud-card-icon">
+                    <Icon name="compass" size={16} />
+                  </span>
                   <div>
-                    <select
-                      value={settingsDraft.stock.zZero ?? "auto"}
-                      onChange={(event) =>
-                        updateDraftStock((current) => ({
-                          ...current,
-                          zZero: event.target.value as NonNullable<
-                            StockSettings["zZero"]
-                          >,
-                        }))
-                      }
+                    <div className="settings-hud-card-label">{lang === "EN" ? "Z0 Datum" : "Mốc Z0"}</div>
+                    <div className="settings-hud-card-value" style={{ color: "#38bdf8" }}>
+                      {settingsDraft.stock.zZero === "bottom"
+                        ? (lang === "EN" ? "Bottom = Z0" : "Đáy phôi / Mặt bàn")
+                        : settingsDraft.stock.zZero === "top"
+                          ? (lang === "EN" ? "Top = Z0" : "Mặt trên phôi")
+                          : (lang === "EN" ? "Auto-detect" : "Tự nhận diện")}
+                    </div>
+                  </div>
+                </div>
+                <div className="settings-hud-card">
+                  <span className="settings-hud-card-icon">
+                    <Icon name="crosshair" size={16} />
+                  </span>
+                  <div>
+                    <div className="settings-hud-card-label">{lang === "EN" ? "Origin" : "Gốc phôi"}</div>
+                    <div className="settings-hud-card-value">
+                      X={settingsDraft.stock.originX}, Y={settingsDraft.stock.originY}
+                    </div>
+                  </div>
+                </div>
+                <div className="settings-hud-card">
+                  <span className="settings-hud-card-icon">
+                    <Icon name="sparkles" size={16} />
+                  </span>
+                  <div>
+                    <div className="settings-hud-card-label">{t.activeToolSummary}</div>
+                    <div className="settings-hud-card-value">
+                      Ø{settingsDraft.stock.toolDiameter} mm · {(settingsDraft.stock.tools || []).length} {t.toolsInLib}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modern Tab Bar */}
+              <div className="settings-modal-v2-nav" aria-label={t.stockToolTitle}>
+                <button
+                  type="button"
+                  className={`settings-v2-tab-btn ${settingsTab === "stock" ? "is-active" : ""}`}
+                  onClick={() => setSettingsTab("stock")}
+                >
+                  <Icon name="panel" size={15} />
+                  <span>{t.tabSettingsStock}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`settings-v2-tab-btn ${settingsTab === "tools" ? "is-active" : ""}`}
+                  onClick={() => setSettingsTab("tools")}
+                >
+                  <Icon name="sparkles" size={15} />
+                  <span>{t.tabSettingsTools}</span>
+                  <span style={{ fontSize: "10px", padding: "1px 5px", borderRadius: "10px", background: "rgba(255,255,255,0.1)" }}>
+                    {(settingsDraft.stock.tools || []).length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`settings-v2-tab-btn ${settingsTab === "safety" ? "is-active" : ""}`}
+                  onClick={() => setSettingsTab("safety")}
+                >
+                  <Icon name="shield" size={15} />
+                  <span>{t.tabSettingsSafety}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`settings-v2-tab-btn ${settingsTab === "preferences" ? "is-active" : ""}`}
+                  onClick={() => setSettingsTab("preferences")}
+                >
+                  <Icon name="settings" size={15} />
+                  <span>{t.tabSettingsPrefs}</span>
+                </button>
+              </div>
+
+              {/* TAB 1: STOCK & ORIGIN */}
+              {settingsTab === "stock" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {/* Quick Sheet Presets */}
+                  <div className="quick-preset-bar">
+                    <span className="quick-preset-label">{t.quickStockPresets}:</span>
+                    <button
+                      type="button"
+                      className="quick-preset-btn"
+                      onClick={() => {
+                        updateDraftStock((cur) =>
+                          resizeStockPreservingPinnedOrigin({ ...cur, thickness: 17 }, 2440, 1220),
+                        );
+                      }}
                     >
-                      <option value="auto">{t.stockZAuto}</option>
-                      <option value="top">{t.stockZTop}</option>
-                      <option value="bottom">{t.stockZBottom}</option>
-                    </select>
-                    <small>Z0</small>
+                      {t.presetSheetFull}
+                    </button>
+                    <button
+                      type="button"
+                      className="quick-preset-btn"
+                      onClick={() => {
+                        updateDraftStock((cur) =>
+                          resizeStockPreservingPinnedOrigin({ ...cur, thickness: 18 }, 1220, 1220),
+                        );
+                      }}
+                    >
+                      {t.presetSheetHalf}
+                    </button>
+                    <button
+                      type="button"
+                      className="quick-preset-btn"
+                      onClick={() => {
+                        updateDraftStock((cur) =>
+                          resizeStockPreservingPinnedOrigin({ ...cur, thickness: 10 }, 600, 400),
+                        );
+                      }}
+                    >
+                      {t.presetSheetAlu}
+                    </button>
+                    <button
+                      type="button"
+                      className="quick-preset-btn"
+                      onClick={() => {
+                        updateDraftStock((cur) =>
+                          resizeStockPreservingPinnedOrigin({ ...cur, thickness: 3 }, 300, 200),
+                        );
+                      }}
+                    >
+                      {t.presetSheetMica}
+                    </button>
                   </div>
-                  <em>{t.stockZReferenceHelp}</em>
-                </label>
-              </div>
 
-              <details className="work-offset-settings">
-                <summary>
-                  <span>{t.workOffsetsTitle}</span>
-                  <small>{t.workOffsetsBadge}</small>
-                </summary>
-                <div className="work-offset-settings__body">
-                  <p>{t.workOffsetsDesc}</p>
-                  <div className="work-offset-table-wrap">
-                    <table aria-label={t.workOffsetsTableLabel}>
-                      <thead>
-                        <tr>
-                          <th scope="col">WCS</th>
-                          <th scope="col">X</th>
-                          <th scope="col">Y</th>
-                          <th scope="col">Z</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {WORK_COORDINATE_SYSTEMS.map((coordinateSystem) => (
-                          <tr key={coordinateSystem}>
-                            <th scope="row">
-                              {coordinateSystem}
-                              {coordinateSystem === "G54" ? (
-                                <small>REF</small>
-                              ) : null}
-                            </th>
-                            {(["x", "y", "z"] as const).map((axis) => (
-                              <td key={axis}>
-                                <input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={workOffsetInputDraft[coordinateSystem][axis]}
-                                  aria-label={`${coordinateSystem} ${axis.toUpperCase()}`}
-                                  aria-invalid={
-                                    parseWorkOffsetInput(
-                                      workOffsetInputDraft[coordinateSystem][axis],
-                                    ) === null
-                                  }
-                                  onChange={(event) =>
-                                    updateDraftWorkOffset(
-                                      coordinateSystem,
-                                      axis,
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button
-                    type="button"
-                    className="ghost-button work-offset-settings__reset"
-                    onClick={() => {
-                      const zeroWorkOffsets = createZeroWorkspaceWorkOffsets();
-                      setSettingsDraft((current) => ({
-                        ...current,
-                        workOffsets: zeroWorkOffsets,
-                      }));
-                      setWorkOffsetInputDraft(
-                        createWorkOffsetInputDraft(zeroWorkOffsets),
-                      );
-                    }}
-                  >
-                    {t.workOffsetsReset}
-                  </button>
-                </div>
-              </details>
-
-              <section
-                className="experimental-settings"
-                aria-labelledby="experimental-settings-title"
-              >
-                <div className="experimental-settings__header">
-                  <span className="experimental-settings__icon" aria-hidden="true">
-                    <Icon name="cube" size={18} />
-                  </span>
-                  <div>
-                    <strong id="experimental-settings-title">
-                      {t.experimentalTitle}
-                    </strong>
-                    <p id="machine3d-experimental-description">
-                      {t.machine3DDesc}
-                    </p>
-                  </div>
-                  <span className="experimental-settings__badge">
-                    {t.experimentalBadge}
-                  </span>
-                </div>
-                <label className="experimental-toggle">
-                  <span>
-                    <strong>{t.machine3DTitle}</strong>
-                    <small>
-                      {machineViewEnabled
-                        ? t.machine3DEnabled
-                        : t.machine3DDisabled}
-                    </small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={machineViewEnabled}
-                    onChange={(event) => toggleMachineView(event.target.checked)}
-                    aria-label={t.machine3DTitle}
-                    aria-describedby="machine3d-experimental-description"
-                  />
-                  <i className="experimental-toggle__switch" aria-hidden="true" />
-                </label>
-              </section>
-
-              <div className="quick-origin-widget">
-                <span className="quick-origin-title">
-                  {t.quickOrigin}
-                </span>
-                <div className="quick-origin-grid">
-                  {[
-                    { id: "tl", x: 0, y: -settingsDraft.stock.height, title: "Top-Left" },
-                    { id: "tc", x: -settingsDraft.stock.width / 2, y: -settingsDraft.stock.height, title: "Top-Center" },
-                    { id: "tr", x: -settingsDraft.stock.width, y: -settingsDraft.stock.height, title: "Top-Right" },
-                    { id: "c", x: -settingsDraft.stock.width / 2, y: -settingsDraft.stock.height / 2, title: "Center" },
-                    { id: "bl", x: 0, y: 0, title: "Bottom-Left" },
-                    { id: "bc", x: -settingsDraft.stock.width / 2, y: 0, title: "Bottom-Center" },
-                    { id: "br", x: -settingsDraft.stock.width, y: 0, title: "Bottom-Right" },
-                  ].map((preset) => {
-                    const isActive = settingsDraft.stock.originX === preset.x && settingsDraft.stock.originY === preset.y;
-                    return (
-                      <button
-                        key={preset.id}
-                        className={isActive ? "is-active" : ""}
-                        type="button"
-                        title={preset.title}
-                        aria-pressed={isActive}
-                        onClick={() =>
-                          updateDraftStock((current) => ({
-                            ...current,
-                            originX: preset.x,
-                            originY: preset.y,
-                          }))
-                        }
-                      >
-                        <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
-                          <rect x="15" y="15" width="70" height="70" fill="none" stroke="currentColor" strokeWidth="6" />
-                          <circle cx="15" cy="15" r="10" fill={preset.id.includes('t') && preset.id.includes('l') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                          <circle cx="50" cy="15" r="10" fill={preset.id === 'tc' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                          <circle cx="85" cy="15" r="10" fill={preset.id.includes('t') && preset.id.includes('r') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                          <circle cx="15" cy="85" r="10" fill={preset.id.includes('b') && preset.id.includes('l') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                          <circle cx="50" cy="85" r="10" fill={preset.id === 'bc' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                          <circle cx="85" cy="85" r="10" fill={preset.id.includes('b') && preset.id.includes('r') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                          <circle cx="50" cy="50" r="10" fill={preset.id === 'c' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
-                        </svg>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="tool-library">
-                <h3>{t.toolLibrary}</h3>
-                <div className="tool-list">
-                  {(settingsDraft.stock.tools || []).map((tool, index) => (
-                    <div key={index} className="tool-item">
-                      <label style={{ flex: 1 }}>
-                        <span>{t.toolId}</span>
-                        <div>
-                          <input
-                            type="text"
-                            value={tool.id}
-                            onChange={(e) => {
-                              const newTools = [...(settingsDraft.stock.tools || [])];
-                              newTools[index] = { ...tool, id: e.target.value };
-                              updateDraftStock((current) => ({ ...current, tools: newTools }));
-                            }}
-                          />
-                        </div>
-                      </label>
-                      <label style={{ flex: 1.5 }}>
-                        <span>{t.toolType}</span>
-                        <div>
-                          <select
-                            value={tool.type}
-                            onChange={(e) => {
-                              const newTools = [...(settingsDraft.stock.tools || [])];
-                              const type = e.target.value as "flat" | "ball" | "vbit";
-                              const nextTool = { ...tool, type };
-                              if (type === "vbit") {
-                                nextTool.angle = tool.angle ?? 90;
-                                nextTool.tipDiameter = tool.tipDiameter ?? 0.2;
-                              } else {
-                                delete nextTool.angle;
-                                delete nextTool.tipDiameter;
-                              }
-                              newTools[index] = nextTool;
-                              updateDraftStock((current) => ({ ...current, tools: newTools }));
-                            }}
-                          >
-                            <option value="flat">{t.typeFlat}</option>
-                            <option value="ball">{t.typeBall}</option>
-                            <option value="vbit">{t.typeVBit}</option>
-                          </select>
-                        </div>
-                      </label>
-                      <label style={{ flex: 1 }}>
-                        <span>{t.lblToolDia}</span>
+                  {/* Stock Dimensions Inputs */}
+                  <div className="settings-grid">
+                    {([
+                      ["width", t.lblWidth, "mm"],
+                      ["height", t.lblHeight, "mm"],
+                      ["thickness", t.lblThickness, "mm"],
+                    ] as const).map(([key, label, unit]) => (
+                      <label key={key}>
+                        <span>{label}</span>
                         <div>
                           <input
                             type="number"
                             step="0.1"
-                            value={tool.diameter}
-                            onChange={(e) => {
-                              const newTools = [...(settingsDraft.stock.tools || [])];
-                              newTools[index] = { ...tool, diameter: Number(e.target.value) || 0 };
-                              updateDraftStock((current) => ({ ...current, tools: newTools }));
-                            }}
+                            value={settingsDraft.stock[key]}
+                            min={0.001}
+                            max={100000}
+                            aria-invalid={isInvalidStockField(key, settingsDraft.stock[key])}
+                            onChange={(event) =>
+                              updateDraftStock((current) => {
+                                const value = Number(event.target.value) || 0;
+                                if (key === "width") {
+                                  return resizeStockPreservingPinnedOrigin(current, value, current.height);
+                                }
+                                if (key === "height") {
+                                  return resizeStockPreservingPinnedOrigin(current, current.width, value);
+                                }
+                                return { ...current, [key]: value };
+                              })
+                            }
+                          />
+                          <small>{unit}</small>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Z0 Reference Datum Cards */}
+                  <div>
+                    <span style={{ fontSize: "12px", fontWeight: "600", color: "#f8fafc" }}>
+                      {t.stockZReference}
+                    </span>
+                    <div className="z0-datum-card-grid">
+                      <button
+                        type="button"
+                        className={`z0-datum-card ${(settingsDraft.stock.zZero ?? "auto") === "top" ? "is-active" : ""}`}
+                        onClick={() => updateDraftStock((cur) => ({ ...cur, zZero: "top" }))}
+                      >
+                        <div className="z0-datum-header">
+                          <span className="z0-datum-title">{t.stockZTop}</span>
+                          <span className="z0-datum-badge">Z0 = TOP</span>
+                        </div>
+                        <span className="z0-datum-desc">
+                          {lang === "EN" ? "Top surface is Z=0; cuts penetrate in negative Z. Standard for wood & metal milling." : "Mặt trên phôi là Z=0, ăn sâu vào phôi là Z âm. Tiêu chuẩn phay CNC thông dụng."}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`z0-datum-card ${(settingsDraft.stock.zZero ?? "auto") === "bottom" ? "is-active" : ""}`}
+                        onClick={() => updateDraftStock((cur) => ({ ...cur, zZero: "bottom" }))}
+                      >
+                        <div className="z0-datum-header">
+                          <span className="z0-datum-title">{t.stockZBottom}</span>
+                          <span className="z0-datum-badge">Z0 = BED</span>
+                        </div>
+                        <span className="z0-datum-desc">
+                          {lang === "EN" ? "Bottom table surface is Z=0; Z is positive up to stock thickness. Ideal for through-cutting." : "Mặt bàn máy là Z=0, Z dương từ đáy lên bề mặt. Tối ưu khi cắt đứt bảo vệ mặt bàn."}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`z0-datum-card ${(settingsDraft.stock.zZero ?? "auto") === "auto" ? "is-active" : ""}`}
+                        onClick={() => updateDraftStock((cur) => ({ ...cur, zZero: "auto" }))}
+                      >
+                        <div className="z0-datum-header">
+                          <span className="z0-datum-title">{t.stockZAuto}</span>
+                          <span className="z0-datum-badge">AUTO</span>
+                        </div>
+                        <span className="z0-datum-desc">
+                          {t.stockZReferenceHelp}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 9-Point Origin Widget & Origin Inputs */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px", alignItems: "center" }}>
+                    <div className="quick-origin-widget" style={{ width: "100%" }}>
+                      <span className="quick-origin-title">{t.quickOrigin}</span>
+                      <div className="quick-origin-grid">
+                        {[
+                          { id: "tl", x: 0, y: -settingsDraft.stock.height, title: "Top-Left" },
+                          { id: "tc", x: -settingsDraft.stock.width / 2, y: -settingsDraft.stock.height, title: "Top-Center" },
+                          { id: "tr", x: -settingsDraft.stock.width, y: -settingsDraft.stock.height, title: "Top-Right" },
+                          { id: "c", x: -settingsDraft.stock.width / 2, y: -settingsDraft.stock.height / 2, title: "Center" },
+                          { id: "bl", x: 0, y: 0, title: "Bottom-Left" },
+                          { id: "bc", x: -settingsDraft.stock.width / 2, y: 0, title: "Bottom-Center" },
+                          { id: "br", x: -settingsDraft.stock.width, y: 0, title: "Bottom-Right" },
+                        ].map((preset) => {
+                          const isActive = settingsDraft.stock.originX === preset.x && settingsDraft.stock.originY === preset.y;
+                          return (
+                            <button
+                              key={preset.id}
+                              className={isActive ? "is-active" : ""}
+                              type="button"
+                              title={preset.title}
+                              aria-pressed={isActive}
+                              onClick={() =>
+                                updateDraftStock((current) => ({
+                                  ...current,
+                                  originX: preset.x,
+                                  originY: preset.y,
+                                }))
+                              }
+                            >
+                              <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ overflow: "visible" }}>
+                                <rect x="15" y="15" width="70" height="70" fill="none" stroke="currentColor" strokeWidth="6" />
+                                <circle cx="15" cy="15" r="10" fill={preset.id.includes('t') && preset.id.includes('l') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                                <circle cx="50" cy="15" r="10" fill={preset.id === 'tc' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                                <circle cx="85" cy="15" r="10" fill={preset.id.includes('t') && preset.id.includes('r') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                                <circle cx="15" cy="85" r="10" fill={preset.id.includes('b') && preset.id.includes('l') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                                <circle cx="50" cy="85" r="10" fill={preset.id === 'bc' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                                <circle cx="85" cy="85" r="10" fill={preset.id.includes('b') && preset.id.includes('r') ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                                <circle cx="50" cy="50" r="10" fill={preset.id === 'c' ? "currentColor" : "#0d1317"} stroke="currentColor" strokeWidth="6" />
+                              </svg>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="settings-grid" style={{ width: "100%", gridTemplateColumns: "1fr 1fr" }}>
+                      <label>
+                        <span>{t.lblOriginX}</span>
+                        <div>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={settingsDraft.stock.originX}
+                            onChange={(e) => updateDraftStock((cur) => ({ ...cur, originX: Number(e.target.value) || 0 }))}
                           />
                           <small>mm</small>
                         </div>
                       </label>
-                      {tool.type === "vbit" && (
-                        <>
+                      <label>
+                        <span>{t.lblOriginY}</span>
+                        <div>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={settingsDraft.stock.originY}
+                            onChange={(e) => updateDraftStock((cur) => ({ ...cur, originY: Number(e.target.value) || 0 }))}
+                          />
+                          <small>mm</small>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: TOOLS & LIBRARY */}
+              {settingsTab === "tools" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  {/* Main Tool Quick Selector */}
+                  <div style={{ padding: "12px", background: "rgba(15, 23, 30, 0.6)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                      <span style={{ fontSize: "13px", fontWeight: "600", color: "#f8fafc" }}>
+                        {t.lblToolDia} (Mặc định)
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#38bdf8", fontWeight: "700", fontFamily: "var(--mono)" }}>
+                        Ø{settingsDraft.stock.toolDiameter} mm
+                      </span>
+                    </div>
+                    <div className="quick-preset-bar" style={{ background: "transparent", border: "none", padding: 0 }}>
+                      <span className="quick-preset-label">{t.quickToolPills}:</span>
+                      {[1.0, 2.0, 3.175, 4.0, 6.0, 8.0, 12.7].map((dia) => (
+                        <button
+                          key={dia}
+                          type="button"
+                          className={`quick-preset-btn ${settingsDraft.stock.toolDiameter === dia ? "is-active" : ""}`}
+                          onClick={() => updateDraftStock((cur) => ({ ...cur, toolDiameter: dia }))}
+                        >
+                          Ø{dia} mm {dia === 3.175 ? '(1/8")' : dia === 12.7 ? '(1/2")' : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tool Library */}
+                  <div className="tool-library" style={{ marginTop: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                      <h3 style={{ margin: 0 }}>{t.toolLibrary}</h3>
+                      <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                        {(settingsDraft.stock.tools || []).length} {t.toolsInLib}
+                      </span>
+                    </div>
+                    <div className="tool-list">
+                      {(settingsDraft.stock.tools || []).map((tool, index) => (
+                        <div key={index} className="tool-item">
                           <label style={{ flex: 1 }}>
-                            <span>{t.toolAngle}</span>
+                            <span>{t.toolId}</span>
                             <div>
                               <input
-                                type="number"
-                                min="1"
-                                max="179"
-                                step="1"
-                                value={tool.angle ?? 90}
+                                type="text"
+                                value={tool.id}
                                 onChange={(e) => {
                                   const newTools = [...(settingsDraft.stock.tools || [])];
-                                  newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
+                                  newTools[index] = { ...tool, id: e.target.value };
                                   updateDraftStock((current) => ({ ...current, tools: newTools }));
                                 }}
                               />
-                              <small>°</small>
+                            </div>
+                          </label>
+                          <label style={{ flex: 1.5 }}>
+                            <span>{t.toolType}</span>
+                            <div>
+                              <select
+                                value={tool.type}
+                                onChange={(e) => {
+                                  const newTools = [...(settingsDraft.stock.tools || [])];
+                                  const type = e.target.value as "flat" | "ball" | "vbit";
+                                  const nextTool = { ...tool, type };
+                                  if (type === "vbit") {
+                                    nextTool.angle = tool.angle ?? 90;
+                                    nextTool.tipDiameter = tool.tipDiameter ?? 0.2;
+                                  } else {
+                                    delete nextTool.angle;
+                                    delete nextTool.tipDiameter;
+                                  }
+                                  newTools[index] = nextTool;
+                                  updateDraftStock((current) => ({ ...current, tools: newTools }));
+                                }}
+                              >
+                                <option value="flat">{t.typeFlat}</option>
+                                <option value="ball">{t.typeBall}</option>
+                                <option value="vbit">{t.typeVBit}</option>
+                              </select>
                             </div>
                           </label>
                           <label style={{ flex: 1 }}>
-                            <span>{t.toolTipDiameter}</span>
+                            <span>{t.lblToolDia}</span>
                             <div>
                               <input
                                 type="number"
-                                min="0"
-                                max={Math.max(0, tool.diameter - 0.01)}
-                                step="0.01"
-                                value={tool.tipDiameter ?? 0}
+                                step="0.1"
+                                value={tool.diameter}
                                 onChange={(e) => {
                                   const newTools = [...(settingsDraft.stock.tools || [])];
-                                  newTools[index] = {
-                                    ...tool,
-                                    tipDiameter: Math.max(0, Number(e.target.value) || 0),
-                                  };
+                                  newTools[index] = { ...tool, diameter: Number(e.target.value) || 0 };
                                   updateDraftStock((current) => ({ ...current, tools: newTools }));
                                 }}
                               />
                               <small>mm</small>
                             </div>
-                            <small className="tool-geometry-hint">
-                              {t.toolVDepth}: {resolveVBitGeometry(tool).taperHeight.toFixed(2)} mm
-                            </small>
                           </label>
-                        </>
-                      )}
+                          {tool.type === "vbit" && (
+                            <>
+                              <label style={{ flex: 1 }}>
+                                <span>{t.toolAngle}</span>
+                                <div>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="179"
+                                    step="1"
+                                    value={tool.angle ?? 90}
+                                    onChange={(e) => {
+                                      const newTools = [...(settingsDraft.stock.tools || [])];
+                                      newTools[index] = { ...tool, angle: Number(e.target.value) || 90 };
+                                      updateDraftStock((current) => ({ ...current, tools: newTools }));
+                                    }}
+                                  />
+                                  <small>°</small>
+                                </div>
+                              </label>
+                              <label style={{ flex: 1 }}>
+                                <span>{t.toolTipDiameter}</span>
+                                <div>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={Math.max(0, tool.diameter - 0.01)}
+                                    step="0.01"
+                                    value={tool.tipDiameter ?? 0}
+                                    onChange={(e) => {
+                                      const newTools = [...(settingsDraft.stock.tools || [])];
+                                      newTools[index] = {
+                                        ...tool,
+                                        tipDiameter: Math.max(0, Number(e.target.value) || 0),
+                                      };
+                                      updateDraftStock((current) => ({ ...current, tools: newTools }));
+                                    }}
+                                  />
+                                  <small>mm</small>
+                                </div>
+                                <small className="tool-geometry-hint">
+                                  {t.toolVDepth}: {resolveVBitGeometry(tool).taperHeight.toFixed(2)} mm
+                                </small>
+                              </label>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className="btn-delete-tool"
+                            title={t.deleteTool}
+                            onClick={() => {
+                              const newTools = [...(settingsDraft.stock.tools || [])];
+                              newTools.splice(index, 1);
+                              updateDraftStock((current) => ({ ...current, tools: newTools }));
+                            }}
+                          >
+                            <Icon name="close" size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="tool-library-actions">
                       <button
                         type="button"
-                        className="btn-delete-tool"
-                        title={t.deleteTool}
+                        className="ghost-button add-tool-button"
                         onClick={() => {
-                          const newTools = [...(settingsDraft.stock.tools || [])];
-                          newTools.splice(index, 1);
-                          updateDraftStock((current) => ({ ...current, tools: newTools }));
+                          updateDraftStock((current) => ({
+                            ...current,
+                            tools: [
+                              ...(current.tools || []),
+                              {
+                                id: `${(current.tools?.length || 0) + 1}`,
+                                diameter: 6,
+                                type: "flat",
+                              },
+                            ],
+                          }));
                         }}
+                        style={{ width: "100%", borderStyle: "dashed" }}
                       >
-                        <Icon name="close" size={16} />
+                        <Icon name="play" size={14} /> {t.addTool}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="ghost-button add-tool-button"
+                        onClick={() => {
+                          updateDraftStock((current) => ({
+                            ...current,
+                            tools: [
+                              ...(current.tools || []),
+                              {
+                                id: `${(current.tools?.length || 0) + 1}`,
+                                diameter: 12.7,
+                                type: "vbit",
+                                angle: 90,
+                                tipDiameter: 0.2,
+                              },
+                            ],
+                          }));
+                        }}
+                        style={{ width: "100%", borderStyle: "dashed" }}
+                      >
+                        <Icon name="sparkles" size={14} /> {t.addVBit}
+                      </button>
+                      
+                      <button
+                        type="button"
+                        className="ghost-button add-tool-button"
+                        title="Phát hiện dao từ G-code"
+                        onClick={() => {
+                          const detected = new Set<string>();
+                          simulation.segments.forEach(seg => {
+                            if (seg.tool) detected.add(String(seg.tool));
+                          });
+                          
+                          const newTools = [...(settingsDraft.stock.tools || [])];
+                          let addedCount = 0;
+                          
+                          detected.forEach(tId => {
+                            if (!newTools.find(t => String(t.id) === tId)) {
+                              newTools.push({ id: tId, diameter: 6, type: "flat" });
+                              addedCount++;
+                            }
+                          });
+                          
+                          if (addedCount > 0) {
+                            updateDraftStock((current) => ({ ...current, tools: newTools }));
+                          } else if (detected.size === 0) {
+                            notify(t.noToolsDetectedMsg);
+                          }
+                        }}
+                        style={{ width: "100%", borderStyle: "dashed", borderColor: "rgba(38, 217, 232, 0.4)", color: "var(--cyan)" }}
+                      >
+                        <Icon name="sparkles" size={14} /> {t.autoDetectTool}
                       </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
-                <div className="tool-library-actions">
-                  <button
-                    type="button"
-                    className="ghost-button add-tool-button"
-                    onClick={() => {
-                      updateDraftStock((current) => ({
-                        ...current,
-                        tools: [
-                          ...(current.tools || []),
-                          {
-                            id: `${(current.tools?.length || 0) + 1}`,
-                            diameter: 6,
-                            type: "flat",
-                          },
-                        ],
-                      }));
-                    }}
-                    style={{ width: "100%", borderStyle: "dashed" }}
-                  >
-                    <Icon name="play" size={14} /> {t.addTool}
-                  </button>
+              )}
 
-                  <button
-                    type="button"
-                    className="ghost-button add-tool-button"
-                    onClick={() => {
-                      updateDraftStock((current) => ({
-                        ...current,
-                        tools: [
-                          ...(current.tools || []),
-                          {
-                            id: `${(current.tools?.length || 0) + 1}`,
-                            diameter: 12.7,
-                            type: "vbit",
-                            angle: 90,
-                            tipDiameter: 0.2,
-                          },
-                        ],
-                      }));
-                    }}
-                    style={{ width: "100%", borderStyle: "dashed" }}
-                  >
-                    <Icon name="sparkles" size={14} /> {t.addVBit}
-                  </button>
-                  
-                  <button
-                    type="button"
-                    className="ghost-button add-tool-button"
-                    title="Phát hiện dao từ G-code"
-                    onClick={() => {
-                      const detected = new Set<string>();
-                      simulation.segments.forEach(seg => {
-                        if (seg.tool) detected.add(String(seg.tool));
-                      });
-                      
-                      const newTools = [...(settingsDraft.stock.tools || [])];
-                      let addedCount = 0;
-                      
-                      detected.forEach(tId => {
-                        if (!newTools.find(t => String(t.id) === tId)) {
-                          newTools.push({ id: tId, diameter: 6, type: "flat" });
-                          addedCount++;
-                        }
-                      });
-                      
-                      if (addedCount > 0) {
-                        updateDraftStock((current) => ({ ...current, tools: newTools }));
-                      } else if (detected.size === 0) {
-                        notify(t.noToolsDetectedMsg);
-                      }
-                    }}
-                    style={{ width: "100%", borderStyle: "dashed", borderColor: "rgba(38, 217, 232, 0.4)", color: "var(--cyan)" }}
-                  >
-                    <Icon name="sparkles" size={14} /> {t.autoDetectTool}
-                  </button>
+              {/* TAB 3: SAFETY & WCS G54-G59 */}
+              {settingsTab === "safety" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  {/* Safety Speeds & Heights */}
+                  <div className="settings-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                    <label>
+                      <span>{t.lblSafeZ}</span>
+                      <div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={settingsDraft.stock.safeZ}
+                          onChange={(e) => updateDraftStock((cur) => ({ ...cur, safeZ: Number(e.target.value) || 0 }))}
+                        />
+                        <small>mm</small>
+                      </div>
+                    </label>
+                    <label>
+                      <span>{t.lblClearance}</span>
+                      <div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={settingsDraft.stock.clearance}
+                          min={0}
+                          onChange={(e) => updateDraftStock((cur) => ({ ...cur, clearance: Number(e.target.value) || 0 }))}
+                        />
+                        <small>mm</small>
+                      </div>
+                    </label>
+                    <label>
+                      <span>{t.lblRapidFeed}</span>
+                      <div>
+                        <input
+                          type="number"
+                          step="500"
+                          value={settingsDraft.stock.rapidFeed}
+                          min={100}
+                          onChange={(e) => updateDraftStock((cur) => ({ ...cur, rapidFeed: Number(e.target.value) || 1000 }))}
+                        />
+                        <small>mm/min</small>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* WCS Table */}
+                  <details className="work-offset-settings">
+                    <summary>
+                      <span>{t.workOffsetsTitle}</span>
+                      <small>{t.workOffsetsBadge}</small>
+                    </summary>
+                    <div className="work-offset-settings__body">
+                      <p>{t.workOffsetsDesc}</p>
+                      <div className="work-offset-table-wrap">
+                        <table aria-label={t.workOffsetsTableLabel}>
+                          <thead>
+                            <tr>
+                              <th scope="col">WCS</th>
+                              <th scope="col">X</th>
+                              <th scope="col">Y</th>
+                              <th scope="col">Z</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {WORK_COORDINATE_SYSTEMS.map((coordinateSystem) => (
+                              <tr key={coordinateSystem}>
+                                <th scope="row">
+                                  {coordinateSystem}
+                                  {coordinateSystem === "G54" ? (
+                                    <small>REF</small>
+                                  ) : null}
+                                </th>
+                                {(["x", "y", "z"] as const).map((axis) => (
+                                  <td key={axis}>
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={workOffsetInputDraft[coordinateSystem][axis]}
+                                      aria-label={`${coordinateSystem} ${axis.toUpperCase()}`}
+                                      aria-invalid={
+                                        parseWorkOffsetInput(
+                                          workOffsetInputDraft[coordinateSystem][axis],
+                                        ) === null
+                                      }
+                                      onChange={(event) =>
+                                        updateDraftWorkOffset(
+                                          coordinateSystem,
+                                          axis,
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <button
+                        type="button"
+                        className="ghost-button work-offset-settings__reset"
+                        onClick={() => {
+                          const zeroWorkOffsets = createZeroWorkspaceWorkOffsets();
+                          setSettingsDraft((current) => ({
+                            ...current,
+                            workOffsets: zeroWorkOffsets,
+                          }));
+                          setWorkOffsetInputDraft(
+                            createWorkOffsetInputDraft(zeroWorkOffsets),
+                          );
+                        }}
+                      >
+                        {t.workOffsetsReset}
+                      </button>
+                    </div>
+                  </details>
                 </div>
-              </div>
+              )}
 
-              <div className="profile-note">
-                <Icon name="info" size={20} />
-                <p>
-                  <b>Router Custom:</b> {t.routerNote}
-                </p>
-              </div>
+              {/* TAB 4: APP & SIMULATION PREFERENCES */}
+              {settingsTab === "preferences" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <section
+                    className="simulation-preferences"
+                    aria-labelledby="simulation-preferences-title"
+                    style={{ margin: 0 }}
+                  >
+                    <div className="simulation-preferences__heading">
+                      <Icon name="settings" size={18} />
+                      <div>
+                        <strong id="simulation-preferences-title">
+                          {t.preferenceTitle}
+                        </strong>
+                        <small>{t.preferenceDescription}</small>
+                      </div>
+                    </div>
+                    <div className="simulation-preferences__grid">
+                      <label>
+                        <span>{t.profileLabel}</span>
+                        <select
+                          value={settingsDraft.profile}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              profile: event.target.value as MachineProfile,
+                            }))
+                          }
+                        >
+                          <option value="router-custom">{t.routerCustom}</option>
+                          <option value="iso">{t.isoBasic}</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>{t.speedControl}</span>
+                        <select
+                          value={settingsDraft.speed}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              speed: Number(event.target.value),
+                            }))
+                          }
+                        >
+                          {[0.5, 1, 2, 5, 10, 20].map((option) => (
+                            <option value={option} key={option}>
+                              {option}×
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>{t.configLabel}</span>
+                        <select
+                          value={settingsDraft.quality}
+                          onChange={(event) =>
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              quality: event.target.value as SimulationQuality,
+                            }))
+                          }
+                        >
+                          <option value="low">{t.perfLow}</option>
+                          <option value="medium">{t.perfMedium}</option>
+                          <option value="high">{t.perfHigh}</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="simulation-preferences__toggles">
+                      {([
+                        ["showRapids", t.showRapidPreference],
+                        ["machineSound", t.machineSoundLabel],
+                        ["finishSound", t.finishSoundLabel],
+                      ] as const).map(([key, label]) => (
+                        <label className="settings-option" key={key}>
+                          <input
+                            type="checkbox"
+                            checked={settingsDraft[key]}
+                            onChange={(event) =>
+                              setSettingsDraft((current) => ({
+                                ...current,
+                                [key]: event.target.checked,
+                              }))
+                            }
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* 3D Machine Experimental */}
+                  <section
+                    className="experimental-settings"
+                    aria-labelledby="experimental-settings-title"
+                  >
+                    <div className="experimental-settings__header">
+                      <span className="experimental-settings__icon" aria-hidden="true">
+                        <Icon name="cube" size={18} />
+                      </span>
+                      <div>
+                        <strong id="experimental-settings-title">
+                          {t.experimentalTitle}
+                        </strong>
+                        <p id="machine3d-experimental-description">
+                          {t.machine3DDesc}
+                        </p>
+                      </div>
+                      <span className="experimental-settings__badge">
+                        {t.experimentalBadge}
+                      </span>
+                    </div>
+                    <label className="experimental-toggle">
+                      <span>
+                        <strong>{t.machine3DTitle}</strong>
+                        <small>
+                          {machineViewEnabled
+                            ? t.machine3DEnabled
+                            : t.machine3DDisabled}
+                        </small>
+                      </span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={machineViewEnabled}
+                        onChange={(event) => toggleMachineView(event.target.checked)}
+                        aria-label={t.machine3DTitle}
+                        aria-describedby="machine3d-experimental-description"
+                      />
+                      <i className="experimental-toggle__switch" aria-hidden="true" />
+                    </label>
+                  </section>
+
+                  <div className="profile-note">
+                    <Icon name="info" size={20} />
+                    <p>
+                      <b>Router Custom:</b> {t.routerNote}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="modal-actions">
+
+            <div className="modal-actions" style={{ marginTop: "16px" }}>
               <button
                 type="button"
                 className="ghost-button"
@@ -3067,7 +3333,6 @@ export default function Home() {
             </div>
         </ResponsiveDialog>
       )}
-
       {editorOpen && (
         <ResponsiveDialog
           className="code-editor-modal"

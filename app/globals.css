@@ -6555,3 +6555,201 @@ button:disabled {
     font-size: 7px;
   }
 }
+
+/* ==========================================================================
+   SETTINGS MODAL V2 - MODERN INDUSTRIAL UI/UX STYLING
+   ========================================================================== */
+
+.settings-modal-v2-nav {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: rgba(13, 20, 26, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+
+.settings-v2-tab-btn {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-family: var(--condensed, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.settings-v2-tab-btn:hover {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-v2-tab-btn.is-active {
+  color: var(--cyan, #38bdf8);
+  background: rgba(38, 217, 232, 0.12);
+  border-color: rgba(38, 217, 232, 0.38);
+  box-shadow: 0 0 14px rgba(38, 217, 232, 0.15);
+}
+
+.settings-hud-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.settings-hud-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+}
+
+.settings-hud-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(38, 217, 232, 0.1);
+  color: var(--cyan, #38bdf8);
+  flex-shrink: 0;
+}
+
+.settings-hud-card-label {
+  font-size: 9px;
+  color: #82929c;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: var(--mono);
+}
+
+.settings-hud-card-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-top: 1px;
+  font-family: var(--mono);
+}
+
+.quick-preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: rgba(15, 23, 30, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.quick-preset-label {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.quick-preset-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-preset-btn:hover {
+  background: rgba(38, 217, 232, 0.15);
+  border-color: rgba(38, 217, 232, 0.4);
+  color: var(--cyan, #38bdf8);
+}
+
+.quick-preset-btn.is-active {
+  background: rgba(38, 217, 232, 0.25);
+  border-color: var(--cyan, #38bdf8);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.z0-datum-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+  margin-bottom: 12px;
+}
+
+.z0-datum-card {
+  padding: 10px 12px;
+  background: rgba(15, 23, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.z0-datum-card:hover {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(38, 217, 232, 0.3);
+}
+
+.z0-datum-card.is-active {
+  background: rgba(38, 217, 232, 0.12);
+  border-color: var(--cyan, #38bdf8);
+  box-shadow: 0 0 12px rgba(38, 217, 232, 0.15);
+}
+
+.z0-datum-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.z0-datum-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.z0-datum-badge {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: rgba(38, 217, 232, 0.18);
+  color: var(--cyan, #38bdf8);
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+.z0-datum-desc {
+  font-size: 10px;
+  color: #82929c;
+  line-height: 1.35;
+}
+
