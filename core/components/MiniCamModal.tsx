@@ -11,6 +11,8 @@ import {
 } from "./mini-cam-validation";
 import styles from "./ui/ResponsiveDialog.module.css";
 
+export type MiniCamTab = "facing" | "pocket" | "tabs" | "pcd";
+
 interface MiniCamModalProps {
   t: TranslationDict;
   onClose: () => void;
@@ -18,7 +20,7 @@ interface MiniCamModalProps {
 }
 
 export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
-  const [activeTab, setActiveTab] = useState<"facing" | "pocket">("facing");
+  const [activeTab, setActiveTab] = useState<MiniCamTab>("facing");
   const [toolDia, setToolDia] = useState(6);
   const [spindleSpeed, setSpindleSpeed] = useState(18000);
   const [feedRate, setFeedRate] = useState(2000);
@@ -27,6 +29,14 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
   const [height, setHeight] = useState(200);
   const [depth, setDepth] = useState(1);
   const [stepover, setStepover] = useState(40);
+  const [stepdown, setStepdown] = useState(2);
+  const [tabCount, setTabCount] = useState(4);
+  const [tabWidth, setTabWidth] = useState(5);
+  const [tabHeight, setTabHeight] = useState(2);
+  const [pcdDia, setPcdDia] = useState(100);
+  const [holeCount, setHoleCount] = useState(6);
+  const [startAngle, setStartAngle] = useState(0);
+
   const titleId = useId();
   const errorId = useId();
 
@@ -43,6 +53,7 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
     }),
     [depth, feedRate, height, plungeRate, spindleSpeed, stepover, toolDia, width],
   );
+
   const validation = useMemo(() => validateMiniCamValues(values), [values]);
   const validationError = formatMiniCamValidation(validation, {
     positive: t.miniCamValidationPositive,
@@ -61,33 +72,151 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
   });
 
   const handleGenerate = () => {
-    if (validationError || activeTab !== "facing") return;
+    if (validationError) return;
 
-    const step = toolDia * (stepover / 100);
-    const passes = Math.min(MAX_CAM_PASSES, Math.ceil(height / step));
-    const actualStep = height / passes;
-    const lines = [
+    const lines: string[] = [
       `(MINI CAM - ${activeTab.toUpperCase()})`,
       "G90 G21 G17",
       "G54",
       `M3 S${spindleSpeed}`,
       "G0 Z10.000",
-      "G0 X0.000 Y0.000",
-      `G1 Z-${depth.toFixed(3)} F${plungeRate}`,
     ];
 
-    let y = 0;
-    let goRight = true;
-    for (let index = 0; index <= passes; index += 1) {
-      if (lines.length >= MAX_CAM_OUTPUT_LINES - 3) break;
+    if (activeTab === "facing") {
+      const step = toolDia * (stepover / 100);
+      const passes = Math.min(MAX_CAM_PASSES, Math.ceil(height / step));
+      const actualStep = height / Math.max(1, passes);
+      lines.push(
+        "G0 X0.000 Y0.000",
+        `G1 Z-${depth.toFixed(3)} F${plungeRate}`,
+      );
 
-      const x = goRight ? width : 0;
-      lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${feedRate}`);
-      if (index < passes && lines.length < MAX_CAM_OUTPUT_LINES - 3) {
-        y += actualStep;
+      let y = 0;
+      let goRight = true;
+      for (let index = 0; index <= passes; index += 1) {
+        if (lines.length >= MAX_CAM_OUTPUT_LINES - 3) break;
+
+        const x = goRight ? width : 0;
         lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${feedRate}`);
-        goRight = !goRight;
+        if (index < passes && lines.length < MAX_CAM_OUTPUT_LINES - 3) {
+          y += actualStep;
+          lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${feedRate}`);
+          goRight = !goRight;
+        }
       }
+    } else if (activeTab === "pocket") {
+      // Multi-depth rectangular pocket
+      const stepZ = Math.max(0.2, stepdown);
+      const totalPassesZ = Math.ceil(depth / stepZ);
+      const stepXY = toolDia * (stepover / 100);
+
+      lines.push("G0 X0.000 Y0.000");
+
+      for (let passZ = 1; passZ <= totalPassesZ; passZ++) {
+        const curZ = Math.min(depth, passZ * stepZ);
+        lines.push(`G1 Z-${curZ.toFixed(3)} F${plungeRate}`);
+
+        const passesY = Math.ceil(height / stepXY);
+        const actualStepY = height / Math.max(1, passesY);
+        let y = 0;
+        let goRight = true;
+
+        for (let idx = 0; idx <= passesY; idx++) {
+          if (lines.length >= MAX_CAM_OUTPUT_LINES - 5) break;
+          const x = goRight ? width : 0;
+          lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${feedRate}`);
+          if (idx < passesY) {
+            y += actualStepY;
+            lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} F${feedRate}`);
+            goRight = !goRight;
+          }
+        }
+        lines.push("G0 Z2.000", "G0 X0.000 Y0.000");
+      }
+    } else if (activeTab === "tabs") {
+      // Profile Cutout with Holding Tabs
+      const stepZ = Math.max(0.2, stepdown);
+      const totalPassesZ = Math.ceil(depth / stepZ);
+      const tabH = Math.min(depth - 0.2, tabHeight);
+      const tabW = Math.max(2, tabWidth);
+
+      for (let passZ = 1; passZ <= totalPassesZ; passZ++) {
+        const isFinalPass = passZ === totalPassesZ;
+        const curZ = Math.min(depth, passZ * stepZ);
+        const tabZ = isFinalPass ? -(depth - tabH) : -curZ;
+
+        lines.push(
+          "G0 X0.000 Y0.000",
+          `G1 Z-${curZ.toFixed(3)} F${plungeRate}`,
+        );
+
+        if (!isFinalPass || tabCount <= 0) {
+          // Normal box contour
+          lines.push(
+            `G1 X${width.toFixed(3)} Y0.000 F${feedRate}`,
+            `G1 X${width.toFixed(3)} Y${height.toFixed(3)} F${feedRate}`,
+            `G1 X0.000 Y${height.toFixed(3)} F${feedRate}`,
+            `G1 X0.000 Y0.000 F${feedRate}`,
+          );
+        } else {
+          // Bottom edge with tab in middle
+          const midX = width / 2;
+          lines.push(
+            `G1 X${(midX - tabW / 2).toFixed(3)} Y0.000 F${feedRate}`,
+            `G1 Z${tabZ.toFixed(3)} F${feedRate}`,
+            `G1 X${(midX + tabW / 2).toFixed(3)} Y0.000 F${feedRate}`,
+            `G1 Z-${curZ.toFixed(3)} F${plungeRate}`,
+            `G1 X${width.toFixed(3)} Y0.000 F${feedRate}`,
+          );
+          // Right edge with tab in middle
+          const midY = height / 2;
+          lines.push(
+            `G1 X${width.toFixed(3)} Y${(midY - tabW / 2).toFixed(3)} F${feedRate}`,
+            `G1 Z${tabZ.toFixed(3)} F${feedRate}`,
+            `G1 X${width.toFixed(3)} Y${(midY + tabW / 2).toFixed(3)} F${feedRate}`,
+            `G1 Z-${curZ.toFixed(3)} F${plungeRate}`,
+            `G1 X${width.toFixed(3)} Y${height.toFixed(3)} F${feedRate}`,
+          );
+          // Top edge with tab in middle
+          lines.push(
+            `G1 X${(midX + tabW / 2).toFixed(3)} Y${height.toFixed(3)} F${feedRate}`,
+            `G1 Z${tabZ.toFixed(3)} F${feedRate}`,
+            `G1 X${(midX - tabW / 2).toFixed(3)} Y${height.toFixed(3)} F${feedRate}`,
+            `G1 Z-${curZ.toFixed(3)} F${plungeRate}`,
+            `G1 X0.000 Y${height.toFixed(3)} F${feedRate}`,
+          );
+          // Left edge with tab in middle
+          lines.push(
+            `G1 X0.000 Y${(midY + tabW / 2).toFixed(3)} F${feedRate}`,
+            `G1 Z${tabZ.toFixed(3)} F${feedRate}`,
+            `G1 X0.000 Y${(midY - tabW / 2).toFixed(3)} F${feedRate}`,
+            `G1 Z-${curZ.toFixed(3)} F${plungeRate}`,
+            `G1 X0.000 Y0.000 F${feedRate}`,
+          );
+        }
+        lines.push("G0 Z5.000");
+      }
+    } else if (activeTab === "pcd") {
+      // Pitch Circle Diameter Bolt Holes
+      const radius = pcdDia / 2;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const count = Math.max(1, Math.round(holeCount));
+
+      lines.push(`G80 (CANCEL MODAL CYCLES)`);
+
+      for (let i = 0; i < count; i++) {
+        const angDeg = startAngle + i * (360 / count);
+        const angRad = (angDeg * Math.PI) / 180;
+        const x = centerX + radius * Math.cos(angRad);
+        const y = centerY + radius * Math.sin(angRad);
+
+        lines.push(
+          `G0 X${x.toFixed(3)} Y${y.toFixed(3)}`,
+          `G81 X${x.toFixed(3)} Y${y.toFixed(3)} Z-${depth.toFixed(3)} R2.000 F${plungeRate}`,
+        );
+      }
+      lines.push("G80");
     }
 
     lines.push("G0 Z10.000", "M5", "M30");
@@ -150,13 +279,31 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
             {t.miniCamTabFacing}
           </button>
           <button
-            className={styles.tabButton}
+            className={`${styles.tabButton}${activeTab === "pocket" ? ` ${styles.activeTab}` : ""}`}
             type="button"
             role="tab"
-            aria-selected="false"
-            disabled
+            aria-selected={activeTab === "pocket"}
+            onClick={() => setActiveTab("pocket")}
           >
             {t.miniCamTabPocket}
+          </button>
+          <button
+            className={`${styles.tabButton}${activeTab === "tabs" ? ` ${styles.activeTab}` : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "tabs"}
+            onClick={() => setActiveTab("tabs")}
+          >
+            {t.miniCamTabTabs}
+          </button>
+          <button
+            className={`${styles.tabButton}${activeTab === "pcd" ? ` ${styles.activeTab}` : ""}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "pcd"}
+            onClick={() => setActiveTab("pcd")}
+          >
+            {t.miniCamTabPcd}
           </button>
         </div>
 
@@ -254,6 +401,93 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
                 {...inputAccessibility("stepover")}
               />
             </label>
+
+            {activeTab === "pocket" && (
+              <label className={styles.field}>
+                {t.miniCamStepdown}
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.5"
+                  value={stepdown}
+                  onChange={(e) => setStepdown(Number(e.target.value))}
+                />
+              </label>
+            )}
+
+            {activeTab === "tabs" && (
+              <>
+                <label className={styles.field}>
+                  {t.miniCamTabCount}
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={tabCount}
+                    onChange={(e) => setTabCount(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  {t.miniCamTabWidth}
+                  <input
+                    type="number"
+                    min="1"
+                    value={tabWidth}
+                    onChange={(e) => setTabWidth(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  {t.miniCamTabHeight}
+                  <input
+                    type="number"
+                    min="0.5"
+                    value={tabHeight}
+                    onChange={(e) => setTabHeight(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  {t.miniCamStepdown}
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.5"
+                    value={stepdown}
+                    onChange={(e) => setStepdown(Number(e.target.value))}
+                  />
+                </label>
+              </>
+            )}
+
+            {activeTab === "pcd" && (
+              <>
+                <label className={styles.field}>
+                  {t.miniCamPcdDia}
+                  <input
+                    type="number"
+                    min="1"
+                    value={pcdDia}
+                    onChange={(e) => setPcdDia(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  {t.miniCamHoleCount}
+                  <input
+                    type="number"
+                    min="1"
+                    value={holeCount}
+                    onChange={(e) => setHoleCount(Number(e.target.value))}
+                  />
+                </label>
+                <label className={styles.field}>
+                  {t.miniCamStartAngle}
+                  <input
+                    type="number"
+                    value={startAngle}
+                    onChange={(e) => setStartAngle(Number(e.target.value))}
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           {validationError && (
@@ -272,7 +506,7 @@ export function MiniCamModal({ t, onClose, onGenerate }: MiniCamModalProps) {
           className={styles.primaryButton}
           type="button"
           onClick={handleGenerate}
-          disabled={invalid || activeTab !== "facing"}
+          disabled={invalid}
         >
           {t.miniCamGenerate}
         </button>

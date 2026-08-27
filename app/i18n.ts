@@ -249,22 +249,83 @@ export const translations = {
     miniCamTitle: "CNC-CALC · MINI CAM",
     miniCamClose: "Đóng Mini CAM",
     miniCamTabFacing: "Phay mặt",
-    miniCamTabPocket: "Phay hốc · Sắp ra mắt",
+    miniCamTabPocket: "Phay hốc",
+    miniCamTabTabs: "Cắt có mấu (Tabs)",
+    miniCamTabPcd: "Mảng lỗ PCD",
     miniCamToolSection: "THÔNG SỐ DAO",
     miniCamToolDiameter: "Đường kính dao (mm)",
     miniCamSpindleSpeed: "Tốc độ trục chính (RPM)",
     miniCamFeedRate: "Bước tiến (mm/phút)",
     miniCamPlungeRate: "Bước tiến xuống dao (mm/phút)",
-    miniCamWorkSection: "KÍCH THƯỚC PHAY MẶT",
+    miniCamWorkSection: "KÍCH THƯỚC GIA CÔNG",
     miniCamWidth: "Chiều rộng X (mm)",
     miniCamHeight: "Chiều dài Y (mm)",
     miniCamDepth: "Chiều sâu cắt Z (mm)",
     miniCamStepover: "Độ dịch dao (%)",
+    miniCamStepdown: "Chiều sâu mỗi lớp (mm)",
+    miniCamTabCount: "Số lượng mấu (Tabs)",
+    miniCamTabWidth: "Bề rộng mấu (mm)",
+    miniCamTabHeight: "Chiều cao mấu (mm)",
+    miniCamPcdDia: "Đường kính vòng PCD (mm)",
+    miniCamHoleCount: "Số lượng lỗ",
+    miniCamHoleDia: "Đường kính lỗ (mm)",
+    miniCamStartAngle: "Góc bắt đầu (°)",
     miniCamCancel: "Hủy",
     miniCamGenerate: "Sinh G-code",
     miniCamValidationPositive: "{field} phải là số hữu hạn lớn hơn 0.",
     miniCamValidationStepover: "Độ dịch dao phải nằm trong khoảng 1–100%.",
     miniCamValidationPassLimit: "Số lượt chạy vượt giới hạn an toàn {max}. Hãy tăng đường kính dao hoặc độ dịch dao.",
+
+    // Setup Sheet
+    setupSheetBtn: "Phiếu gá đặt",
+    setupSheetTitle: "PHIẾU GÁ ĐẶT & BÁO CÁO GIA CÔNG",
+    printSheet: "In / Xuất PDF",
+    closeSheet: "Đóng",
+    sheetCycleTime: "Thời gian gia công ước tính",
+    sheetRapidTime: "Thời gian chạy dao nhanh (G0)",
+    sheetCutDistance: "Tổng chiều dài cắt",
+    sheetStockSize: "Kích thước phôi yêu cầu",
+    sheetWorkOrigin: "Gốc phôi & Tham chiếu Z",
+    sheetToolList: "BẢNG TỔNG HỢP DAO CỤ",
+    sheetToolNum: "Mã Dao",
+    sheetToolName: "Tên Dao",
+    sheetToolType: "Loại Dao",
+    sheetToolDia: "Đường kính",
+    sheetToolZMin: "Chiều sâu Z Min",
+    sheetToolDist: "Chiều dài cắt",
+    sheetToolFeed: "Bước tiến F",
+    sheetToolRpm: "Tốc độ S",
+    sheetExtents: "Vùng bao gia công (Extents)",
+
+    // CNC Machine Controller
+    controllerBtn: "Điều khiển Máy",
+    controllerTitle: "BẢNG ĐIỀU KHIỂN MÁY CNC · WEB SERIAL",
+    serialConnect: "Kết nối Cổng COM",
+    serialDisconnect: "Ngắt kết nối",
+    serialBaudRate: "Baud Rate",
+    serialJog: "DI CHUYỂN THỦ CÔNG (JOG)",
+    serialStep: "Nấc bước (mm)",
+    serialZeroAll: "Set Zero G54 (X0 Y0 Z0)",
+    serialHome: "Về Home ($H)",
+    serialUnlock: "Mở khóa ($X)",
+    serialReset: "Soft Reset (Ctrl+X)",
+    serialStream: "Truyền G-code xuống máy",
+    serialPause: "Tạm dừng",
+    serialResume: "Tiếp tục",
+    serialStop: "Hủy truyền",
+    serialTerminal: "CỬA SỔ LỆNH SERIAL",
+    serialSend: "Gửi",
+    serialUnsupported: "Trình duyệt chưa hỗ trợ Web Serial API. Vui lòng sử dụng Google Chrome hoặc Microsoft Edge.",
+
+    // Code Editor
+    editorFormat: "Định dạng Code",
+    editorClean: "Làm sạch Comment",
+    editorAddSafeHeader: "Chèn Header An Toàn",
+    editorJumpToStep: "Tua mô phỏng đến dòng này",
+    editorBreakpoint: "Đặt / Bỏ Điểm Dừng",
+
+    // Feeds & Speeds Presets
+    feedsSpeedsPreset: "Gợi ý thông số cắt",
 
     // Drop overlay
     dropTitle: "Kéo thả tệp G-code vào đây",
@@ -319,7 +380,7 @@ export const translations = {
     planeLabel: "MẶT PHẲNG",
     spindleLabel: "TRỤC CHÍNH",
     feedLabel: "BƯỚC TIẾN",
-    drillLabel: "KHOAN LỖ",
+    drillLabel: "KHOAN",
     checkRequired: "CẦN KIỂM TRA",
     programOk: "CHƯƠNG TRÌNH TỐT",
     blockLabel: "KHỐI",
@@ -332,38 +393,38 @@ export const translations = {
     isoBasic: "Standard ISO / Fanuc",
     localProcessing: "Local Processing",
     loadingGcode: "Loading G-code file...",
-    templateLibrary: "Load template from CNC library",
+    templateLibrary: "Load sample file from CNC library",
     uploadFile: "Upload .nc, .txt, .gcode from computer",
     projectLabel: "Project:",
 
     // View & Simulation Controls
-    view2D: "2D Milling Plane",
+    view2D: "Milling Plane (2D)",
     view3D: "3D Simulation (ISO)",
     desc2D: "Top-down view · Drag to pan",
-    desc3D: "Drag to orbit · Shift + drag to pan",
+    desc3D: "Drag to orbit · Shift + Drag to pan viewport",
     speedLabel: "Speed",
     configLabel: "Quality",
-    perfTitle: "Simulation quality for Low / Medium / High-end computers",
+    perfTitle: "Simulation quality for Low / Medium / High Performance Computers",
     perfLow: "⚡ Smooth · Low-end GPU",
     perfMedium: "⚖️ Balanced · Recommended",
-    perfHigh: "MAX · 4K idle · 2K playback",
+    perfHigh: "MAX · 4K Static · 2K Live",
     showGcode: "Show G-code panel",
     hideGcode: "Hide G-code panel",
     showDimensions: "Show dimensions",
     hideDimensions: "Hide dimensions",
-    showGrid: "Show grid",
-    hideGrid: "Hide grid",
-    showTool: "Show tool",
-    hideTool: "Hide tool",
-    resetView: "Reset view",
-    orbitHintLeft: "Left click: Orbit",
-    orbitHintRight: "Shift / Right click: Pan",
-    orbitHintScroll: "Scroll: Zoom",
-    orbitHint2D: "Drag to pan",
-    orbitHint2DScroll: "Scroll to zoom",
-    fitToScreen: "Fit to screen & Origin",
-    enterFullscreen: "Enter fullscreen",
-    exitFullscreen: "Exit fullscreen",
+    showGrid: "Show floor grid",
+    hideGrid: "Hide floor grid",
+    showTool: "Show milling tool",
+    hideTool: "Hide milling tool",
+    resetView: "Reset View",
+    orbitHintLeft: "Left Click: Orbit",
+    orbitHintRight: "Shift / Right Click: Pan",
+    orbitHintScroll: "Mouse Wheel: Zoom",
+    orbitHint2D: "Drag to pan drawing",
+    orbitHint2DScroll: "Mouse Wheel: Zoom",
+    fitToScreen: "Fit to screen & Center origin",
+    enterFullscreen: "Enter Fullscreen",
+    exitFullscreen: "Exit Fullscreen",
     focusModeMsg: "Focus mode enabled. Press Esc to return.",
     mobileSimulation: "Simulation",
     mobileCode: "G-code",
@@ -371,11 +432,11 @@ export const translations = {
     mobileSettings: "Settings",
 
     // Playback & Scrubber
-    rewind: "Rewind to start",
-    fastForward: "Fast forward to end",
-    play: "Play simulation",
-    pause: "Pause simulation",
-    stepForward: "Step forward",
+    rewind: "Rewind to Start",
+    fastForward: "Fast-forward to End",
+    play: "Play Simulation",
+    pause: "Pause",
+    stepForward: "Step Forward",
     progressLabel: "Simulation progress",
     completed: "COMPLETED",
 
@@ -448,73 +509,73 @@ export const translations = {
     noPartsFound: "No closed contours found",
     remnantTitle: "Usable Remnants",
     mainStockSize: "Main Stock Size",
-    colSize: "Dimensions (W × H)",
-    colAreaPct: "Area %",
-    merExplanation: "The Maximal Empty Rectangle (MER) algorithm automatically calculates the largest reusable empty areas after machining.",
+    colSize: "Size (W × L)",
+    colAreaPct: "% Area",
+    merExplanation: "The Maximal Empty Rectangle (MER) algorithm automatically finds the largest reusable remnant area after machining.",
     noRemnantsTitle: "No significant remnants found",
-    noRemnantsDesc: "The stock has been optimally utilized or the parts occupy the entire available space.",
+    noRemnantsDesc: "The stock is optimally utilized or parts occupy all available space.",
 
     // Smart Resume & CAM Post-Processor
-    smartResumeDesc: "Automatically generate a safe Z recovery sequence and restart the spindle (M3/S) from any selected block.",
-    safeZLabel: "Safe Z Height",
+    smartResumeDesc: "Automatically generates G-code to safely retract Z and restart spindle (M3/S) from any block.",
+    safeZLabel: "Z Safe Clearance Height",
     copyRecoveryBtn: "Copy Recovery G-code",
-    copiedRecoveryAlert: "Recovery G-code copied to clipboard!",
+    copiedRecoveryAlert: "Copied recovery G-code to clipboard!",
     postProcTitle: "CAM Post-Processor",
-    postProcDesc: "Convert and standardize the program for specialized industrial CNC controllers.",
+    postProcDesc: "Translate and optimize program for industrial CNC controller dialects.",
     controllerDialect: "Target Controller Dialect",
-    ncstudioLabel: "Weihong NcStudio V15 (Dedicated 3-Axis CNC Milling)",
-    syntecLabel: "Taiwan Syntec ATC (Milling Machining Center with ATC)",
-    camPostResult: "Processed G-code Result",
+    ncstudioLabel: "Weihong NcStudio V15 (3-Axis CNC Router)",
+    syntecLabel: "Taiwan Syntec ATC (Machining Center with Tool Changer)",
+    camPostResult: "Processed G-code output",
     camPostTitle: "CAM Post-Processor",
-    camPostDesc: "Convert and standardize the program for specialized industrial CNC controllers.",
-    targetControllerLabel: "Target Controller Dialect:",
-    optNcStudio: "Weihong NcStudio V15 (Dedicated 3-Axis CNC Milling)",
-    optSyntec: "Taiwan Syntec ATC (Milling Machining Center with ATC)",
-    processedGcodeLabel: "Processed G-code Result:",
+    camPostDesc: "Translate and optimize program for industrial CNC controller dialects.",
+    targetControllerLabel: "Target Controller:",
+    optNcStudio: "Weihong NcStudio V15 (3-Axis CNC Router)",
+    optSyntec: "Taiwan Syntec ATC (Machining Center with Tool Changer)",
+    processedGcodeLabel: "Processed G-code Output:",
     copyBtn: "Copy",
-    copiedAlert: "Processed G-code copied to clipboard!",
-    fileTooLarge: "File exceeds 8 MB. Please split the program before importing.",
-    unsupportedFormat: "Unsupported file format. Please use .NC, .TXT, .TAP, .GCODE, or .CNC.",
-    recalculatedMsg: "Recalculated the entire program with the new machine profile.",
+    copiedAlert: "Copied G-code to clipboard!",
+    fileTooLarge: "File exceeds 8 MB. Please split the program before uploading.",
+    unsupportedFormat: "Unsupported format. Please use .NC, .TXT, .TAP, .GCODE, or .CNC.",
+    recalculatedMsg: "Recalculated full program with new setup.",
 
     // Parts drawer extra keys
-    detected: "Parts Detected",
+    detected: "Detected",
     requiredClearance: "Required Clearance",
     colDim: "Bounding Box",
-    colNearest: "Nearest Edge",
+    colNearest: "Nearest Gap",
     partMethodNote: "For compensated contours, finished dimensions subtract the tool radius at edges. Nested inner contours are treated as pockets/holes and are not counted as separate parts.",
     noPartsTitle: "No closed contours found",
-    noPartsDesc: "Import a program with closed G1/G2/G3 sequences to measure part dimensions.",
+    noPartsDesc: "Please load a program with closed G1/G2/G3 toolpaths to measure parts.",
 
     // Settings modal
     machineProfile: "MACHINE PROFILE",
-    stockToolTitle: "Stock, Tool & Safe Zone",
-    routerNote: "`M33 S…` is interpreted as spindle ON and `G600 T…` as tool selection. `M73/M83` are treated as auxiliary commands with no geometric effect unless specific machine rules are provided.",
+    stockToolTitle: "Stock, Tool & Safety Bounds",
+    routerNote: "`M33 S…` turns spindle on and `G600 T…` selects tool. `M73/M83` are handled as auxiliary commands.",
     restoreDefault: "Restore Defaults",
     applyRecalc: "Apply & Recalculate",
-    preferenceTitle: "APP & SIMULATION",
-    preferenceDescription: "These preferences are stored locally on this device.",
-    showRapidPreference: "Show rapid G0 moves",
-    machineSoundLabel: "Machine movement sound",
-    finishSoundLabel: "Completion sound",
-    invalidSettingsMsg: "Invalid settings. Dimensions, tool size, and feed must be greater than zero.",
-    settingsAppliedMsg: "Workstation settings applied and saved.",
-    noToolsDetectedMsg: "No tool T information was found in the current G-code.",
-    emptyFileMsg: "The G-code file is empty. The current program was kept.",
-    fileReadErrorMsg: "The file could not be read. The current program was kept.",
-    noMotionPlaybackMsg: "The program has no motion to simulate.",
-    copyErrorMsg: "Clipboard access failed. Grant permission and try again.",
-    audioUnavailableMsg: "Audio could not be started. Simulation will continue silently.",
+    preferenceTitle: "APP & SIMULATION PREFERENCES",
+    preferenceDescription: "These settings are stored locally on your device.",
+    showRapidPreference: "Show G0 rapid paths",
+    machineSoundLabel: "Machine motion sound",
+    finishSoundLabel: "Completion sound notification",
+    invalidSettingsMsg: "Invalid settings. Dimensions, tool size, and feeds must be positive numbers.",
+    settingsAppliedMsg: "Workstation preferences applied and saved.",
+    noToolsDetectedMsg: "No T tool numbers detected in the current G-code.",
+    emptyFileMsg: "G-code file is empty. Current program retained.",
+    fileReadErrorMsg: "Unable to read file. Current program retained.",
+    noMotionPlaybackMsg: "Program contains no motion to simulate.",
+    copyErrorMsg: "Unable to access clipboard. Please grant permission and try again.",
+    audioUnavailableMsg: "Audio unavailable. Simulation will continue silently.",
     experimentalTitle: "EXPERIMENTAL FEATURES",
     experimentalBadge: "BETA",
-    machine3DTitle: "3D machine model",
-    machine3DDesc: "Motion visualization only. Do not use it to validate collisions, travel limits, or fixtures.",
-    machine3DMetaDesc: "Motion preview · no collision validation",
-    machine3DEnabled: "Visible in the view switcher",
-    machine3DDisabled: "Hidden from the view switcher",
-    machine3DEnableMsg: "Experimental 3D Machine enabled.",
-    machine3DDisableMsg: "3D Machine hidden from the view switcher.",
-    machine3DShortcutMsg: "3D Machine is hidden. Enable it in Settings > Experimental features.",
+    machine3DTitle: "3D Machine Model",
+    machine3DDesc: "Kinematic motion illustration only. Do not use it to validate collisions, axis limits, or workholding.",
+    machine3DMetaDesc: "Motion preview · no collision checking",
+    machine3DEnabled: "Visible in mode bar",
+    machine3DDisabled: "Hidden from mode bar",
+    machine3DEnableMsg: "Enabled experimental 3D Machine view.",
+    machine3DDisableMsg: "Hidden 3D Machine from mode bar.",
+    machine3DShortcutMsg: "3D Machine is hidden. Enable in Settings > Experimental.",
 
     // Settings field labels
     lblWidth: "Stock Length (X)",
@@ -524,29 +585,29 @@ export const translations = {
     lblOriginX: "Origin X",
     lblOriginY: "Origin Y",
     lblSafeZ: "Safe Z Height",
-    lblClearance: "Clearance Height",
-    lblRapidFeed: "Rapid Feedrate (G0)",
-    stockZReference: "Stock Z reference",
-    stockZAuto: "Detect from cutting moves",
-    stockZTop: "Top face = Z0",
-    stockZBottom: "Bottom face = Z0",
-    stockZReferenceHelp: "This only selects which stock face represents Z0. Configure G54–G59 offsets in the Advanced section below.",
-    quickOrigin: "Quick Origin Anchor",
-    workOffsetsTitle: "G54–G59 work offsets",
+    lblClearance: "Minimum Safe Clearance",
+    lblRapidFeed: "Rapid Feed Rate (G0)",
+    stockZReference: "Stock Z Datum",
+    stockZAuto: "Auto-detect from cut motion",
+    stockZTop: "Top Surface = Z0",
+    stockZBottom: "Bottom Surface = Z0",
+    stockZReferenceHelp: "Sets which stock surface corresponds to Z0. G54-G59 work offsets are configured below.",
+    quickOrigin: "Quick Datum Snapping",
+    workOffsetsTitle: "G54–G59 Work Coordinates Offset",
     workOffsetsBadge: "ADVANCED",
-    workOffsetsDesc: "Enter each work origin in machine coordinates. The viewport uses G54 as its reference; G55–G59 are placed by their real offset from G54.",
-    workOffsetsReset: "Reset all to zero",
-    workOffsetsTableLabel: "Work coordinate offset table",
+    workOffsetsDesc: "Enter machine-frame coordinates for each WCS. Viewport uses G54 as baseline; G55–G59 offset from G54.",
+    workOffsetsReset: "Reset All to Zero",
+    workOffsetsTableLabel: "Work Coordinate System Offset Table",
     toolLibrary: "Tool Library",
-    toolId: "Tool ID (e.g. 1, 25)",
-    toolType: "Type",
-    toolAngle: "V-Angle",
-    toolTipDiameter: "Tip diameter",
-    toolVDepth: "Taper height",
+    toolId: "Tool ID (e.g., 1, 25)",
+    toolType: "Tool Type",
+    toolAngle: "Included Angle (V-bit)",
+    toolTipDiameter: "Tip Diameter",
+    toolVDepth: "Taper Height",
     addTool: "Add New Tool",
-    addVBit: "Add 90° V-bit",
-    autoDetectTool: "Auto-detect from G-code",
-    deleteTool: "Remove",
+    addVBit: "Add 90° V-Bit",
+    autoDetectTool: "Detect from G-code",
+    deleteTool: "Delete",
     typeFlat: "Flat End Mill",
     typeBall: "Ball Nose",
     typeVBit: "V-Bit",
@@ -572,22 +633,83 @@ export const translations = {
     miniCamTitle: "CNC-CALC · MINI CAM",
     miniCamClose: "Close Mini CAM",
     miniCamTabFacing: "Facing",
-    miniCamTabPocket: "Pocketing · Coming soon",
+    miniCamTabPocket: "Pocketing",
+    miniCamTabTabs: "Profile with Tabs",
+    miniCamTabPcd: "PCD Bolt Circles",
     miniCamToolSection: "TOOL PARAMETERS",
     miniCamToolDiameter: "Tool diameter (mm)",
     miniCamSpindleSpeed: "Spindle speed (RPM)",
     miniCamFeedRate: "Feed rate (mm/min)",
     miniCamPlungeRate: "Plunge rate (mm/min)",
-    miniCamWorkSection: "FACING DIMENSIONS",
+    miniCamWorkSection: "OPERATION DIMENSIONS",
     miniCamWidth: "Width X (mm)",
     miniCamHeight: "Length Y (mm)",
     miniCamDepth: "Cut depth Z (mm)",
     miniCamStepover: "Stepover (%)",
+    miniCamStepdown: "Stepdown per Pass (mm)",
+    miniCamTabCount: "Number of Tabs",
+    miniCamTabWidth: "Tab Width (mm)",
+    miniCamTabHeight: "Tab Height (mm)",
+    miniCamPcdDia: "PCD Diameter (mm)",
+    miniCamHoleCount: "Number of Holes",
+    miniCamHoleDia: "Hole Diameter (mm)",
+    miniCamStartAngle: "Start Angle (°)",
     miniCamCancel: "Cancel",
     miniCamGenerate: "Generate G-code",
     miniCamValidationPositive: "{field} must be a finite number greater than 0.",
     miniCamValidationStepover: "Stepover must be between 1% and 100%.",
     miniCamValidationPassLimit: "The toolpath exceeds the safe limit of {max} passes. Increase the tool diameter or stepover.",
+
+    // Setup Sheet
+    setupSheetBtn: "Setup Sheet",
+    setupSheetTitle: "JOB SETUP SHEET & MACHINING REPORT",
+    printSheet: "Print / Export PDF",
+    closeSheet: "Close",
+    sheetCycleTime: "Estimated Cycle Time",
+    sheetRapidTime: "Rapid Travel Time (G0)",
+    sheetCutDistance: "Total Cutting Distance",
+    sheetStockSize: "Required Stock Dimensions",
+    sheetWorkOrigin: "Work Offset & Z Reference",
+    sheetToolList: "TOOLING SUMMARY",
+    sheetToolNum: "Tool ID",
+    sheetToolName: "Tool Name",
+    sheetToolType: "Type",
+    sheetToolDia: "Diameter",
+    sheetToolZMin: "Max Depth (Z Min)",
+    sheetToolDist: "Cut Length",
+    sheetToolFeed: "Feed Rate (F)",
+    sheetToolRpm: "Spindle Speed (S)",
+    sheetExtents: "Machining Extents",
+
+    // CNC Machine Controller
+    controllerBtn: "Machine Control",
+    controllerTitle: "CNC MACHINE CONTROLLER · WEB SERIAL",
+    serialConnect: "Connect COM Port",
+    serialDisconnect: "Disconnect",
+    serialBaudRate: "Baud Rate",
+    serialJog: "MANUAL JOG CONTROLS",
+    serialStep: "Step Size (mm)",
+    serialZeroAll: "Set Zero G54 (X0 Y0 Z0)",
+    serialHome: "Home ($H)",
+    serialUnlock: "Unlock ($X)",
+    serialReset: "Soft Reset (Ctrl+X)",
+    serialStream: "Stream G-code to Machine",
+    serialPause: "Pause",
+    serialResume: "Resume",
+    serialStop: "Abort Stream",
+    serialTerminal: "SERIAL TERMINAL",
+    serialSend: "Send",
+    serialUnsupported: "Web Serial API is not supported in this browser. Please use Google Chrome or Microsoft Edge.",
+
+    // Code Editor
+    editorFormat: "Format Code",
+    editorClean: "Clean Comments & Blank Lines",
+    editorAddSafeHeader: "Insert Safe Start Header",
+    editorJumpToStep: "Seek Simulation to Line",
+    editorBreakpoint: "Toggle Breakpoint",
+
+    // Feeds & Speeds Presets
+    feedsSpeedsPreset: "Feeds & Speeds Presets",
 
     // Drop overlay
     dropTitle: "Drop G-code file here",
@@ -649,6 +771,7 @@ export const translations = {
   },
 } as const;
 
+export type TranslationDict = Record<keyof typeof translations.VN, string>;
 export type TranslationKey = keyof typeof translations.VN;
 
 export function translateDiagnostic(msg: string, lang: Lang): string {
@@ -676,148 +799,17 @@ export function translateDiagnostic(msg: string, lang: Lang): string {
       .replace("cần đủ", "requires both");
   }
   if (msg.includes("Chu trình khoan cần mặt phẳng rút dao R")) return "Drilling cycle requires a retract plane R.";
+  if (msg.includes("cần bước khoan Q lớn hơn 0")) return "Drilling cycle requires peck increment Q greater than 0.";
+  if (msg.includes("Dòng có nhiều word")) return "Line has multiple words with the same letter.";
+  if (msg.includes("có nhiều hơn một trường checksum")) return "Line has more than one checksum field.";
+  if (msg.includes("có nhiều hơn một số block N")) return "Line has more than one block number N.";
+  if (msg.includes("Checksum phải là trường thực thi cuối cùng")) return "Checksum must be the final field on the line.";
+  if (msg.includes("đang có cùng offset với G54")) return msg.replace("đang có cùng offset với G54. Hãy khai báo bù X/Y/Z trong Thiết lập nếu đây là một gốc gá khác.", "shares the same offset as G54. Configure work offsets in Setup if this is a separate datum.");
   if (msg.includes("Chu trình trên mặt phẳng") && msg.includes("xác định độ sâu")) {
     return msg
-      .replace("Chu trình trên mặt phẳng", "The cycle on plane")
-      .replace("cần trục", "requires axis")
-      .replace("xác định độ sâu.", "to define its depth.");
-  }
-  if (msg.includes("cần bước khoan Q lớn hơn 0")) {
-    return msg.replace("cần bước khoan Q lớn hơn 0.", "requires a peck increment Q greater than 0.");
-  }
-  if (msg.includes("đang được mở rộng gần đúng thành tiến dao xuống và rút dao")) {
-    return msg.replace(
-      "đang được mở rộng gần đúng thành tiến dao xuống và rút dao; thao tác spindle đặc thù chưa được mô phỏng.",
-      "is approximated as a feed down and retract; its controller-specific spindle behavior is not simulated.",
-    );
-  }
-  if (msg.includes("Số lần lặp L của chu trình phải là số nguyên dương")) return "Cycle repeat count L must be a positive integer.";
-  if (msg.includes("Chu trình tạo quá nhiều bước khoan")) return "Cycle generated too many peck steps; please increase the Q value.";
-  if (msg.includes("Chuyển động tạo ra NaN hoặc vô cực")) return "Motion produced NaN or infinity and has been discarded.";
-  if (msg.includes("Chuyển động cắt chưa có tốc độ F")) return "Cutting motion is missing a valid feed rate (F).";
-  if (msg.includes("Tọa độ X/Y nằm ngoài vùng phôi")) return "X/Y coordinates exceed the declared stock boundaries.";
-  if (msg.includes("đang có cùng offset với G54")) {
-    return msg
-      .replace("đang có cùng offset với G54.", "has the same offset as G54.")
-      .replace("Hãy khai báo bù X/Y/Z trong Thiết lập nếu đây là một gốc gá khác.", "Configure its X/Y/Z work offset in Settings if it represents a different fixture origin.");
-  }
-  if (msg.includes("G0 chạy ngang dưới Z an toàn")) return msg.replace("G0 chạy ngang dưới Z an toàn", "G0 rapid move below the safe Z clearance");
-  if (msg.includes("Có chuyển động cắt khi trạng thái spindle chưa bật")) return "Cutting motion detected while the spindle is stopped.";
-  if (msg.includes("Dòng có nhiều word")) {
-    return msg
-      .replace("Dòng có nhiều word", "The block contains multiple")
-      .replace("; interpreter dùng giá trị xuất hiện cuối cùng.", " words; the interpreter uses the final value.");
-  }
-  if (msg.startsWith("Word ") && msg.includes("chưa được dùng trong kiến trúc router 3 trục")) {
-    return msg.replace("chưa được dùng trong kiến trúc router 3 trục.", "is not used by the 3-axis router model.");
-  }
-  if (msg.includes("chưa được profile") && msg.includes("hỗ trợ")) {
-    return msg.replace("chưa được profile", "is not supported by profile").replace("hỗ trợ.", "");
-  }
-  if (msg.includes("chưa được profile") && msg.includes("ánh xạ trạng thái máy")) {
-    return msg.replace("chưa được profile", "is not mapped by profile").replace("ánh xạ trạng thái máy.", "to a machine state.");
-  }
-
-  // Tokenizer and parser diagnostics.
-  if (msg.includes('Dấu "*" tại cột') && msg.includes("checksum số nguyên")) {
-    return msg
-      .replace('Dấu "*" tại cột', 'The "*" marker at column')
-      .replace("phải theo sau bởi một checksum số nguyên.", "must be followed by an integer checksum.");
-  }
-  if (msg.includes("có nhiều hơn một trường checksum")) {
-    return msg.replace("Dòng", "Line").replace("có nhiều hơn một trường checksum", "contains more than one checksum field");
-  }
-  if (msg.startsWith("Checksum tại cột")) {
-    return msg
-      .replace("Checksum tại cột", "The checksum at column")
-      .replace("phải là số nguyên.", "must be an integer.")
-      .replace("phải nằm trong khoảng 0 đến 255.", "must be between 0 and 255.");
-  }
-  if (msg.startsWith("Checksum không khớp")) {
-    return msg
-      .replace("Checksum không khớp: nhận", "Checksum mismatch: received")
-      .replace("giá trị XOR tính được là", "the calculated XOR value is");
-  }
-  if (msg.startsWith("Giá trị của") && msg.includes("vượt phạm vi số hữu hạn")) {
-    return msg
-      .replace("Giá trị của", "The value of")
-      .replace("tại cột", "at column")
-      .replace("vượt phạm vi số hữu hạn.", "exceeds the finite numeric range.");
-  }
-  if (msg.includes("có nhiều hơn một số block N")) {
-    return msg.replace("Dòng", "Line").replace("có nhiều hơn một số block N.", "contains more than one N block number.");
-  }
-  if (msg.startsWith("Số block") && msg.includes("phải là số nguyên không âm")) {
-    return msg.replace("Số block", "Block number").replace("phải là số nguyên không âm.", "must be a non-negative integer.");
-  }
-  if (msg.includes("có nhiều hơn một ký tự phân cách chương trình")) {
-    return msg.replace("Dòng", "Line").replace("có nhiều hơn một ký tự phân cách chương trình", "contains more than one program delimiter");
-  }
-  if (msg.includes("Checksum phải là trường thực thi cuối cùng")) {
-    return "Checksum must be the final executable field on a line; only comments or whitespace may follow it.";
-  }
-  
-  // Arc & Geometry Errors
-  if (msg.includes("Chế độ tâm cung phải là tuyệt đối hoặc tương đối")) return "Arc center mode must be either absolute or relative.";
-  if (msg.includes("Giá trị I/J/K của tâm cung phải là số hữu hạn")) return "Arc center I/J/K values must be finite numbers.";
-  if (msg.includes("Tọa độ tâm cung vượt giới hạn số hữu hạn")) return "Arc center coordinates exceed finite limits.";
-  if (msg.includes("Bán kính cung vượt giới hạn số hữu hạn")) return "Arc radius exceeds finite limits.";
-  if (msg.includes("Điểm đầu trùng với tâm nên bán kính cung bằng 0")) return "Start point coincides with the center, resulting in a radius of 0.";
-  if (msg.includes("Bán kính tại điểm đầu")) return msg.replace("Bán kính tại điểm đầu", "Radius at the start point").replace("và điểm cuối", "and the end point").replace("không khớp.", "do not match.");
-  if (msg.includes("Giá trị R của cung phải là số hữu hạn")) return "Arc R value must be a finite number.";
-  if (msg.includes("Không thể xác định full-circle chỉ bằng R; hãy dùng I/J/K")) return "Cannot define a full circle using only R; please use I/J/K.";
-  if (msg.includes("Bán kính R phải lớn hơn 0")) return "Radius R must be strictly greater than 0.";
-  if (msg.includes("Độ dài dây cung vượt giới hạn số hữu hạn")) return "Chord length exceeds finite limits.";
-  if (msg.includes("nhỏ hơn nửa dây cung")) return msg.replace("Bán kính R=", "Radius R=").replace("nhỏ hơn nửa dây cung", "is smaller than half the chord length");
-  if (msg.includes("Không thể chọn được tâm phù hợp với hướng G2/G3 và dấu của R")) return "Cannot determine a valid center matching the G2/G3 direction and the sign of R.";
-  if (msg.includes("Tâm hoặc bán kính cung không hợp lệ")) return "Invalid arc center or radius.";
-  if (msg.includes("Góc quét của cung không thể xác định")) return "Arc sweep angle cannot be determined.";
-  if (msg.includes("Kích thước hoặc chiều dài cung vượt giới hạn số hữu hạn")) return "Arc dimensions or length exceed finite limits.";
-  if (msg.includes("Chất lượng cung cần chordError > 0")) return msg.replace("Chất lượng cung cần", "Arc resolution requires");
-  if (msg.includes("Cần resolve cung thành công trước khi lấy mẫu")) return "The arc must be resolved successfully before sampling.";
-  if (msg.includes("Dữ liệu cung đã resolve không hợp lệ")) return "Resolved arc data is invalid.";
-  
-  // Bounds & Math Errors
-  if (msg.includes("Bounds phải hữu hạn và mỗi giá trị min không được lớn hơn max")) return "Bounds must be finite and minimum values cannot exceed maximum values.";
-  if (msg.includes("Chiều dài đường gấp khúc vượt giới hạn số hữu hạn")) return "Polyline length exceeds finite limits.";
-  if (msg.includes("Cận dưới không được lớn hơn cận trên")) return "Lower bound cannot exceed the upper bound.";
-  if (msg.includes("vượt giới hạn số hữu hạn")) {
-    return msg.replace("vượt giới hạn số hữu hạn", "exceeds finite limits")
-      .replace("Khoảng cách", "Distance")
-      .replace("Tổng hai vector", "Sum of vectors")
-      .replace("Hiệu hai vector", "Difference of vectors")
-      .replace("Hệ số", "Factor")
-      .replace("Vector sau khi nhân", "Scaled vector")
-      .replace("Điểm đầu", "Start point")
-      .replace("Điểm cuối", "End point")
-      .replace("Tỷ lệ nội suy", "Interpolation ratio")
-      .replace("Điểm nội suy", "Interpolated point")
-      .replace("Điểm thứ", "Point #");
-  }
-  if (msg.includes("phải là một số hữu hạn")) {
-    return msg.replace("phải là một số hữu hạn.", "must be a finite number.")
-      .replace("Giá trị", "Value")
-      .replace("Cận dưới", "Lower bound")
-      .replace("Cận trên", "Upper bound");
-  }
-  if (msg.includes("phải có tọa độ X, Y, Z hữu hạn")) {
-    return msg.replace("Điểm", "Point").replace("phải có tọa độ X, Y, Z hữu hạn.", "must have finite X, Y, Z coordinates.");
-  }
-  
-  // Contour / Part / Clearances
-  if (msg.includes("đang chồng biên dạng")) return msg.replace("và", "and").replace("đang chồng biên dạng.", "have overlapping contours.");
-  if (msg.includes("nhỏ hơn mức")) {
-    return msg.replace("Khoảng cách", "Distance")
-      .replace("chỉ", "is only")
-      .replace("nhỏ hơn mức", "which is below the required clearance of")
-      .replace("cách mép phôi", "from the stock edge");
-  }
-  if (msg.includes("cách mép phôi")) {
-    return msg.replace("cách mép phôi", "from the stock edge").replace("nhỏ hơn mức", "is below the required clearance of");
+      .replace("Chu trình trên mặt phẳng", "Canned cycle on plane")
+      .replace("cần trục Z để xác định độ sâu", "requires Z axis to define cut depth");
   }
 
   return msg;
 }
-
-export type TranslationDict = Record<keyof typeof translations.VN, string>;
-

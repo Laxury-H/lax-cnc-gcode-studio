@@ -261,10 +261,17 @@ export function resolveCutterProfileHeight(
       Math.max(0, cutterRadius ** 2 - clampedRadius ** 2),
     );
   }
-  if (tool.type === "vbit") {
+  if (tool.type === "vbit" || tool.type === "chamfer") {
     const geometry = resolveVBitGeometry(tool);
     return Math.max(0, clampedRadius - geometry.tipRadius) /
       Math.tan(geometry.halfAngleRadians);
+  }
+  if (tool.type === "bullnose") {
+    const cr = Math.min(cutterRadius, finitePositive(tool.cornerRadius ?? 1, 1));
+    const flatRadius = Math.max(0, cutterRadius - cr);
+    if (clampedRadius <= flatRadius) return 0;
+    const offset = clampedRadius - flatRadius;
+    return cr - Math.sqrt(Math.max(0, cr ** 2 - offset ** 2));
   }
   return 0;
 }
@@ -283,9 +290,12 @@ export function resolveCutterContactDiameter(
   const cutterRadius = diameter / 2;
   const penetration = bounds.topZ - tipZ;
   if (!Number.isFinite(tipZ) || penetration < -POINT_EPSILON) return 0;
-  if (tool.type === "flat") return diameter;
+  if (tool.type === "flat" || tool.type === "facemill") return diameter;
   if (penetration <= POINT_EPSILON) {
-    return tool.type === "vbit" ? resolveVBitGeometry(tool).tipDiameter : 0;
+    if (tool.type === "vbit" || tool.type === "chamfer") {
+      return resolveVBitGeometry(tool).tipDiameter;
+    }
+    return 0;
   }
 
   if (tool.type === "ball") {
@@ -293,6 +303,14 @@ export function resolveCutterContactDiameter(
     return 2 * Math.sqrt(
       Math.max(0, 2 * cutterRadius * penetration - penetration ** 2),
     );
+  }
+
+  if (tool.type === "bullnose") {
+    const cr = Math.min(cutterRadius, finitePositive(tool.cornerRadius ?? 1, 1));
+    const flatRadius = Math.max(0, cutterRadius - cr);
+    if (penetration >= cr) return diameter;
+    const cornerOffset = Math.sqrt(Math.max(0, 2 * cr * penetration - penetration ** 2));
+    return 2 * (flatRadius + cornerOffset);
   }
 
   const geometry = resolveVBitGeometry(tool);
@@ -315,16 +333,18 @@ export function buildCutterContactBands(
 ): CutterContactBand[] {
   const contactDiameter = resolveCutterContactDiameter(tool, tipZ, bounds);
   if (contactDiameter <= POINT_EPSILON) return [];
-  if (tool.type === "flat") {
+  if (tool.type === "flat" || tool.type === "facemill") {
     return [{ diameter: contactDiameter, z: clampCutZ(tipZ, bounds) }];
   }
 
   const bandCount = Math.max(2, Math.min(48, Math.round(requestedBandCount)));
   const contactRadius = contactDiameter / 2;
   const bands: CutterContactBand[] = [];
-  const tipRadius = tool.type === "vbit"
+  const tipRadius = (tool.type === "vbit" || tool.type === "chamfer")
     ? resolveVBitGeometry(tool).tipRadius
-    : 0;
+    : tool.type === "bullnose"
+      ? Math.max(0, contactRadius - Math.min(contactRadius, finitePositive(tool.cornerRadius ?? 1, 1)))
+      : 0;
   const hasFlatTip = tipRadius > POINT_EPSILON;
   const profileBandCount = hasFlatTip ? bandCount - 1 : bandCount;
   const profileSpan = Math.max(0, contactRadius - tipRadius);
@@ -433,3 +453,62 @@ export function cutSurfaceColor(
     Math.round(shallow[index] + (deep[index] - shallow[index]) * shade);
   return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
 }
+
+export const MATERIAL_CUTTING_PRESETS: readonly import("./types").CuttingPreset[] = [
+  {
+    id: "wood-rough-6mm",
+    material: "hardwood",
+    name: "Gỗ Tự Nhiên / Hardwood · Dao 6mm Phá thô",
+    toolDiameter: 6,
+    feedRate: 2400,
+    plungeRate: 800,
+    spindleSpeed: 18000,
+    stepoverPercent: 45,
+    maxStepdown: 3.0,
+  },
+  {
+    id: "wood-finish-3mm",
+    material: "hardwood",
+    name: "Gỗ Tự Nhiên / Hardwood · Dao 3mm Tinh",
+    toolDiameter: 3,
+    feedRate: 1800,
+    plungeRate: 600,
+    spindleSpeed: 20000,
+    stepoverPercent: 20,
+    maxStepdown: 1.5,
+  },
+  {
+    id: "mdf-cut-6mm",
+    material: "mdf_plywood",
+    name: "MDF / Plywood · Dao 6mm Cắt đứt",
+    toolDiameter: 6,
+    feedRate: 3200,
+    plungeRate: 1000,
+    spindleSpeed: 18000,
+    stepoverPercent: 50,
+    maxStepdown: 6.0,
+  },
+  {
+    id: "alu-pocket-4mm",
+    material: "aluminum",
+    name: "Nhôm 6061 / Aluminum · Dao 4mm Phay rãnh",
+    toolDiameter: 4,
+    feedRate: 900,
+    plungeRate: 300,
+    spindleSpeed: 15000,
+    stepoverPercent: 35,
+    maxStepdown: 0.8,
+  },
+  {
+    id: "acrylic-cut-4mm",
+    material: "acrylic",
+    name: "Nhựa Mica / Acrylic · Dao 4mm Cắt bóng",
+    toolDiameter: 4,
+    feedRate: 1600,
+    plungeRate: 500,
+    spindleSpeed: 16000,
+    stepoverPercent: 40,
+    maxStepdown: 2.0,
+  },
+];
+

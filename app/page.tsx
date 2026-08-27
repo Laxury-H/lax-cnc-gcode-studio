@@ -52,6 +52,9 @@ import { cncAudio } from "@/core/simulation/audio";
 import { UserGuideModal } from "@/core/components/UserGuideModal";
 import { FileCompareModal } from "@/core/components/FileCompareModal";
 import { MiniCamModal } from "@/core/components/MiniCamModal";
+import { JobSetupSheetModal } from "@/core/components/JobSetupSheetModal";
+import { CncControllerModal } from "@/core/components/CncControllerModal";
+import { GcodeEditor } from "@/core/components/GcodeEditor";
 import {
   WORKSPACE_PREFERENCES_KEY,
   cloneStockSettings,
@@ -244,6 +247,22 @@ export default function Home() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [minicamOpen, setMinicamOpen] = useState(false);
+  const [setupSheetOpen, setSetupSheetOpen] = useState(false);
+  const [cncControllerOpen, setCncControllerOpen] = useState(false);
+  const [breakpoints, setBreakpoints] = useState<Set<number>>(new Set());
+
+  const toggleBreakpoint = useCallback((lineNum: number) => {
+    setBreakpoints((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineNum)) {
+        next.delete(lineNum);
+      } else {
+        next.add(lineNum);
+      }
+      return next;
+    });
+  }, []);
+
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -1366,6 +1385,25 @@ export default function Home() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
           <span>{t.guideBtn}</span>
+        </button>
+        <button
+          className="guide-button"
+          type="button"
+          onClick={() => setSetupSheetOpen(true)}
+          title={t.setupSheetTitle}
+        >
+          <Icon name="file-text" size={16} />
+          <span>{t.setupSheetBtn}</span>
+        </button>
+        <button
+          className="guide-button"
+          type="button"
+          onClick={() => setCncControllerOpen(true)}
+          title={t.controllerTitle}
+          style={{ border: "1px solid rgba(56, 189, 248, 0.4)", background: "rgba(2, 132, 199, 0.15)" }}
+        >
+          <Icon name="usb" size={16} />
+          <span>{t.controllerBtn}</span>
         </button>
         <button
           className="lang-toggle"
@@ -3051,17 +3089,18 @@ export default function Home() {
                 <Icon name="close" />
               </button>
             </div>
-            <textarea
-              value={draftCode}
-              onChange={(event) => setDraftCode(event.target.value)}
-              spellCheck={false}
-              aria-label={lang === "EN" ? "G-code content" : "Nội dung G-code"}
-            />
-            <div className="editor-help">
-              <span>{t.editorHelp1}</span>
-              <span>{t.editorHelp2}</span>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <GcodeEditor
+                t={t}
+                gcode={draftCode}
+                onChange={(newCode) => setDraftCode(newCode)}
+                currentLineNumber={activeSegment?.lineNumber}
+                onSeekToLine={(lineNum) => seekToLine(lineNum - 1)}
+                breakpoints={breakpoints}
+                onToggleBreakpoint={toggleBreakpoint}
+              />
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions" style={{ marginTop: "12px" }}>
               <button
                 type="button"
                 className="ghost-button"
@@ -3091,6 +3130,25 @@ export default function Home() {
       )}
 
       {isGuideOpen && <UserGuideModal t={t} onClose={() => setIsGuideOpen(false)} />}
+
+      {setupSheetOpen && (
+        <JobSetupSheetModal
+          t={t}
+          simulation={simulation}
+          stock={stock}
+          machineProfile={profile}
+          programName={fileName}
+          onClose={() => setSetupSheetOpen(false)}
+        />
+      )}
+
+      {cncControllerOpen && (
+        <CncControllerModal
+          t={t}
+          gcode={code}
+          onClose={() => setCncControllerOpen(false)}
+        />
+      )}
 
       {compareOpen && (
         <FileCompareModal 

@@ -195,6 +195,106 @@ export function Icon({
         <path d="m3 3 6 6m12-6-6 6M3 21l6-6m12 6-6-6" />
       </>
     ),
+    printer: (
+      <>
+        <path d="M6 9V2h12v7" />
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+        <rect x="6" y="14" width="12" height="8" rx="1" />
+      </>
+    ),
+    usb: (
+      <>
+        <circle cx="12" cy="5" r="1.5" />
+        <circle cx="6" cy="11" r="1.5" />
+        <rect x="16.5" y="9.5" width="3" height="3" rx="0.5" />
+        <path d="M12 6.5v13M12 14l-6-3M12 11l6-1.5" />
+      </>
+    ),
+    terminal: (
+      <>
+        <polyline points="4 17 10 11 4 5" />
+        <line x1="12" y1="19" x2="20" y2="19" />
+      </>
+    ),
+    "file-text": (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </>
+    ),
+    database: (
+      <>
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </>
+    ),
+    zap: (
+      <>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </>
+    ),
+    bookmark: (
+      <>
+        <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      </>
+    ),
+    stop: (
+      <>
+        <rect width="14" height="14" x="5" y="5" rx="2" fill="currentColor" stroke="none" />
+      </>
+    ),
+    "arrow-up": (
+      <>
+        <line x1="12" y1="19" x2="12" y2="5" />
+        <polyline points="5 12 12 5 19 12" />
+      </>
+    ),
+    "arrow-down": (
+      <>
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <polyline points="19 12 12 19 5 12" />
+      </>
+    ),
+    "arrow-left": (
+      <>
+        <line x1="19" y1="12" x2="5" y2="12" />
+        <polyline points="12 19 5 12 12 5" />
+      </>
+    ),
+    "arrow-right": (
+      <>
+        <line x1="5" y1="12" x2="19" y2="12" />
+        <polyline points="12 5 19 12 12 19" />
+      </>
+    ),
+    refresh: (
+      <>
+        <polyline points="23 4 23 10 17 10" />
+        <polyline points="1 20 1 14 7 14" />
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </>
+    ),
+    compass: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+      </>
+    ),
   };
 
   return <svg {...common}>{paths[name] ?? (fallback ? <path d={fallback} /> : paths.info)}</svg>;

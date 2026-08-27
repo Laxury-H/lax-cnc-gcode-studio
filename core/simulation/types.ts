@@ -12,12 +12,38 @@ import type {
 
 export type StudioMachineProfile = "router-custom" | "iso";
 
+export type ToolType = "flat" | "ball" | "vbit" | "bullnose" | "chamfer" | "facemill";
+
 export type ToolProfile = {
   id: string; // e.g., "1", "25"
+  name?: string;
   diameter: number; // mm
-  type: "flat" | "ball" | "vbit";
-  angle?: number; // included angle in degrees, only for V-bits
-  tipDiameter?: number; // physical flat/tipped-off end diameter in mm, V-bits only
+  type: ToolType;
+  angle?: number; // included angle in degrees, only for V-bits & chamfer
+  tipDiameter?: number; // physical flat/tipped-off end diameter in mm
+  cornerRadius?: number; // corner radius for bullnose in mm
+  fluteLength?: number; // flute length in mm
+  stickOut?: number; // stick-out length from collet in mm
+  holderDiameter?: number; // tool holder diameter in mm
+};
+
+export type MaterialCategory =
+  | "hardwood"
+  | "mdf_plywood"
+  | "aluminum"
+  | "acrylic"
+  | "softwood";
+
+export type CuttingPreset = {
+  id: string;
+  material: MaterialCategory;
+  name: string;
+  toolDiameter: number;
+  feedRate: number; // mm/min
+  plungeRate: number; // mm/min
+  spindleSpeed: number; // RPM
+  stepoverPercent: number; // %
+  maxStepdown: number; // mm
 };
 
 export type StockSettings = {

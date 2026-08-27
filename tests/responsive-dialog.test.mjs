@@ -71,6 +71,6 @@ test("Mini CAM rejects unsafe input and caps generated work", async () => {
   assert.match(source, /validation\.field === field/);
   assert.match(source, /inputAccessibility\("toolDia"\)/);
   assert.match(source, /inputAccessibility\("stepover"\)/);
-  assert.match(source, /disabled=\{invalid \|\| activeTab !== "facing"\}/);
+  assert.match(source, /disabled=\{invalid\}/);
   assert.match(source, /role="alert"/);
 });
