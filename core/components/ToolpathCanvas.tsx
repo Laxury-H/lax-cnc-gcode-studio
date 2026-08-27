@@ -27,8 +27,15 @@ import {
   cutSurfaceColor,
   resolveCutterStockContact,
   resolveSegmentTool,
+  sliceToolpathPoints,
 } from "@/core/simulation/stock-removal-coordinates";
 import { renderPerformanceProfile, shouldRenderFrame } from "@/core/simulation/render-performance";
+import {
+  analyzeSimulationComplexity,
+  resolvePartLabelBudget,
+  resolveVisualToolpathTolerance,
+} from "@/core/simulation/complexity-policy";
+import { simplifyPolyline } from "@/core/geometry/polygon";
 import type { Lang, TranslationDict } from "@/app/i18n";
 import type { SimulationQuality } from "@/core/ui/workspace-preferences";
 
@@ -148,6 +155,13 @@ function ToolpathCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const lastCanvasFrameRef = useRef(Number.NEGATIVE_INFINITY);
+  const materialLayerRef = useRef<{
+    canvas: HTMLCanvasElement;
+    simulation: Simulation;
+    key: string;
+    cursor: number;
+    progress: number;
+  } | null>(null);
   const dragRef = useRef<{
     x: number;
     y: number;
@@ -177,6 +191,10 @@ function ToolpathCanvas({
   const simulatorStock = useMemo(
     () => ({ ...stock, toolDiameter: stock.toolDiameter || 6 }),
     [stock],
+  );
+  const simulationComplexity = useMemo(
+    () => analyzeSimulationComplexity(simulation),
+    [simulation],
   );
 
   useEffect(() => {
@@ -239,6 +257,12 @@ function ToolpathCanvas({
     const { topZ: originZ, bottomZ: stockBottomZ } = resolveStockZBounds(
       simulation,
       stock,
+    );
+    const visualToolpathTolerance = resolveVisualToolpathTolerance(
+      stock,
+      quality,
+      simulationComplexity.tier,
+      playing,
     );
     let project: (point: Vec3) => { x: number; y: number };
     let boardCorners: Array<{ x: number; y: number }> = [];
@@ -532,47 +556,136 @@ function ToolpathCanvas({
       ctx.restore();
     }
 
-    if (view === "xoy" || view === "iso") simulation.parts.forEach((part) => {
-      const points = part.points.map(project);
-      if (points.length < 3) return;
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
-      ctx.closePath();
-      ctx.fillStyle = "rgba(255,245,220,.08)";
-      ctx.fill();
-      ctx.strokeStyle = "rgba(15,40,45,.42)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      const center = project({
-        x: (part.minX + part.maxX) / 2,
-        y: (part.minY + part.maxY) / 2,
-        z: originZ,
+    if (view === "xoy" || view === "iso") {
+      const labelCandidates: Array<{
+        part: Simulation["parts"][number];
+        center: { x: number; y: number };
+        screenWidth: number;
+        screenHeight: number;
+      }> = [];
+      simulation.parts.forEach((part) => {
+        const points = part.points.map((point) =>
+          project({ ...point, z: originZ }),
+        );
+        if (points.length < 3) return;
+        ctx.beginPath();
+        const addRing = (ring: Array<{ x: number; y: number }>) => {
+          if (ring.length < 3) return;
+          ctx.moveTo(ring[0].x, ring[0].y);
+          ring.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+          ctx.closePath();
+        };
+        addRing(points);
+        part.holes?.forEach((hole) =>
+          addRing(hole.map((point) => project({ ...point, z: originZ }))),
+        );
+        ctx.fillStyle = "rgba(255,245,220,.08)";
+        ctx.fill("evenodd");
+        ctx.strokeStyle = "rgba(15,40,45,.48)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        const labelPosition = part.labelPosition ?? part.centroid ?? {
+          x: (part.minX + part.maxX) / 2,
+          y: (part.minY + part.maxY) / 2,
+          z: originZ,
+        };
+        const center = project({
+          ...labelPosition,
+          z: originZ,
+        });
+        let minScreenX = Number.POSITIVE_INFINITY;
+        let minScreenY = Number.POSITIVE_INFINITY;
+        let maxScreenX = Number.NEGATIVE_INFINITY;
+        let maxScreenY = Number.NEGATIVE_INFINITY;
+        points.forEach((point) => {
+          minScreenX = Math.min(minScreenX, point.x);
+          minScreenY = Math.min(minScreenY, point.y);
+          maxScreenX = Math.max(maxScreenX, point.x);
+          maxScreenY = Math.max(maxScreenY, point.y);
+        });
+        labelCandidates.push({
+          part,
+          center,
+          screenWidth: Math.min(
+            maxScreenX - minScreenX,
+            (part.labelClearance ?? Number.POSITIVE_INFINITY) * scale * 2,
+          ),
+          screenHeight: Math.min(
+            maxScreenY - minScreenY,
+            (part.labelClearance ?? Number.POSITIVE_INFINITY) * scale * 2,
+          ),
+        });
       });
-      ctx.font = `600 ${Math.max(10, Math.min(16, scale * 22))}px "Arial Narrow", Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "rgba(255,248,229,.86)";
-      ctx.strokeText(part.id, center.x, center.y - 6);
-      ctx.fillStyle = "rgba(35,24,16,.94)";
-      ctx.fillText(part.id, center.x, center.y - 6);
-      ctx.font = `650 ${Math.max(9, Math.min(12, scale * 16))}px ui-monospace, monospace`;
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = "rgba(255,248,229,.82)";
-      ctx.strokeText(
-        `${Math.round(part.width)} × ${Math.round(part.height)}`,
-        center.x,
-        center.y + 10,
+
+      const labelBudget = resolvePartLabelBudget(
+        quality,
+        simulationComplexity.tier,
+        playing,
       );
-      ctx.fillStyle = "rgba(48,31,19,.9)";
-      ctx.fillText(
-        `${Math.round(part.width)} × ${Math.round(part.height)}`,
-        center.x,
-        center.y + 10,
-      );
-    });
+      const occupied: Array<{
+        minX: number;
+        minY: number;
+        maxX: number;
+        maxY: number;
+      }> = [];
+      labelCandidates
+        .sort((left, right) => right.part.area - left.part.area)
+        .slice(0, labelBudget)
+        .forEach(({ part, center, screenWidth, screenHeight }) => {
+          const sizeText = `${Math.round(part.width)} × ${Math.round(part.height)}`;
+          const idFontSize = Math.max(10, Math.min(16, scale * 22));
+          const sizeFontSize = Math.max(9, Math.min(12, scale * 16));
+          const labelWidth = Math.max(
+            part.id.length * idFontSize * 0.65,
+            sizeText.length * sizeFontSize * 0.62,
+          ) + 8;
+          const labelHeight = idFontSize + sizeFontSize + 8;
+          if (
+            screenWidth < labelWidth ||
+            screenHeight < labelHeight ||
+            center.x < 0 ||
+            center.x > width ||
+            center.y < 0 ||
+            center.y > height
+          ) {
+            return;
+          }
+          const rectangle = {
+            minX: center.x - labelWidth / 2 - 3,
+            minY: center.y - labelHeight / 2 - 3,
+            maxX: center.x + labelWidth / 2 + 3,
+            maxY: center.y + labelHeight / 2 + 3,
+          };
+          if (
+            occupied.some(
+              (current) =>
+                rectangle.minX < current.maxX &&
+                rectangle.maxX > current.minX &&
+                rectangle.minY < current.maxY &&
+                rectangle.maxY > current.minY,
+            )
+          ) {
+            return;
+          }
+          occupied.push(rectangle);
+          ctx.font = `600 ${idFontSize}px "Arial Narrow", Arial`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.lineJoin = "round";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(255,248,229,.9)";
+          ctx.strokeText(part.id, center.x, center.y - sizeFontSize * 0.55);
+          ctx.fillStyle = "rgba(35,24,16,.96)";
+          ctx.fillText(part.id, center.x, center.y - sizeFontSize * 0.55);
+          ctx.font = `650 ${sizeFontSize}px ui-monospace, monospace`;
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = "rgba(255,248,229,.86)";
+          ctx.strokeText(sizeText, center.x, center.y + idFontSize * 0.58);
+          ctx.fillStyle = "rgba(48,31,19,.94)";
+          ctx.fillText(sizeText, center.x, center.y + idFontSize * 0.58);
+        });
+    }
 
     const cutColor = "71,224,168";
     const activeCutColor = "255,240,166";
@@ -614,12 +727,16 @@ function ToolpathCanvas({
         const isTravel = seg.machineCoordinates || seg.kind === "rapid";
         if (filterKind === "rapid" && !isTravel) continue;
         if (filterKind === "cut" && (isTravel || seg.kind === "drill")) continue;
-        if (seg.points.length < 2) continue;
+        const visualPoints =
+          visualToolpathTolerance > 0
+            ? simplifyPolyline(seg.points, visualToolpathTolerance)
+            : seg.points;
+        if (visualPoints.length < 2) continue;
         hasPoints = true;
-        const p0 = project(seg.points[0]);
+        const p0 = project(visualPoints[0]);
         ctx.moveTo(p0.x, p0.y);
-        for (let j = 1; j < seg.points.length; j++) {
-          const pj = project(seg.points[j]);
+        for (let j = 1; j < visualPoints.length; j++) {
+          const pj = project(visualPoints[j]);
           ctx.lineTo(pj.x, pj.y);
         }
       }
@@ -635,6 +752,7 @@ function ToolpathCanvas({
     };
 
     const drawMaterialRemoval = (
+      targetCtx: CanvasRenderingContext2D,
       entries: Array<{ segment: Segment; points: Vec3[] }>,
     ) => {
       const groups = new Map<
@@ -684,34 +802,40 @@ function ToolpathCanvas({
 
       groups.forEach((group) => {
         const toolWidth = Math.max(1.2, group.diameter * scale);
-        ctx.save();
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
+        targetCtx.save();
+        targetCtx.lineCap = "round";
+        targetCtx.lineJoin = "round";
+        targetCtx.beginPath();
         group.entries.forEach(({ segment, points }) => {
           if (segment.kind === "drill") {
             const end = project(points[points.length - 1]);
-            ctx.moveTo(end.x + 0.01, end.y);
-            ctx.arc(end.x, end.y, Math.max(0.5, toolWidth * 0.5), 0, Math.PI * 2);
+            targetCtx.moveTo(end.x + 0.01, end.y);
+            targetCtx.arc(
+              end.x,
+              end.y,
+              Math.max(0.5, toolWidth * 0.5),
+              0,
+              Math.PI * 2,
+            );
             return;
           }
           const start = project(points[0]);
-          ctx.moveTo(start.x, start.y);
+          targetCtx.moveTo(start.x, start.y);
           for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
             const point = project(points[pointIndex]);
-            ctx.lineTo(point.x, point.y);
+            targetCtx.lineTo(point.x, point.y);
           }
         });
-        ctx.strokeStyle = "rgba(58, 34, 19, 0.78)";
-        ctx.lineWidth = toolWidth + 1.5;
-        ctx.stroke();
-        ctx.strokeStyle = group.color;
-        ctx.lineWidth = Math.max(0.8, toolWidth - 0.8);
-        ctx.stroke();
-        ctx.strokeStyle = "rgba(255, 221, 169, 0.2)";
-        ctx.lineWidth = Math.max(0.55, toolWidth * 0.16);
-        ctx.stroke();
-        ctx.restore();
+        targetCtx.strokeStyle = "rgba(58, 34, 19, 0.78)";
+        targetCtx.lineWidth = toolWidth + 1.5;
+        targetCtx.stroke();
+        targetCtx.strokeStyle = group.color;
+        targetCtx.lineWidth = Math.max(0.8, toolWidth - 0.8);
+        targetCtx.stroke();
+        targetCtx.strokeStyle = "rgba(255, 221, 169, 0.2)";
+        targetCtx.lineWidth = Math.max(0.55, toolWidth * 0.16);
+        targetCtx.stroke();
+        targetCtx.restore();
       });
     };
 
@@ -771,10 +895,99 @@ function ToolpathCanvas({
       ? partialPoints(currentSeg, segmentProgress)
       : [];
 
-    drawMaterialRemoval([
-      ...completedSegs.map((segment) => ({ segment, points: segment.points })),
-      ...(currentSeg ? [{ segment: currentSeg, points: currentPoints }] : []),
-    ]);
+    const materialLayerKey = [
+      canvas.width,
+      canvas.height,
+      dpr,
+      view,
+      zoom,
+      pan.x,
+      pan.y,
+      orbit.yaw,
+      orbit.pitch,
+      stock.originX,
+      stock.originY,
+      stock.width,
+      stock.height,
+      stock.thickness,
+      quality,
+    ].join(":");
+    let materialLayer = materialLayerRef.current;
+    const playbackReversed =
+      materialLayer &&
+      (cursor < materialLayer.cursor ||
+        (cursor === materialLayer.cursor &&
+          segmentProgress < materialLayer.progress));
+    const rebuildMaterialLayer =
+      !materialLayer ||
+      materialLayer.simulation !== simulation ||
+      materialLayer.key !== materialLayerKey ||
+      playbackReversed;
+    if (rebuildMaterialLayer) {
+      const layerCanvas = materialLayer?.canvas ?? document.createElement("canvas");
+      layerCanvas.width = canvas.width;
+      layerCanvas.height = canvas.height;
+      const layerCtx = layerCanvas.getContext("2d");
+      if (layerCtx) {
+        layerCtx.setTransform(1, 0, 0, 1, 0, 0);
+        layerCtx.clearRect(0, 0, layerCanvas.width, layerCanvas.height);
+        layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawMaterialRemoval(layerCtx, [
+          ...completedSegs.map((segment) => ({
+            segment,
+            points: segment.points,
+          })),
+          ...(currentSeg ? [{ segment: currentSeg, points: currentPoints }] : []),
+        ]);
+      }
+      materialLayer = {
+        canvas: layerCanvas,
+        simulation,
+        key: materialLayerKey,
+        cursor,
+        progress: segmentProgress,
+      };
+      materialLayerRef.current = materialLayer;
+    } else if (
+      materialLayer &&
+      (cursor > materialLayer.cursor ||
+        segmentProgress > materialLayer.progress)
+    ) {
+      const layerCtx = materialLayer.canvas.getContext("2d");
+      if (layerCtx) {
+        layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const entries: Array<{ segment: Segment; points: Vec3[] }> = [];
+        for (let index = materialLayer.cursor; index <= cursor; index += 1) {
+          const segment = simulation.segments[index];
+          if (!segment) continue;
+          const startProgress =
+            index === materialLayer.cursor ? materialLayer.progress : 0;
+          const endProgress = index === cursor ? segmentProgress : 1;
+          const points = sliceToolpathPoints(
+            segment.points,
+            startProgress,
+            endProgress,
+          );
+          if (points.length >= 2) entries.push({ segment, points });
+        }
+        drawMaterialRemoval(layerCtx, entries);
+      }
+      materialLayer.cursor = cursor;
+      materialLayer.progress = segmentProgress;
+    }
+    if (materialLayer) {
+      ctx.drawImage(
+        materialLayer.canvas,
+        0,
+        0,
+        materialLayer.canvas.width,
+        materialLayer.canvas.height,
+        0,
+        0,
+        width,
+        height,
+      );
+    }
 
     if (showRapids) {
       drawBatchedSegments(completedSegs, "rapid", rapidColor, 0.7, view === "iso" ? 1 : 1.15, true);
@@ -1021,6 +1234,7 @@ function ToolpathCanvas({
     size,
     quality,
     playing,
+    simulationComplexity,
   ]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {

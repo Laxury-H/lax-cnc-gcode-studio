@@ -103,6 +103,16 @@ export type Segment = {
 export type Part = {
   id: string;
   points: Vec3[];
+  /** Simplified sub-millimetre contour used only for spatial analysis. */
+  analysisPoints?: Vec3[];
+  /** Immediate inner contours belonging to this part. */
+  holes?: Vec3[][];
+  /** Area-weighted center of the outer contour after subtracting holes. */
+  centroid?: Vec3;
+  /** Guaranteed in-material point used for readable labels on concave parts. */
+  labelPosition?: Vec3;
+  labelClearance?: number;
+  perimeter?: number;
   sourceLine: number;
   minX: number;
   minY: number;

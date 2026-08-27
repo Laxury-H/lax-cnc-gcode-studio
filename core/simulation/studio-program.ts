@@ -25,7 +25,7 @@ import type {
   Plane,
   Vec3,
 } from "../gcode/types";
-import { detectParts, rectangleGap } from "./parts";
+import { detectParts, partGap, rectangleGap } from "./parts";
 import { extractOffcuts } from "./remnants";
 import type {
   MotionKind,
@@ -473,7 +473,13 @@ function addStudioDiagnostics(
   const reportedPairs = new Set<string>();
   for (let left = 0; left < parts.length; left += 1) {
     for (let right = left + 1; right < parts.length; right += 1) {
-      const gap = rectangleGap(parts[left], parts[right]);
+      if (
+        rectangleGap(parts[left], parts[right]) >=
+        stock.clearance - STUDIO_EPSILON
+      ) {
+        continue;
+      }
+      const gap = partGap(parts[left], parts[right], stock.toolDiameter);
       if (gap >= stock.clearance - STUDIO_EPSILON) continue;
       const pair = `${parts[left].id}-${parts[right].id}`;
       if (reportedPairs.has(pair)) continue;

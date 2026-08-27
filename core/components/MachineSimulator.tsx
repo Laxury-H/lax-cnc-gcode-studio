@@ -178,16 +178,20 @@ export function MachineKinematics({
             simulation={simulation}
             topZ={zBounds.topZ}
             quality={quality}
+            playing={playing}
           />
         )}
         <ToolpathOverlay
           simulation={simulation}
+          stock={stock}
           cursor={cursor}
           segmentProgress={segmentProgress}
           showRapids={showRapids}
           showToolpath={showToolpath}
           showBounds={showBounds}
           surfaceZ={resolveToolpathOverlayZ(stock, zBounds)}
+          quality={quality}
+          playing={playing}
         />
       </group>
 

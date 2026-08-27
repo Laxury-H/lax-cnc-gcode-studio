@@ -83,6 +83,164 @@ test("finds a closed profile after its lead-in and reports finished size", async
   assert.ok(Math.abs(simulation.parts[0].height - 1864) < 0.01);
 });
 
+test("builds true contour topology for holes and concave sheet parts", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const program = `G21 G90 G54
+M3 S18000
+G0 X0 Y0 Z5
+G1 Z-1 F500
+G1 X300 Y0
+G1 X300 Y200
+G1 X0 Y200
+G1 X0 Y0
+G0 Z5
+G0 X50 Y50
+G1 Z-1
+G1 X100 Y50
+G1 X100 Y100
+G1 X50 Y100
+G1 X50 Y50
+G0 Z5
+G0 X400 Y0
+G1 Z-1
+G1 X500 Y0
+G1 X500 Y20
+G1 X420 Y20
+G1 X420 Y100
+G1 X400 Y100
+G1 X400 Y0
+M5`;
+  const simulation = parseProgram(
+    program,
+    { ...DEFAULT_STOCK, width: 600, height: 250, thickness: 1 },
+    "iso",
+  );
+
+  assert.equal(simulation.parts.length, 2);
+  assert.equal(simulation.parts[0].holes?.length, 1);
+  assert.ok(Math.abs(simulation.parts[0].area - 57_500) < 0.01);
+  assert.ok(Math.abs(simulation.parts[1].area - 3_600) < 0.01);
+  assert.notEqual(simulation.parts[1].area, simulation.parts[1].width * simulation.parts[1].height);
+  assert.ok(simulation.parts.every((part) => part.labelPosition));
+});
+
+test("uses contour distance instead of overlapping bounding boxes for clearance", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const simulation = parseProgram(
+    `G21 G90 G54
+M3 S18000
+G0 X0 Y0 Z5
+G1 Z-1 F500
+G1 X100 Y0
+G1 X100 Y20
+G1 X20 Y20
+G1 X20 Y100
+G1 X0 Y100
+G1 X0 Y0
+G0 Z5
+G0 X40 Y40
+G1 Z-1
+G1 X90 Y40
+G1 X90 Y90
+G1 X40 Y90
+G1 X40 Y40
+M5`,
+    { ...DEFAULT_STOCK, width: 150, height: 150, thickness: 1, clearance: 10 },
+    "iso",
+  );
+
+  assert.equal(simulation.parts.length, 2);
+  assert.ok(Math.abs(simulation.parts[0].nearestGap - 20) < 0.01);
+  assert.equal(
+    simulation.diagnostics.some((diagnostic) =>
+      diagnostic.message.includes("đang chồng biên dạng"),
+    ),
+    false,
+  );
+});
+
+test("deduplicates repeated depth passes over one physical contour", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const rectanglePass = (depth) => `G0 X10 Y10 Z5
+G1 Z${depth} F500
+G1 X210 Y10
+G1 X210 Y110
+G1 X10 Y110
+G1 X10 Y10
+G0 Z5`;
+  const simulation = parseProgram(
+    `G21 G90 G54
+M3 S18000
+${rectanglePass(-2)}
+${rectanglePass(-4)}
+M5`,
+    { ...DEFAULT_STOCK, width: 300, height: 200, thickness: 3 },
+    "iso",
+  );
+
+  assert.equal(simulation.parts.length, 1);
+  assert.ok(Math.abs(simulation.parts[0].area - 20_000) < 0.01);
+});
+
+test("keeps valid small parts instead of applying a fixed 40 mm cutoff", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const simulation = parseProgram(
+    `G21 G90 G54
+M3 S18000
+G0 X10 Y10 Z5
+G1 Z-1 F300
+G1 X22 Y10
+G1 X22 Y22
+G1 X10 Y22
+G1 X10 Y10
+M5`,
+    { ...DEFAULT_STOCK, width: 50, height: 50, thickness: 1 },
+    "iso",
+  );
+
+  assert.equal(simulation.parts.length, 1);
+  assert.equal(simulation.parts[0].width, 12);
+  assert.equal(simulation.parts[0].height, 12);
+});
+
+test("finds reusable rectangular stock inside a large cutout", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const simulation = parseProgram(
+    `G21 G90 G54
+M3 S18000
+G0 X0 Y0 Z5
+G1 Z-2 F500
+G1 X500 Y0
+G1 X500 Y500
+G1 X0 Y500
+G1 X0 Y0
+G0 Z5
+G0 X100 Y100
+G1 Z-2
+G1 X400 Y100
+G1 X400 Y400
+G1 X100 Y400
+G1 X100 Y100
+M5`,
+    { ...DEFAULT_STOCK, width: 500, height: 500, thickness: 2 },
+    "iso",
+  );
+
+  assert.equal(simulation.parts[0].holes?.length, 1);
+  assert.equal(
+    simulation.parts[0].labelPosition.x > 100 &&
+      simulation.parts[0].labelPosition.x < 400 &&
+      simulation.parts[0].labelPosition.y > 100 &&
+      simulation.parts[0].labelPosition.y < 400,
+    false,
+  );
+  assert.ok(
+    simulation.offcuts.some(
+      (offcut) => offcut.width >= 299.9 && offcut.height >= 299.9,
+    ),
+  );
+});
+
 test("rotates a 2440 by 1220 stock when program coordinates are portrait", async () => {
   const { DEFAULT_STOCK, orientStockForProgram } = await loadParser();
   const result = orientStockForProgram(topPanelFixture, DEFAULT_STOCK, "iso");

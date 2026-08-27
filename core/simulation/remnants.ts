@@ -1,54 +1,117 @@
 import { bounds2DIntersect } from "../geometry/bounds";
+import {
+  polygonContainsPolygon,
+  polygonIntersectsRectangle,
+  type Point2,
+  type Rectangle2,
+} from "../geometry/polygon";
 import type { Offcut, Part, StockSettings } from "./types";
 
-const MIN_OFFCUT_DIM = 250; // Minimum 250mm width or height to be usable in woodworking
+const MIN_OFFCUT_DIM = 250;
+const MAX_POLYGON_GRID_LINES = 96;
+const MAX_POLYGON_PARTS = 64;
 
-export function extractOffcuts(
-  parts: readonly Part[],
-  stock: StockSettings,
-): Offcut[] {
-  const stockX0 = stock.originX;
-  const stockY0 = stock.originY;
-  const stockX1 = stock.originX + stock.width;
-  const stockY1 = stock.originY + stock.height;
+type Candidate = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  w: number;
+  h: number;
+  area: number;
+};
 
-  // Collect all potential vertical and horizontal grid boundaries
-  const xSet = new Set<number>([stockX0, stockX1]);
-  const ySet = new Set<number>([stockY0, stockY1]);
-
-  for (const part of parts) {
-    const px0 = Math.max(stockX0, Math.min(stockX1, part.minX));
-    const px1 = Math.max(stockX0, Math.min(stockX1, part.maxX));
-    const py0 = Math.max(stockY0, Math.min(stockY1, part.minY));
-    const py1 = Math.max(stockY0, Math.min(stockY1, part.maxY));
-    xSet.add(px0);
-    xSet.add(px1);
-    ySet.add(py0);
-    ySet.add(py1);
+function addSampledCoordinates(
+  target: Set<number>,
+  values: readonly number[],
+  minimum: number,
+  maximum: number,
+): void {
+  const available = MAX_POLYGON_GRID_LINES - target.size;
+  if (available <= 0) return;
+  const unique = [...new Set(values.filter((value) => value > minimum && value < maximum))]
+    .sort((left, right) => left - right);
+  if (unique.length <= available) {
+    unique.forEach((value) => target.add(value));
+    return;
   }
+  for (let index = 0; index < available; index += 1) {
+    const sourceIndex = Math.min(
+      unique.length - 1,
+      Math.floor(((index + 0.5) * unique.length) / available),
+    );
+    target.add(unique[sourceIndex]);
+  }
+}
 
-  const xs = Array.from(xSet).sort((a, b) => a - b);
-  const ys = Array.from(ySet).sort((a, b) => a - b);
+function rectangleRing(rectangle: Rectangle2): Point2[] {
+  return [
+    { x: rectangle.minX, y: rectangle.minY },
+    { x: rectangle.maxX, y: rectangle.minY },
+    { x: rectangle.maxX, y: rectangle.maxY },
+    { x: rectangle.minX, y: rectangle.maxY },
+  ];
+}
 
-  type Candidate = {
-    minX: number;
-    minY: number;
-    maxX: number;
-    maxY: number;
-    w: number;
-    h: number;
-    area: number;
-  };
+function materialIntersectsRectangle(part: Part, rectangle: Rectangle2): boolean {
+  if (
+    rectangle.maxX <= part.minX ||
+    rectangle.minX >= part.maxX ||
+    rectangle.maxY <= part.minY ||
+    rectangle.minY >= part.maxY
+  ) {
+    return false;
+  }
+  if (!polygonIntersectsRectangle(part.points, rectangle)) return false;
+  const ring = rectangleRing(rectangle);
+  if (
+    part.holes?.some((hole) =>
+      polygonContainsPolygon(hole, ring, 0.01),
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
 
-  const candidates: Candidate[] = [];
-
+function buildBlockedRows(
+  parts: readonly Part[],
+  xs: readonly number[],
+  ys: readonly number[],
+  polygonAware: boolean,
+): Int32Array[] {
   const xCells = xs.length - 1;
   const yCells = ys.length - 1;
+  const rows = Array.from(
+    { length: yCells },
+    () => new Int32Array(xCells + 1),
+  );
+
+  if (polygonAware) {
+    for (let y = 0; y < yCells; y += 1) {
+      let blockedInRow = 0;
+      for (let x = 0; x < xCells; x += 1) {
+        const epsilonX = Math.min(0.01, (xs[x + 1] - xs[x]) * 0.1);
+        const epsilonY = Math.min(0.01, (ys[y + 1] - ys[y]) * 0.1);
+        const rectangle = {
+          minX: xs[x] + epsilonX,
+          minY: ys[y] + epsilonY,
+          maxX: xs[x + 1] - epsilonX,
+          maxY: ys[y + 1] - epsilonY,
+        };
+        if (parts.some((part) => materialIntersectsRectangle(part, rectangle))) {
+          blockedInRow += 1;
+        }
+        rows[y][x + 1] = blockedInRow;
+      }
+    }
+    return rows;
+  }
+
   const xIndex = new Map(xs.map((value, index) => [value, index]));
   const yIndex = new Map(ys.map((value, index) => [value, index]));
   const stride = xCells + 2;
   const occupancyDiff = new Int32Array((yCells + 2) * stride);
-
   const addDifference = (x0: number, y0: number, x1: number, y1: number) => {
     occupancyDiff[y0 * stride + x0] += 1;
     occupancyDiff[y0 * stride + x1] -= 1;
@@ -57,14 +120,10 @@ export function extractOffcuts(
   };
 
   for (const part of parts) {
-    const px0 = Math.max(stockX0, Math.min(stockX1, part.minX));
-    const px1 = Math.max(stockX0, Math.min(stockX1, part.maxX));
-    const py0 = Math.max(stockY0, Math.min(stockY1, part.minY));
-    const py1 = Math.max(stockY0, Math.min(stockY1, part.maxY));
-    const x0 = xIndex.get(px0);
-    const x1 = xIndex.get(px1);
-    const y0 = yIndex.get(py0);
-    const y1 = yIndex.get(py1);
+    const x0 = xIndex.get(Math.max(xs[0], Math.min(xs[xs.length - 1], part.minX)));
+    const x1 = xIndex.get(Math.max(xs[0], Math.min(xs[xs.length - 1], part.maxX)));
+    const y0 = yIndex.get(Math.max(ys[0], Math.min(ys[ys.length - 1], part.minY)));
+    const y1 = yIndex.get(Math.max(ys[0], Math.min(ys[ys.length - 1], part.maxY)));
     if (
       x0 !== undefined &&
       x1 !== undefined &&
@@ -77,10 +136,6 @@ export function extractOffcuts(
     }
   }
 
-  const rowBlockedPrefix = Array.from(
-    { length: yCells },
-    () => new Int32Array(xCells + 1),
-  );
   for (let y = 0; y < yCells; y += 1) {
     let blockedInRow = 0;
     for (let x = 0; x < xCells; x += 1) {
@@ -91,12 +146,60 @@ export function extractOffcuts(
       const index = y * stride + x;
       occupancyDiff[index] += above + left - diagonal;
       if (occupancyDiff[index] > 0) blockedInRow += 1;
-      rowBlockedPrefix[y][x + 1] = blockedInRow;
+      rows[y][x + 1] = blockedInRow;
     }
   }
+  return rows;
+}
 
-  // For each horizontal span, row prefixes make occupancy checks O(1). A
-  // single vertical scan then yields every maximal empty rectangle in that span.
+export function extractOffcuts(
+  parts: readonly Part[],
+  stock: StockSettings,
+): Offcut[] {
+  const stockX0 = stock.originX;
+  const stockY0 = stock.originY;
+  const stockX1 = stock.originX + stock.width;
+  const stockY1 = stock.originY + stock.height;
+  const xSet = new Set<number>([stockX0, stockX1]);
+  const ySet = new Set<number>([stockY0, stockY1]);
+
+  for (const part of parts) {
+    xSet.add(Math.max(stockX0, Math.min(stockX1, part.minX)));
+    xSet.add(Math.max(stockX0, Math.min(stockX1, part.maxX)));
+    ySet.add(Math.max(stockY0, Math.min(stockY1, part.minY)));
+    ySet.add(Math.max(stockY0, Math.min(stockY1, part.maxY)));
+  }
+
+  const polygonAware =
+    parts.length <= MAX_POLYGON_PARTS &&
+    parts.some(
+      (part) =>
+        Boolean(part.holes?.length) ||
+        part.area < part.width * part.height * 0.97,
+    );
+  if (polygonAware) {
+    const allRings = parts.flatMap((part) => [part.points, ...(part.holes ?? [])]);
+    addSampledCoordinates(
+      xSet,
+      allRings.flatMap((ring) => ring.map((point) => point.x)),
+      stockX0,
+      stockX1,
+    );
+    addSampledCoordinates(
+      ySet,
+      allRings.flatMap((ring) => ring.map((point) => point.y)),
+      stockY0,
+      stockY1,
+    );
+  }
+
+  const xs = Array.from(xSet).sort((left, right) => left - right);
+  const ys = Array.from(ySet).sort((left, right) => left - right);
+  const xCells = xs.length - 1;
+  const yCells = ys.length - 1;
+  const blockedRows = buildBlockedRows(parts, xs, ys, polygonAware);
+  const candidates: Candidate[] = [];
+
   for (let left = 0; left < xCells; left += 1) {
     for (let right = left + 1; right <= xCells; right += 1) {
       const width = xs[right] - xs[left];
@@ -105,7 +208,7 @@ export function extractOffcuts(
       for (let row = 0; row <= yCells; row += 1) {
         const rowIsFree =
           row < yCells &&
-          rowBlockedPrefix[row][right] - rowBlockedPrefix[row][left] === 0;
+          blockedRows[row][right] - blockedRows[row][left] === 0;
         if (rowIsFree && runStart < 0) {
           runStart = row;
         } else if (!rowIsFree && runStart >= 0) {
@@ -127,38 +230,27 @@ export function extractOffcuts(
     }
   }
 
-  // Sort candidates by area descending (largest offcuts first)
-  candidates.sort((a, b) => b.area - a.area);
-
-  // Greedy non-overlapping selection
+  candidates.sort((left, right) => right.area - left.area);
   const selected: Candidate[] = [];
-  for (const cand of candidates) {
-    let overlapsSelected = false;
-    for (const sel of selected) {
-      if (bounds2DIntersect(cand, sel)) {
-        overlapsSelected = true;
-        break;
-      }
-    }
-    if (!overlapsSelected) {
-      selected.push(cand);
+  for (const candidate of candidates) {
+    if (!selected.some((current) => bounds2DIntersect(candidate, current))) {
+      selected.push(candidate);
     }
   }
 
-  return selected.map((rect, idx) => {
-    const id = `OFF-${String(idx + 1).padStart(2, "0")}`;
-    const areaM2 = (rect.area / 1000000).toFixed(2);
-    const label = `${Math.round(rect.w)} × ${Math.round(rect.h)} mm (${areaM2} m²)`;
+  return selected.map((rectangle, index) => {
+    const id = `OFF-${String(index + 1).padStart(2, "0")}`;
+    const areaM2 = (rectangle.area / 1_000_000).toFixed(2);
     return {
       id,
-      minX: rect.minX,
-      minY: rect.minY,
-      maxX: rect.maxX,
-      maxY: rect.maxY,
-      width: rect.w,
-      height: rect.h,
-      area: rect.area,
-      label,
+      minX: rectangle.minX,
+      minY: rectangle.minY,
+      maxX: rectangle.maxX,
+      maxY: rectangle.maxY,
+      width: rectangle.w,
+      height: rectangle.h,
+      area: rectangle.area,
+      label: `${Math.round(rectangle.w)} × ${Math.round(rectangle.h)} mm (${areaM2} m²)`,
     };
   });
 }

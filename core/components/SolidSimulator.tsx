@@ -50,6 +50,12 @@ import {
   resolveStockRenderGrid,
   shouldRenderFrame,
 } from "../simulation/render-performance";
+import {
+  analyzeSimulationComplexity,
+  resolvePartLabelBudget,
+  resolveVisualToolpathTolerance,
+} from "../simulation/complexity-policy";
+import { simplifyPolyline } from "../geometry/polygon";
 
 const MAX_MEASUREMENT_HISTORY = 6;
 function addToMeasurementHistory(
@@ -94,21 +100,37 @@ function lerpVec(a: {x:number,y:number,z:number}, b: {x:number,y:number,z:number
 
 export function ToolpathOverlay({
   simulation,
+  stock,
   cursor,
   segmentProgress,
   showRapids,
   showToolpath,
   showBounds,
   surfaceZ,
+  quality,
+  playing,
 }: {
   simulation: Simulation;
+  stock: StockSettings;
   cursor: number;
   segmentProgress: number;
   showRapids: boolean;
   showToolpath?: boolean;
   showBounds: boolean;
   surfaceZ: number;
+  quality: "low" | "medium" | "high";
+  playing: boolean;
 }) {
+  const complexity = useMemo(
+    () => analyzeSimulationComplexity(simulation),
+    [simulation],
+  );
+  const visualTolerance = resolveVisualToolpathTolerance(
+    stock,
+    quality,
+    complexity.tier,
+    playing,
+  );
   const {
     completedCutPositions,
     futureCutPositions,
@@ -126,9 +148,13 @@ export function ToolpathOverlay({
       points: readonly { x: number; y: number; z: number }[],
       projectedZ?: number,
     ) => {
-      for (let index = 1; index < points.length; index += 1) {
-        const from = points[index - 1];
-        const to = points[index];
+      const visualPoints =
+        visualTolerance > 0 && projectedZ !== undefined
+          ? simplifyPolyline(points, visualTolerance)
+          : points;
+      for (let index = 1; index < visualPoints.length; index += 1) {
+        const from = visualPoints[index - 1];
+        const to = visualPoints[index];
         target.push(
           from.x,
           from.y,
@@ -191,7 +217,15 @@ export function ToolpathOverlay({
       rapidPositions,
       boundsPositions,
     };
-  }, [cursor, segmentProgress, showBounds, showRapids, simulation, surfaceZ]);
+  }, [
+    cursor,
+    segmentProgress,
+    showBounds,
+    showRapids,
+    simulation,
+    surfaceZ,
+    visualTolerance,
+  ]);
 
   return (
     <group>
@@ -848,11 +882,13 @@ function PartLabel({
   id,
   width,
   height,
+  labelClearance,
   quality,
 }: {
   id: string;
   width: number;
   height: number;
+  labelClearance?: number;
   quality: "low" | "medium" | "high";
 }) {
   const supportedAnisotropy = useThree((state) =>
@@ -904,7 +940,15 @@ function PartLabel({
 
   useEffect(() => () => texture.dispose(), [texture]);
 
-  const labelWidth = Math.min(150, Math.max(78, width * 0.38));
+  const labelWidth = Math.max(
+    10,
+    Math.min(
+      150,
+      width * 0.72,
+      height * 2.4,
+      (labelClearance ?? Number.POSITIVE_INFINITY) * 2,
+    ),
+  );
   const labelHeight = labelWidth * (192 / 512);
   return (
     <mesh renderOrder={20}>
@@ -925,23 +969,38 @@ export function PartLabelsOverlay({
   simulation,
   topZ,
   quality,
+  playing,
 }: {
   simulation: Simulation;
   topZ: number;
   quality: "low" | "medium" | "high";
+  playing: boolean;
 }) {
-  if (!simulation.parts || simulation.parts.length === 0) return null;
+  const parts = useMemo(() => {
+    const complexity = analyzeSimulationComplexity(simulation);
+    const budget = resolvePartLabelBudget(
+      quality,
+      complexity.tier,
+      playing,
+    );
+    return [...simulation.parts]
+      .sort((left, right) => right.area - left.area)
+      .slice(0, budget);
+  }, [playing, quality, simulation]);
+  if (parts.length === 0) return null;
   return (
     <>
-      {simulation.parts.map((part) => {
-        const centerX = part.minX + part.width / 2;
-        const centerY = part.minY + part.height / 2;
+      {parts.map((part) => {
+        const labelPosition = part.labelPosition ?? part.centroid;
+        const centerX = labelPosition?.x ?? part.minX + part.width / 2;
+        const centerY = labelPosition?.y ?? part.minY + part.height / 2;
         return (
           <group key={part.id} position={[centerX, centerY, topZ + 0.16]}>
             <PartLabel
               id={part.id}
               width={part.width}
               height={part.height}
+              labelClearance={part.labelClearance}
               quality={quality}
             />
           </group>
@@ -1481,15 +1540,19 @@ export function SolidSimulator(props: SolidSimulatorProps) {
               simulation={props.simulation}
               topZ={topZ}
               quality={quality}
+              playing={props.playing ?? false}
             />
             <ToolpathOverlay 
               simulation={props.simulation}
+              stock={props.stock}
               cursor={props.cursor}
               segmentProgress={props.segmentProgress ?? 1}
               showRapids={props.showRapids ?? true} 
               showToolpath={props.showToolpath ?? true}
               showBounds={props.showBounds ?? true} 
               surfaceZ={toolpathSurfaceZ}
+              quality={quality}
+              playing={props.playing ?? false}
             />
             {props.isMeasuring ? (
               <SmartMeasurementOverlay

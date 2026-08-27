@@ -154,6 +154,8 @@ test("3D views use the local high-performance GPU path without decorative effect
   assert.match(adaptive, /quality === "high" \? null/);
   assert.match(solid, /stockTextureFrameIntervalMs/);
   assert.match(solid, /resolveStockRenderGrid/);
+  assert.match(solid, /resolveVisualToolpathTolerance/);
+  assert.match(solid, /resolvePartLabelBudget/);
   assert.match(solid, /alphaToCoverage=\{quality !== "low"\}/);
   assert.match(solid, /surfaceTex\.anisotropy = textureAnisotropy/);
   assert.match(solid, /THREE\.LinearMipmapLinearFilter/);
@@ -163,6 +165,9 @@ test("3D views use the local high-performance GPU path without decorative effect
   assert.match(measurement, /pointerRef\.current = \{[\s\S]*?invalidate\(\)/);
   assert.match(page, /playbackFrameIntervalMs/);
   assert.match(toolpath, /canvasFrameIntervalMs/);
+  assert.match(toolpath, /materialLayerRef/);
+  assert.match(toolpath, /fill\("evenodd"\)/);
+  assert.match(toolpath, /resolveVisualToolpathTolerance/);
   assert.match(page, /requestIdleCallback\(warmSimulatorChunks/);
   assert.match(page, /connection\?\.saveData/);
   assert.match(page, /loadSolidSimulatorModule\(\)/);

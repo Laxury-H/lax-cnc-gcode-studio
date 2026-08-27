@@ -76,3 +76,45 @@ test("extracts offcuts from 50 irregular parts without combinatorial slowdown", 
     `50-part offcut extraction exceeded 2000ms budget: ${elapsedMs.toFixed(1)}ms`,
   );
 });
+
+test("analyzes a dense curved nest with internal cutouts inside budget", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadSimulation();
+  const lines = ["G21 G90 G54", "M3 S18000"];
+  for (let index = 0; index < 80; index += 1) {
+    const centerX = 50 + (index % 10) * 90;
+    const centerY = 50 + Math.floor(index / 10) * 90;
+    lines.push(
+      `G0 X${centerX + 30} Y${centerY} Z5`,
+      "G1 Z-3 F800",
+      "G2 I-30 J0 F1200",
+      "G0 Z5",
+    );
+    if (index % 4 === 0) {
+      lines.push(
+        `G0 X${centerX + 10} Y${centerY}`,
+        "G1 Z-3 F800",
+        "G2 I-10 J0 F1200",
+        "G0 Z5",
+      );
+    }
+  }
+  lines.push("M5");
+
+  const startedAt = performance.now();
+  const simulation = parseProgram(
+    lines.join("\n"),
+    { ...DEFAULT_STOCK, width: 950, height: 750, thickness: 3 },
+    "iso",
+  );
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(simulation.parts.length, 80);
+  assert.equal(
+    simulation.parts.filter((part) => part.holes?.length === 1).length,
+    20,
+  );
+  assert.ok(
+    elapsedMs < 4_000,
+    `dense curved nest exceeded 4000ms budget: ${elapsedMs.toFixed(1)}ms`,
+  );
+});
