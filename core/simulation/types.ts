@@ -113,6 +113,8 @@ export type Part = {
   labelPosition?: Vec3;
   labelClearance?: number;
   perimeter?: number;
+  /** Whether the contour reaches the inferred/selected stock bottom. */
+  throughCut?: boolean;
   sourceLine: number;
   minX: number;
   minY: number;

@@ -35,6 +35,8 @@ import type {
   StudioMachineProfile,
 } from "./types";
 
+export { SAMPLE_GCODE } from "./sample-program";
+
 const STUDIO_EPSILON = 0.001;
 const STOCK_ORIGIN_ANCHOR_STOPS = [0, 0.5, 1] as const;
 

@@ -83,6 +83,41 @@ test("finds a closed profile after its lead-in and reports finished size", async
   assert.ok(Math.abs(simulation.parts[0].height - 1864) < 0.01);
 });
 
+test("keeps labels for large closed layout profiles before a through cut", async () => {
+  const { DEFAULT_STOCK, parseProgram } = await loadParser();
+  const simulation = parseProgram(
+    `G21 G90 G54
+M3 S18000
+G0 X20 Y20 Z22
+G1 Z7 F1000
+G1 X720 Y20
+G1 X720 Y400
+G1 X20 Y400
+G1 X20 Y20
+M5`,
+    { ...DEFAULT_STOCK, width: 1000, height: 600, thickness: 18 },
+    "iso",
+  );
+
+  assert.equal(simulation.parts.length, 1);
+  assert.equal(simulation.parts[0].id, "P01");
+  assert.equal(simulation.parts[0].throughCut, false);
+  assert.ok(simulation.parts[0].labelPosition);
+});
+
+test("sample cabinet layout exposes all twelve visible part labels", async () => {
+  const { DEFAULT_STOCK, SAMPLE_GCODE, parseProgram } = await loadParser();
+  const simulation = parseProgram(SAMPLE_GCODE, DEFAULT_STOCK, "iso");
+
+  assert.equal(simulation.parts.length, 12);
+  assert.deepEqual(
+    simulation.parts.map((part) => part.id),
+    Array.from({ length: 12 }, (_, index) =>
+      `P${String(index + 1).padStart(2, "0")}`,
+    ),
+  );
+});
+
 test("builds true contour topology for holes and concave sheet parts", async () => {
   const { DEFAULT_STOCK, parseProgram } = await loadParser();
   const program = `G21 G90 G54

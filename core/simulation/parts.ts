@@ -310,12 +310,7 @@ export function detectParts(
     0.15,
     Math.min(1, stock.toolDiameter * 0.2),
   );
-  const contours = analyzeContours(
-    capturedContours.filter(
-      (contour) => contour.minimumZ <= bottomZ + throughTolerance,
-    ),
-    stock,
-  );
+  const contours = analyzeContours(capturedContours, stock);
   const minimumPartDimension = Math.max(4, stock.toolDiameter * 1.25);
   const parts = contours
     .flatMap<Part>((outer, outerIndex) => {
@@ -326,6 +321,12 @@ export function detectParts(
       );
       const toolpathWidth = outer.maxX - outer.minX;
       const toolpathHeight = outer.maxY - outer.minY;
+      const throughCut = outer.minimumZ <= bottomZ + throughTolerance;
+      const compactShallowPocket =
+        !throughCut &&
+        toolpathWidth <= stock.toolDiameter * 2 &&
+        toolpathHeight <= stock.toolDiameter * 2;
+      if (compactShallowPocket) return [];
       const compensated =
         outer.hasArc &&
         toolpathWidth >= stock.toolDiameter * 4 &&
@@ -387,6 +388,7 @@ export function detectParts(
         perimeter:
           outer.perimeter +
           holes.reduce((total, hole) => total + hole.perimeter, 0),
+        throughCut,
         sourceLine: outer.sourceLine,
         minX,
         minY,
