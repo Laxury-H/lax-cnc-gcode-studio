@@ -6753,3 +6753,93 @@ button:disabled {
   line-height: 1.35;
 }
 
+/* Upgraded Tool Library Action Cards V2 */
+.tool-library-actions-v2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tool-action-card-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 30, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #f1f5f9;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.tool-action-card-btn:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.tool-action-card-btn.is-primary-detect {
+  background: linear-gradient(135deg, rgba(38, 217, 232, 0.12), rgba(15, 23, 30, 0.85));
+  border-color: rgba(38, 217, 232, 0.4);
+}
+
+.tool-action-card-btn.is-primary-detect:hover {
+  background: linear-gradient(135deg, rgba(38, 217, 232, 0.24), rgba(15, 23, 30, 0.95));
+  border-color: var(--cyan, #38bdf8);
+  box-shadow: 0 0 20px rgba(38, 217, 232, 0.25);
+}
+
+.tool-action-card-btn.is-vbit-card:hover {
+  border-color: rgba(255, 180, 50, 0.4);
+  box-shadow: 0 0 16px rgba(255, 180, 50, 0.15);
+}
+
+.tool-action-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.tool-action-card-btn:hover .tool-action-card-icon {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.tool-action-card-btn.is-primary-detect .tool-action-card-icon {
+  background: rgba(38, 217, 232, 0.2);
+  color: var(--cyan, #38bdf8);
+}
+
+.tool-action-card-btn.is-vbit-card:hover .tool-action-card-icon {
+  background: rgba(255, 180, 50, 0.18);
+  color: #ffbe3b;
+}
+
+.tool-action-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f8fafc;
+  display: block;
+}
+
+.tool-action-card-desc {
+  font-size: 10px;
+  color: #82929c;
+  display: block;
+  margin-top: 2px;
+}
+
+

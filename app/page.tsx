@@ -2966,10 +2966,10 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
-                    <div className="tool-library-actions">
+                    <div className="tool-library-actions-v2">
                       <button
                         type="button"
-                        className="ghost-button add-tool-button"
+                        className="tool-action-card-btn"
                         onClick={() => {
                           updateDraftStock((current) => ({
                             ...current,
@@ -2983,14 +2983,21 @@ export default function Home() {
                             ],
                           }));
                         }}
-                        style={{ width: "100%", borderStyle: "dashed" }}
                       >
-                        <Icon name="play" size={14} /> {t.addTool}
+                        <span className="tool-action-card-icon">
+                          <Icon name="plus" size={16} />
+                        </span>
+                        <div>
+                          <span className="tool-action-card-title">{t.addTool}</span>
+                          <span className="tool-action-card-desc">
+                            {lang === "EN" ? "Flat end mill Ø6mm" : "Dao phay ngón chuẩn D6"}
+                          </span>
+                        </div>
                       </button>
 
                       <button
                         type="button"
-                        className="ghost-button add-tool-button"
+                        className="tool-action-card-btn is-vbit-card"
                         onClick={() => {
                           updateDraftStock((current) => ({
                             ...current,
@@ -3006,14 +3013,21 @@ export default function Home() {
                             ],
                           }));
                         }}
-                        style={{ width: "100%", borderStyle: "dashed" }}
                       >
-                        <Icon name="sparkles" size={14} /> {t.addVBit}
+                        <span className="tool-action-card-icon">
+                          <Icon name="sparkles" size={16} />
+                        </span>
+                        <div>
+                          <span className="tool-action-card-title">{t.addVBit}</span>
+                          <span className="tool-action-card-desc">
+                            {lang === "EN" ? "Engraving & Chamfering" : "Khắc chữ & vát mép 90°"}
+                          </span>
+                        </div>
                       </button>
                       
                       <button
                         type="button"
-                        className="ghost-button add-tool-button"
+                        className="tool-action-card-btn is-primary-detect"
                         title="Phát hiện dao từ G-code"
                         onClick={() => {
                           const detected = new Set<string>();
@@ -3037,9 +3051,16 @@ export default function Home() {
                             notify(t.noToolsDetectedMsg);
                           }
                         }}
-                        style={{ width: "100%", borderStyle: "dashed", borderColor: "rgba(38, 217, 232, 0.4)", color: "var(--cyan)" }}
                       >
-                        <Icon name="sparkles" size={14} /> {t.autoDetectTool}
+                        <span className="tool-action-card-icon">
+                          <Icon name="zap" size={16} />
+                        </span>
+                        <div>
+                          <span className="tool-action-card-title">{t.autoDetectTool}</span>
+                          <span className="tool-action-card-desc">
+                            {lang === "EN" ? "Scan T-codes from file" : "Quét mã dao T từ G-code"}
+                          </span>
+                        </div>
                       </button>
                     </div>
                   </div>
